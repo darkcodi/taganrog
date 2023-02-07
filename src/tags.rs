@@ -1,6 +1,24 @@
-use axum::extract::State;
+use axum::extract::{Query, State};
 use axum::http::StatusCode;
+use axum::Json;
+use axum::response::{IntoResponse, Response};
+use chrono::NaiveDateTime;
 use sqlx::PgPool;
+use sqlx::FromRow;
+use serde::{Deserialize, Serialize};
+use sqlx::types::chrono::{DateTime, Utc};
+
+#[derive(Serialize, Debug, FromRow)]
+pub struct Tag {
+    id: i64,
+    name: String,
+    created_at: NaiveDateTime,
+}
+
+#[derive(Deserialize)]
+pub struct TagCreationParams {
+    name: String,
+}
 
 pub async fn test_db(
     State(pool): State<PgPool>,
@@ -9,6 +27,21 @@ pub async fn test_db(
         .fetch_one(&pool)
         .await
         .map_err(internal_error)
+}
+
+pub async fn create_tag(
+    State(pool): State<PgPool>,
+    Query(params): Query<TagCreationParams>,
+) -> Response {
+    let name = &params.name;
+    let insert_result = sqlx::query_as::<_, Tag>(r#"insert into tags (name) values ($1) returning id, name, created_at"#)
+        .bind(name)
+        .fetch_one(&pool)
+        .await;
+    match insert_result {
+        Ok(tag) => Json(tag).into_response(),
+        Err(err) => internal_error(err).into_response(),
+    }
 }
 
 /// Utility function for mapping any error into a `500 Internal Server Error`
