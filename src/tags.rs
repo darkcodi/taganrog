@@ -44,6 +44,18 @@ pub async fn create_tag(
     }
 }
 
+pub async fn get_all_tags(
+    State(pool): State<PgPool>,
+) -> Response {
+    let fetch_result = sqlx::query_as::<_, Tag>(r#"select id, name, created_at from tags"#)
+        .fetch_all(&pool)
+        .await;
+    match fetch_result {
+        Ok(tag) => Json(tag).into_response(),
+        Err(err) => internal_error(err).into_response(),
+    }
+}
+
 pub async fn get_tag(
     State(pool): State<PgPool>,
     Path(tag_id): Path<i64>,

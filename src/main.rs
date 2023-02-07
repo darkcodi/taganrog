@@ -4,7 +4,7 @@ use axum::{routing::get, routing::post, Router};
 use sqlx::postgres::{PgPoolOptions};
 use std::{time::Duration};
 use tracing::info;
-use crate::tags::{create_tag, get_tag, test_db};
+use crate::tags::{create_tag, get_all_tags, get_tag, test_db};
 
 #[tokio::main]
 async fn main() {
@@ -29,6 +29,7 @@ async fn main() {
     let app = Router::new()
         .route("/test_db", get(test_db))
         .route("/tags", post(create_tag))
+        .route("/tags", get(get_all_tags))
         .route("/tags/:tag_id", get(get_tag))
         .with_state(pool);
 
