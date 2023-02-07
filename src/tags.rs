@@ -6,7 +6,6 @@ use chrono::NaiveDateTime;
 use sqlx::PgPool;
 use sqlx::FromRow;
 use serde::{Deserialize, Serialize};
-use sqlx::types::chrono::{DateTime, Utc};
 
 #[derive(Serialize, Debug, FromRow)]
 pub struct Tag {
@@ -40,6 +39,20 @@ pub async fn create_tag(
         .await;
     match insert_result {
         Ok(tag) => Json(tag).into_response(),
+        Err(err) => internal_error(err).into_response(),
+    }
+}
+
+pub async fn delete_tag(
+    State(pool): State<PgPool>,
+    Path(tag_id): Path<i64>,
+) -> Response {
+    let insert_result = sqlx::query(r#"delete from tags where id = $1"#)
+        .bind(tag_id)
+        .execute(&pool)
+        .await;
+    match insert_result {
+        Ok(_) => StatusCode::NO_CONTENT.into_response(),
         Err(err) => internal_error(err).into_response(),
     }
 }

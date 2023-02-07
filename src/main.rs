@@ -1,10 +1,10 @@
 mod tags;
 
-use axum::{routing::get, routing::post, Router};
+use axum::{routing::*, Router};
 use sqlx::postgres::{PgPoolOptions};
 use std::{time::Duration};
 use tracing::info;
-use crate::tags::{create_tag, get_all_tags, get_tag, test_db};
+use crate::tags::*;
 
 #[tokio::main]
 async fn main() {
@@ -31,6 +31,7 @@ async fn main() {
         .route("/tags", post(create_tag))
         .route("/tags", get(get_all_tags))
         .route("/tags/:tag_id", get(get_tag))
+        .route("/tags/:tag_id", delete(delete_tag))
         .with_state(pool);
 
     // run it with hyper
