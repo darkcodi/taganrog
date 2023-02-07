@@ -1,4 +1,4 @@
-use axum::extract::{Query, State};
+use axum::extract::{Path, Query, State};
 use axum::http::StatusCode;
 use axum::Json;
 use axum::response::{IntoResponse, Response};
@@ -16,7 +16,7 @@ pub struct Tag {
 }
 
 #[derive(Deserialize)]
-pub struct TagCreationParams {
+pub struct CreateTagParams {
     name: String,
 }
 
@@ -31,7 +31,7 @@ pub async fn test_db(
 
 pub async fn create_tag(
     State(pool): State<PgPool>,
-    Query(params): Query<TagCreationParams>,
+    Query(params): Query<CreateTagParams>,
 ) -> Response {
     let name = &params.name;
     let insert_result = sqlx::query_as::<_, Tag>(r#"insert into tags (name) values ($1) returning id, name, created_at"#)
@@ -39,6 +39,20 @@ pub async fn create_tag(
         .fetch_one(&pool)
         .await;
     match insert_result {
+        Ok(tag) => Json(tag).into_response(),
+        Err(err) => internal_error(err).into_response(),
+    }
+}
+
+pub async fn get_tag(
+    State(pool): State<PgPool>,
+    Path(tag_id): Path<i64>,
+) -> Response {
+    let fetch_result = sqlx::query_as::<_, Tag>(r#"select id, name, created_at from tags where id = $1"#)
+        .bind(tag_id)
+        .fetch_one(&pool)
+        .await;
+    match fetch_result {
         Ok(tag) => Json(tag).into_response(),
         Err(err) => internal_error(err).into_response(),
     }
