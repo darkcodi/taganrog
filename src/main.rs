@@ -27,7 +27,8 @@ async fn main() {
 
     // build our application with some routes
     let app = Router::new()
-        .route("/test_db", get(test_db))
+        .route("/ping", get(ping))
+        .route("/ping_db", get(ping_db))
         .route("/tags", post(create_tag))
         .route("/tags", get(get_all_tags))
         .route("/tags/:tag_id", get(get_tag))

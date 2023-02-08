@@ -19,7 +19,11 @@ pub struct CreateTagParams {
     name: String,
 }
 
-pub async fn test_db(
+pub async fn ping() -> String {
+    "pong".to_string()
+}
+
+pub async fn ping_db(
     State(pool): State<PgPool>,
 ) -> Result<String, (StatusCode, String)> {
     sqlx::query_scalar("select 'db ok'")
@@ -64,7 +68,7 @@ pub async fn get_all_tags(
         .fetch_all(&pool)
         .await;
     match fetch_result {
-        Ok(tag) => Json(tag).into_response(),
+        Ok(tags) => Json(tags).into_response(),
         Err(err) => internal_error(err).into_response(),
     }
 }
