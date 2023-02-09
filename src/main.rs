@@ -10,7 +10,7 @@ use std::{time::Duration};
 use axum::extract::DefaultBodyLimit;
 use sqlx::{Pool, Postgres};
 use tracing::info;
-use crate::media::{create_media, get_all_media, get_media_by_id};
+use crate::media::{create_media, delete_media, get_all_media, get_media_by_id};
 use crate::tags::*;
 
 #[tokio::main]
@@ -67,6 +67,7 @@ async fn main() {
         .route("/media", post(create_media))
         .route("/media", get(get_all_media))
         .route("/media/:media_id", get(get_media_by_id))
+        .route("/media/:media_id", delete(delete_media))
         .layer(DefaultBodyLimit::max(52_428_800))
         .with_state(app_state);
 

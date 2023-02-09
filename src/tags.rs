@@ -51,11 +51,11 @@ pub async fn delete_tag(
     State(state): State<AppState>,
     Path(tag_id): Path<i64>,
 ) -> Response {
-    let insert_result = sqlx::query(r#"delete from tags where id = $1"#)
+    let delete_result = sqlx::query(r#"delete from tags where id = $1"#)
         .bind(tag_id)
         .execute(&state.pool)
         .await;
-    match insert_result {
+    match delete_result {
         Ok(_) => StatusCode::NO_CONTENT.into_response(),
         Err(err) => internal_error(err).into_response(),
     }

@@ -85,6 +85,33 @@ pub async fn get_all_media(
     }
 }
 
+pub async fn delete_media(
+    State(state): State<AppState>,
+    Path(media_id): Path<i64>,
+) -> Response {
+    let fetch_result = sqlx::query_as::<_, Media>(r#"select id, original_filename, content_type, created_at, hash, public_url from media where id = $1"#)
+        .bind(media_id)
+        .fetch_one(&state.pool)
+        .await;
+    if fetch_result.is_err() {
+        return internal_error(fetch_result.err().unwrap()).into_response()
+    }
+    let media = fetch_result.unwrap();
+    let bucket = get_bucket(&state.s3);
+    let delete_result_1 = bucket.delete_object(&media.original_filename).await;
+    if delete_result_1.is_err() {
+        return internal_error(delete_result_1.err().unwrap()).into_response();
+    }
+    let delete_result_2 = sqlx::query(r#"delete from media where id = $1"#)
+        .bind(media_id)
+        .execute(&state.pool)
+        .await;
+    if delete_result_2.is_err() {
+        return internal_error(delete_result_2.err().unwrap()).into_response();
+    }
+    StatusCode::NO_CONTENT.into_response()
+}
+
 fn get_bucket(conf: &S3Configuration) -> Bucket {
     let bucket = Bucket::new(
         conf.bucket_name.as_str(),
