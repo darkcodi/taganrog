@@ -6,6 +6,7 @@ use chrono::NaiveDateTime;
 use sqlx::PgPool;
 use sqlx::FromRow;
 use serde::{Deserialize, Serialize};
+use crate::AppState;
 
 #[derive(Serialize, Debug, FromRow)]
 pub struct Tag {
@@ -24,22 +25,22 @@ pub async fn ping() -> String {
 }
 
 pub async fn ping_db(
-    State(pool): State<PgPool>,
+    State(state): State<AppState>,
 ) -> Result<String, (StatusCode, String)> {
     sqlx::query_scalar("select 'db ok'")
-        .fetch_one(&pool)
+        .fetch_one(&state.pool)
         .await
         .map_err(internal_error)
 }
 
 pub async fn create_tag(
-    State(pool): State<PgPool>,
+    State(state): State<AppState>,
     Query(params): Query<CreateTagParams>,
 ) -> Response {
     let name = &params.name;
     let insert_result = sqlx::query_as::<_, Tag>(r#"insert into tags (name) values ($1) returning id, name, created_at"#)
         .bind(name)
-        .fetch_one(&pool)
+        .fetch_one(&state.pool)
         .await;
     match insert_result {
         Ok(tag) => Json(tag).into_response(),
@@ -48,12 +49,12 @@ pub async fn create_tag(
 }
 
 pub async fn delete_tag(
-    State(pool): State<PgPool>,
+    State(state): State<AppState>,
     Path(tag_id): Path<i64>,
 ) -> Response {
     let insert_result = sqlx::query(r#"delete from tags where id = $1"#)
         .bind(tag_id)
-        .execute(&pool)
+        .execute(&state.pool)
         .await;
     match insert_result {
         Ok(_) => StatusCode::NO_CONTENT.into_response(),
@@ -62,10 +63,10 @@ pub async fn delete_tag(
 }
 
 pub async fn get_all_tags(
-    State(pool): State<PgPool>,
+    State(state): State<AppState>,
 ) -> Response {
     let fetch_result = sqlx::query_as::<_, Tag>(r#"select id, name, created_at from tags"#)
-        .fetch_all(&pool)
+        .fetch_all(&state.pool)
         .await;
     match fetch_result {
         Ok(tags) => Json(tags).into_response(),
@@ -74,12 +75,12 @@ pub async fn get_all_tags(
 }
 
 pub async fn get_tag(
-    State(pool): State<PgPool>,
+    State(state): State<AppState>,
     Path(tag_id): Path<i64>,
 ) -> Response {
     let fetch_result = sqlx::query_as::<_, Tag>(r#"select id, name, created_at from tags where id = $1"#)
         .bind(tag_id)
-        .fetch_one(&pool)
+        .fetch_one(&state.pool)
         .await;
     match fetch_result {
         Ok(tag) => Json(tag).into_response(),
