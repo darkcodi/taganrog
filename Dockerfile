@@ -7,13 +7,9 @@ ARG S3_SECRET_KEY
 FROM rust:latest AS builder
 RUN update-ca-certificates
 WORKDIR /app
-RUN mkdir src
-RUN echo "fn main() {}" > ./src/main.rs
-COPY ["Cargo.toml", "Cargo.lock",  "./"]
-RUN cargo build --release
-RUN rm -f src/main.rs
-RUN rm -rf target
-COPY src src
+COPY ./Cargo.toml ./Cargo.toml
+COPY ./Cargo.lock ./Cargo.lock
+COPY ./src ./src
 RUN cargo build --release
 
 FROM debian:bullseye-slim
