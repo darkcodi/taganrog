@@ -10,7 +10,7 @@ use std::{time::Duration};
 use axum::extract::DefaultBodyLimit;
 use sqlx::{Pool, Postgres};
 use tracing::info;
-use crate::media::create_media;
+use crate::media::{create_media, read_media};
 use crate::tags::*;
 
 #[tokio::main]
@@ -30,11 +30,14 @@ async fn main() {
         .unwrap_or_else(|_| "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx".to_string());
     let s3_secret_key = std::env::var("S3_SECRET_KEY")
         .unwrap_or_else(|_| "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx".to_string());
+    let s3_public_url_prefix = std::env::var("S3_PUBLIC_URL")
+        .unwrap_or_else(|_| "https://pub-xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx.r2.dev/".to_string());
     let s3_configuration = S3Configuration {
         bucket_name: s3_bucket_name,
         account_id: s3_account_id,
         access_key: s3_access_key,
         secret_key: s3_secret_key,
+        public_url_prefix: s3_public_url_prefix,
     };
     dbg!(&db_connection_str);
     dbg!(&s3_configuration);
@@ -62,6 +65,7 @@ async fn main() {
         .route("/tags/:tag_id", get(get_tag))
         .route("/tags/:tag_id", delete(delete_tag))
         .route("/media", post(create_media))
+        .route("/media/:media_id", post(read_media))
         .layer(DefaultBodyLimit::max(52_428_800))
         .with_state(app_state);
 
@@ -86,4 +90,5 @@ pub struct S3Configuration {
     account_id: String,
     access_key: String,
     secret_key: String,
+    public_url_prefix: String,
 }
