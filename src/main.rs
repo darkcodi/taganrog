@@ -33,6 +33,8 @@ async fn main() {
         access_key: s3_access_key,
         secret_key: s3_secret_key,
     };
+    dbg!(&db_connection_str);
+    dbg!(&s3_configuration);
 
     // setup connection pool
     info!("Connecting pool to DB...");
@@ -69,13 +71,13 @@ async fn main() {
         .unwrap();
 }
 
-#[derive(Clone)]
+#[derive(Debug, Clone)]
 pub struct AppState {
     pool: Pool<Postgres>,
     s3: S3Configuration,
 }
 
-#[derive(Clone)]
+#[derive(Debug, Clone)]
 pub struct S3Configuration {
     bucket_name: String,
     account_id: String,
