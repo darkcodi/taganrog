@@ -59,12 +59,30 @@ pub async fn create_media(
     Json(media_vec).into_response()
 }
 
-pub async fn read_media(
+pub async fn get_media_by_id(
     State(state): State<AppState>,
     Path(media_id): Path<i64>,
 ) -> Response {
-    let bucket = get_bucket(&state.s3);
-    todo!()
+    let fetch_result = sqlx::query_as::<_, Media>(r#"select id, original_filename, content_type, created_at, hash, public_url from media where id = $1"#)
+        .bind(media_id)
+        .fetch_one(&state.pool)
+        .await;
+    match fetch_result {
+        Ok(media) => Json(media).into_response(),
+        Err(err) => internal_error(err).into_response(),
+    }
+}
+
+pub async fn get_all_media(
+    State(state): State<AppState>,
+) -> Response {
+    let fetch_result = sqlx::query_as::<_, Media>(r#"select id, original_filename, content_type, created_at, hash, public_url from media"#)
+        .fetch_all(&state.pool)
+        .await;
+    match fetch_result {
+        Ok(media) => Json(media).into_response(),
+        Err(err) => internal_error(err).into_response(),
+    }
 }
 
 fn get_bucket(conf: &S3Configuration) -> Bucket {

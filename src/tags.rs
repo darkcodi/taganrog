@@ -12,7 +12,6 @@ pub struct Tag {
     id: i64,
     name: String,
     created_at: NaiveDateTime,
-    hash: String,
 }
 
 #[derive(Deserialize)]
@@ -38,7 +37,7 @@ pub async fn create_tag(
     Query(params): Query<CreateTagParams>,
 ) -> Response {
     let name = &params.name;
-    let insert_result = sqlx::query_as::<_, Tag>(r#"insert into tags (name) values ($1) returning id, name, created_at, hash"#)
+    let insert_result = sqlx::query_as::<_, Tag>(r#"insert into tags (name) values ($1) returning id, name, created_at"#)
         .bind(name)
         .fetch_one(&state.pool)
         .await;
@@ -74,7 +73,7 @@ pub async fn get_all_tags(
     }
 }
 
-pub async fn get_tag(
+pub async fn get_tag_by_id(
     State(state): State<AppState>,
     Path(tag_id): Path<i64>,
 ) -> Response {
