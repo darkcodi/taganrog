@@ -3,7 +3,6 @@ use axum::http::StatusCode;
 use axum::Json;
 use axum::response::{IntoResponse, Response};
 use chrono::NaiveDateTime;
-use sqlx::PgPool;
 use sqlx::FromRow;
 use serde::{Deserialize, Serialize};
 use crate::AppState;
@@ -13,6 +12,7 @@ pub struct Tag {
     id: i64,
     name: String,
     created_at: NaiveDateTime,
+    hash: String,
 }
 
 #[derive(Deserialize)]
@@ -38,7 +38,7 @@ pub async fn create_tag(
     Query(params): Query<CreateTagParams>,
 ) -> Response {
     let name = &params.name;
-    let insert_result = sqlx::query_as::<_, Tag>(r#"insert into tags (name) values ($1) returning id, name, created_at"#)
+    let insert_result = sqlx::query_as::<_, Tag>(r#"insert into tags (name) values ($1) returning id, name, created_at, hash"#)
         .bind(name)
         .fetch_one(&state.pool)
         .await;

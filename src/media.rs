@@ -1,16 +1,14 @@
-use std::os::linux::raw::stat;
-use axum::extract::{Multipart, Path, Query, State};
+use axum::extract::{Multipart, State};
 use axum::http::StatusCode;
 use axum::Json;
 use axum::response::{IntoResponse, Response};
 use chrono::NaiveDateTime;
 use s3::{Bucket, Region};
 use s3::creds::Credentials;
-use sqlx::PgPool;
 use sqlx::FromRow;
-use serde::{Deserialize, Serialize};
-use tokio::io::{self, AsyncReadExt};
+use serde::{Serialize};
 use crate::AppState;
+use crate::hash::MurMurHasher;
 
 #[derive(Serialize, Debug, FromRow, Default)]
 pub struct Media {
@@ -40,15 +38,17 @@ pub async fn create_media(
         }
         let original_filename = maybe_filename.unwrap().to_string();
         let content_type = file.content_type().unwrap_or("video/mp4").to_string();
-        let mut data = file.bytes().await.unwrap().to_vec();
+        let data = file.bytes().await.unwrap().to_vec();
+        let hash = MurMurHasher::hash_bytes(data.as_slice());
         let response_data = bucket.put_object_stream_with_content_type(&mut data.as_slice(), original_filename.as_str(), content_type.as_str()).await;
         if response_data.is_err() {
             return internal_error(response_data.err().unwrap()).into_response();
         }
 
-        let insert_result = sqlx::query_as::<_, Media>(r#"insert into media (original_filename, content_type) values ($1, $2) returning id, original_filename, content_type, created_at"#)
+        let insert_result = sqlx::query_as::<_, Media>(r#"insert into media (original_filename, content_type, hash) values ($1, $2, $3) returning id, original_filename, content_type, created_at"#)
             .bind(original_filename)
             .bind(content_type)
+            .bind(hash)
             .fetch_one(&state.pool)
             .await;
         if insert_result.is_err() {

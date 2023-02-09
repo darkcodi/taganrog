@@ -1,5 +1,8 @@
+extern crate core;
+
 mod tags;
 mod media;
+mod hash;
 
 use axum::{routing::*, Router};
 use sqlx::postgres::{PgPoolOptions};
