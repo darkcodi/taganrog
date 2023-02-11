@@ -8,25 +8,25 @@ authors = [
 ]
 
 [dependencies]
-axum = { version = "0.6.4", features = ["multipart", "tower-log"] }
-tokio = { version = "1.25.0", features = ["full"] }
-tracing = "0.1.37"
-tracing-subscriber = { version = "0.3.16", features = ["env-filter"] }
-sqlx = { version = "0.6.2", features = ["runtime-tokio-rustls", "any", "postgres", "uuid", "chrono"] }
-serde = { version = "1.0.152", features = ["derive"] }
-serde_json = "1.0.92"
-chrono = { version = "0.4.23", features = ["serde"] }
-rust-s3 = { version = "0.32.3", features = ["tokio-rustls-tls"] }
-futures = "0.3.26"
-fastmurmur3 = "0.1.2"
-uuid = { version = "1.2.2", features = ["serde", "v4", "fast-rng"] }
-tower = "0.4.13"
-tower-http = { version = "0.3.5", features = ["trace"] }
-time = "0.3.17"
 anyhow = "1.0.69"
 async-trait = "0.1.64"
+axum = { version = "0.6.4", features = ["multipart", "tower-log"] }
+chrono = { version = "0.4.23", features = ["serde"] }
+clap = { version = "4.1.4", features = ["derive", "env"] }
 dotenv = "0.15.0"
+fastmurmur3 = "0.1.2"
+futures = "0.3.26"
 itertools = "0.10.5"
 rand = "0.8.5"
+rust-s3 = { version = "0.32.3", features = ["tokio-rustls-tls"] }
+serde = { version = "1.0.152", features = ["derive"] }
+serde_json = "1.0.92"
+sqlx = { version = "0.6.2", features = ["runtime-tokio-rustls", "any", "postgres", "uuid", "chrono"] }
+time = "0.3.17"
 thiserror = "1.0.38"
-clap = { version = "4.1.4", features = ["derive", "env"] }
+tokio = { version = "1.25.0", features = ["full"] }
+tower = "0.4.13"
+tower-http = { version = "0.3.5", features = ["trace"] }
+tracing = "0.1.37"
+tracing-subscriber = { version = "0.3.16", features = ["env-filter"] }
+uuid = { version = "1.2.2", features = ["serde", "v4", "fast-rng"] }
