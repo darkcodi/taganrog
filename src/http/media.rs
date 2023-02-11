@@ -1,5 +1,5 @@
 use crate::http::{ApiContext, Result};
-use axum::extract::{Extension, Multipart, Path};
+use axum::extract::{DefaultBodyLimit, Extension, Multipart, Path};
 use axum::routing::{get};
 use axum::{Json, Router};
 use chrono::NaiveDateTime;
@@ -8,13 +8,15 @@ use s3::creds::Credentials;
 use sqlx::FromRow;
 use crate::config::S3Configuration;
 use crate::hash::MurMurHasher;
-
 use crate::http::error::{Error, ResultExt};
+
+const MAX_UPLOAD_SIZE_IN_BYTES: usize = 52_428_800; // 50 MB
 
 pub fn router() -> Router {
     Router::new()
         .route("/api/media", get(get_all_media).post(create_media))
         .route("/api/media/:media_id", get(get_media).delete(delete_media))
+        .layer(DefaultBodyLimit::max(MAX_UPLOAD_SIZE_IN_BYTES))
 }
 
 #[derive(serde::Serialize, serde::Deserialize, Debug, Default, FromRow)]
