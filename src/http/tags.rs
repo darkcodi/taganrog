@@ -3,9 +3,13 @@ use axum::routing::{get};
 use axum::{Json, Router};
 use chrono::NaiveDateTime;
 use itertools::Itertools;
-use sqlx::FromRow;
+use sea_orm::entity::prelude::*;
+use sea_orm::Set;
+use crate::http::tags::Entity as TagEntity;
+use crate::http::tags::Model as Tag;
+use crate::http::tags::ActiveModel as ActiveTag;
 
-use crate::http::{ApiContext, Error, Result, ResultExt};
+use crate::http::{ApiContext, Error, Result};
 
 pub fn router() -> Router {
     Router::new()
@@ -13,12 +17,20 @@ pub fn router() -> Router {
         .route("/api/tags/:tag_id", get(get_tag).delete(delete_tag))
 }
 
-#[derive(serde::Serialize, serde::Deserialize, Debug, Default, FromRow)]
-pub struct Tag {
-    id: i64,
-    name: String,
-    created_at: NaiveDateTime,
+#[derive(serde::Serialize, serde::Deserialize, Clone, Debug, PartialEq, Eq, DeriveEntityModel)]
+#[sea_orm(table_name = "tags")]
+pub struct Model {
+    #[sea_orm(primary_key)]
+    pub id: i64,
+    pub name: String,
+    pub created_at: NaiveDateTime,
 }
+
+#[derive(Copy, Clone, Debug, EnumIter, DeriveRelation)]
+pub enum Relation {
+}
+
+impl ActiveModelBehavior for ActiveModel {}
 
 #[derive(serde::Deserialize, Debug, Default)]
 struct CreateTag {
@@ -31,29 +43,22 @@ async fn create_tag(
 ) -> Result<Json<Tag>> {
     let name = slugify(&req.name);
     let created_at = chrono::Utc::now().naive_utc();
-    let id = sqlx::query_scalar(r#"insert into tags (name, created_at) values ($1, $2) returning id"#)
-        .bind(&name)
-        .bind(&created_at)
-        .fetch_one(&ctx.db)
-        .await
-        .on_constraint("tags_name", |_| {
-            Error::unprocessable_entity([("name", format!("duplicate tag slug: {}", &name))])
-        })?;
+    let tag = ActiveTag {
+        name: Set(name),
+        created_at: Set(created_at),
+        ..Default::default()
+    };
+    let tag = tag.insert(&ctx.db).await?;
 
-    Ok(Json(Tag {
-        id,
-        name,
-        created_at,
-    }))
+    Ok(Json(tag))
 }
 
 async fn get_tag(
     ctx: Extension<ApiContext>,
     Path(tag_id): Path<i64>,
 ) -> Result<Json<Tag>> {
-    let tag = sqlx::query_as::<_, Tag>(r#"select id, name, created_at from tags where id = $1"#)
-        .bind(tag_id)
-        .fetch_optional(&ctx.db)
+    let tag = TagEntity::find_by_id(tag_id)
+        .one(&ctx.db)
         .await?
         .ok_or(Error::NotFound)?;
 
@@ -63,27 +68,23 @@ async fn get_tag(
 async fn get_all_tags(
     ctx: Extension<ApiContext>,
 ) -> Result<Json<Vec<Tag>>> {
-    let media_vec = sqlx::query_as::<_, Tag>(r#"select id, name, created_at from tags"#)
-        .fetch_all(&ctx.db)
+    let tag_vec: Vec<Tag> = TagEntity::find()
+        .all(&ctx.db)
         .await?;
 
-    Ok(Json(media_vec))
+    Ok(Json(tag_vec))
 }
 
 async fn delete_tag(
     ctx: Extension<ApiContext>,
     Path(tag_id): Path<i64>,
 ) -> Result<()> {
-    sqlx::query_as::<_, Tag>(r#"select id, name, created_at from tags where id = $1"#)
-        .bind(tag_id)
-        .fetch_optional(&ctx.db)
+    let tag = TagEntity::find_by_id(tag_id)
+        .one(&ctx.db)
         .await?
         .ok_or(Error::NotFound)?;
 
-    sqlx::query(r#"delete from tags where id = $1"#)
-        .bind(tag_id)
-        .execute(&ctx.db)
-        .await?;
+    tag.delete(&ctx.db).await?;
 
     Ok(())
 }

@@ -1,6 +1,6 @@
 use anyhow::Context;
 use clap::Parser;
-use sqlx::postgres::PgPoolOptions;
+use sea_orm::Database;
 use tracing::info;
 use taganrog::config::{Config, FlatConfig};
 use taganrog::http;
@@ -17,14 +17,12 @@ async fn main() -> anyhow::Result<()> {
     let config: Config = FlatConfig::parse().into();
 
     info!("Connecting pool to DB...");
-    let db = PgPoolOptions::new()
-        .max_connections(10)
-        .connect(&config.db.database_url)
+    let db = Database::connect(&config.db.database_url)
         .await
-        .context("could not connect to database")?;
+        .context("Database connection failed")?;
     info!("Connected to DB!");
 
-    // sqlx::migrate!().run(&db).await?;
+    // Migrator::up(&conn, None).await.unwrap();
 
     http::serve(config, db).await?;
 

@@ -2,6 +2,7 @@ use crate::http::{ApiContext, Result};
 use axum::extract::{Extension};
 use axum::routing::{get};
 use axum::{Router};
+use sea_orm::{ConnectionTrait, DatabaseBackend, Statement};
 
 pub fn router() -> Router {
     Router::new()
@@ -16,8 +17,11 @@ async fn ping() -> String {
 async fn ping_db(
     ctx: Extension<ApiContext>,
 ) -> Result<String> {
-    Ok(sqlx::query_scalar("select 'db ok'")
-        .fetch_one(&ctx.db)
-        .await?)
+    let db_response: String = ctx.db
+        .query_one(Statement::from_string(DatabaseBackend::Postgres, "SELECT 'db ok' AS DbResponse".to_string()))
+        .await?
+        .unwrap()
+        .try_get("", "DbResponse")?;
+    Ok(db_response)
 }
 

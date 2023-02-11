@@ -1,12 +1,12 @@
 use crate::config::Config;
 use anyhow::Context;
 use axum::{Extension, Router};
-use sqlx::PgPool;
 use std::sync::Arc;
+use sea_orm::DatabaseConnection;
 use tower::ServiceBuilder;
 use tower_http::trace::TraceLayer;
 use tracing::info;
-pub use error::{Error, ResultExt};
+pub use error::{Error};
 
 mod error;
 mod media;
@@ -18,10 +18,10 @@ pub type Result<T, E = Error> = std::result::Result<T, E>;
 #[derive(Clone)]
 struct ApiContext {
     config: Arc<Config>,
-    db: PgPool,
+    db: DatabaseConnection,
 }
 
-pub async fn serve(config: Config, db: PgPool) -> anyhow::Result<()> {
+pub async fn serve(config: Config, db: DatabaseConnection) -> anyhow::Result<()> {
     let app = api_router().layer(
         ServiceBuilder::new()
             .layer(Extension(ApiContext {

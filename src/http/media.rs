@@ -1,16 +1,21 @@
 use std::ffi::OsStr;
-use crate::http::{ApiContext, Result};
 use axum::extract::{DefaultBodyLimit, Extension, Multipart, Path};
 use axum::routing::{get};
 use axum::{Json, Router};
 use chrono::NaiveDateTime;
+use sea_orm::entity::prelude::*;
 use s3::{Bucket, Region};
 use s3::creds::Credentials;
-use sqlx::FromRow;
+use sea_orm::{Set};
 use uuid::Uuid;
 use crate::config::S3Configuration;
 use crate::hash::MurMurHasher;
-use crate::http::error::{Error, ResultExt};
+use crate::http::error::{Error};
+use crate::http::{ApiContext, Result};
+use crate::http::media::Entity as MediaEntity;
+use crate::http::media::Column as MediaColumn;
+use crate::http::media::Model as Media;
+use crate::http::media::ActiveModel as ActiveMedia;
 
 const MAX_UPLOAD_SIZE_IN_BYTES: usize = 52_428_800; // 50 MB
 
@@ -21,18 +26,26 @@ pub fn router() -> Router {
         .layer(DefaultBodyLimit::max(MAX_UPLOAD_SIZE_IN_BYTES))
 }
 
-#[derive(serde::Serialize, serde::Deserialize, Debug, Default, FromRow)]
-pub struct Media {
-    id: i64,
-    guid: Uuid,
-    original_filename: String,
-    extension: Option<String>,
-    new_filename: String,
-    content_type: String,
-    created_at: NaiveDateTime,
-    hash: String,
-    public_url: String,
+#[derive(serde::Serialize, serde::Deserialize, Clone, Debug, PartialEq, Eq, DeriveEntityModel)]
+#[sea_orm(table_name = "media")]
+pub struct Model {
+    #[sea_orm(primary_key)]
+    pub id: i64,
+    pub guid: Uuid,
+    pub original_filename: String,
+    pub extension: Option<String>,
+    pub new_filename: String,
+    pub content_type: String,
+    pub created_at: NaiveDateTime,
+    pub hash: String,
+    pub public_url: String,
 }
+
+#[derive(Copy, Clone, Debug, EnumIter, DeriveRelation)]
+pub enum Relation {
+}
+
+impl ActiveModelBehavior for ActiveModel {}
 
 async fn create_media(
     ctx: Extension<ApiContext>,
@@ -54,11 +67,11 @@ async fn create_media(
         .to_vec();
     let hash = MurMurHasher::hash_bytes(data.as_slice());
 
-    let existing_id = sqlx::query_scalar::<_, i64>(r#"select id from media where hash = $1"#)
-        .bind(&hash)
-        .fetch_optional(&ctx.db)
+    let existing_media = MediaEntity::find()
+        .filter(MediaColumn::Hash.eq(&hash))
+        .one(&ctx.db)
         .await?;
-    if existing_id.is_some() {
+    if existing_media.is_some() {
         return Err(Error::unprocessable_entity([("hash", "media with such hash exists")]));
     }
 
@@ -72,41 +85,29 @@ async fn create_media(
 
     let created_at = chrono::Utc::now().naive_utc();
     let public_url = format!("{}{}", &ctx.config.s3.public_url_prefix, new_filename);
-    let id = sqlx::query_scalar(r#"insert into media (guid, original_filename, extension, new_filename, content_type, hash, public_url, created_at) values ($1, $2, $3, $4, $5, $6, $7, $8) returning id"#)
-        .bind(guid)
-        .bind(&original_filename)
-        .bind(&extension)
-        .bind(&new_filename)
-        .bind(&content_type)
-        .bind(&hash)
-        .bind(&public_url)
-        .bind(created_at)
-        .fetch_one(&ctx.db)
-        .await
-        .on_constraint("media_hash", |_| {
-            Error::unprocessable_entity([("hash", "media with such hash exists")])
-        })?;
 
-    Ok(Json(Media {
-        id,
-        guid,
-        original_filename,
-        extension,
-        new_filename,
-        content_type,
-        created_at,
-        hash,
-        public_url,
-    }))
+    let media = ActiveMedia {
+        guid: Set(guid),
+        original_filename: Set(original_filename),
+        extension: Set(extension),
+        new_filename: Set(new_filename),
+        content_type: Set(content_type),
+        created_at: Set(created_at),
+        hash: Set(hash),
+        public_url: Set(public_url),
+        ..Default::default()
+    };
+    let media = media.insert(&ctx.db).await?;
+
+    Ok(Json(media))
 }
 
 async fn get_media(
     ctx: Extension<ApiContext>,
     Path(media_id): Path<i64>,
 ) -> Result<Json<Media>> {
-    let media = sqlx::query_as::<_, Media>(r#"select id, guid, original_filename, extension, new_filename, content_type, created_at, hash, public_url from media where id = $1"#)
-        .bind(media_id)
-        .fetch_optional(&ctx.db)
+    let media = MediaEntity::find_by_id(media_id)
+        .one(&ctx.db)
         .await?
         .ok_or(Error::NotFound)?;
 
@@ -116,8 +117,8 @@ async fn get_media(
 async fn get_all_media(
     ctx: Extension<ApiContext>,
 ) -> Result<Json<Vec<Media>>> {
-    let media_vec = sqlx::query_as::<_, Media>(r#"select id, guid, original_filename, extension, new_filename, content_type, created_at, hash, public_url from media"#)
-        .fetch_all(&ctx.db)
+    let media_vec: Vec<Media> = MediaEntity::find()
+        .all(&ctx.db)
         .await?;
 
     Ok(Json(media_vec))
@@ -127,19 +128,15 @@ async fn delete_media(
     ctx: Extension<ApiContext>,
     Path(media_id): Path<i64>,
 ) -> Result<()> {
-    let media = sqlx::query_as::<_, Media>(r#"select id, guid, original_filename, extension, new_filename, content_type, created_at, hash, public_url from media where id = $1"#)
-        .bind(media_id)
-        .fetch_optional(&ctx.db)
+    let media = MediaEntity::find_by_id(media_id)
+        .one(&ctx.db)
         .await?
         .ok_or(Error::NotFound)?;
 
     let bucket = get_bucket(&ctx.config.s3);
     bucket.delete_object(&media.new_filename).await?;
 
-    sqlx::query(r#"delete from media where id = $1"#)
-        .bind(media_id)
-        .execute(&ctx.db)
-        .await?;
+    media.delete(&ctx.db).await?;
 
     Ok(())
 }
