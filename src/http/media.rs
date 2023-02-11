@@ -31,27 +31,27 @@ async fn create_media(
     ctx: Extension<ApiContext>,
     mut files: Multipart,
 ) -> Result<Json<Media>> {
-    let bucket = get_bucket(&ctx.config.s3);
-    let maybe_file = files.next_field().await;
-    if maybe_file.is_err() {
-        return Err(Error::unprocessable_entity([("file", "missing file")]));
-    }
+    let file = files.next_field()
+        .await
+        .map_err(|x| Error::unprocessable_entity([("file", format!("multipart error: {}", x.to_string()))]))?
+        .ok_or(Error::unprocessable_entity([("file", "missing file")]))?;
 
-    let file = maybe_file.unwrap().unwrap();
-    let maybe_filename = file.file_name();
-    if maybe_filename.is_none() {
-        return Err(Error::unprocessable_entity([("file", "filename is empty")]));
-    }
+    let original_filename = file.file_name()
+        .ok_or(Error::unprocessable_entity([("file", "filename is empty")]))?
+        .to_string();
+
+    let content_type = file.content_type().unwrap_or("application/octet-stream").to_string();
+    let data = file.bytes()
+        .await
+        .map_err(|x| Error::unprocessable_entity([("file", format!("multipart error: {}", x.to_string()))]))?
+        .to_vec();
 
     // TODO: check hash before uploading
 
-    let original_filename = maybe_filename.unwrap().to_string();
-    let content_type = file.content_type().unwrap_or("video/mp4").to_string();
-    let data = file.bytes().await.unwrap().to_vec();
-    let response_data = bucket.put_object_stream_with_content_type(&mut data.as_slice(), original_filename.as_str(), content_type.as_str()).await;
-    if response_data.is_err() {
-        return Err(Error::Anyhow(response_data.err().unwrap().into()));
-    }
+    let bucket = get_bucket(&ctx.config.s3);
+    bucket.put_object_stream_with_content_type(&mut data.as_slice(), original_filename.as_str(), content_type.as_str())
+        .await
+        .map_err(Error::S3Error)?;
 
     let created_at = chrono::Utc::now().naive_utc();
     let hash = MurMurHasher::hash_bytes(data.as_slice());
