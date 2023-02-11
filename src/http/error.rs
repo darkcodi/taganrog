@@ -24,13 +24,13 @@ pub enum Error {
         errors: HashMap<Cow<'static, str>, Vec<Cow<'static, str>>>,
     },
 
-    #[error("an error occurred with the database")]
+    #[error("an error occurred with the database: {0}")]
     Sqlx(#[from] sqlx::Error),
 
-    #[error("an error occurred with the S3")]
+    #[error("an error occurred with the S3: {0}")]
     S3Error(#[from] S3Error),
 
-    #[error("an internal server error occurred")]
+    #[error("an internal server error occurred: {0}")]
     Anyhow(#[from] anyhow::Error),
 }
 
@@ -77,15 +77,6 @@ impl IntoResponse for Error {
             Self::Unauthorized => {
                 return (
                     self.status_code(),
-                    // Include the `WWW-Authenticate` challenge required in the specification
-                    // for the `401 Unauthorized` response code:
-                    // https://developer.mozilla.org/en-US/docs/Web/HTTP/Status/401
-                    //
-                    // The Realworld spec does not specify this:
-                    // https://realworld-docs.netlify.app/docs/specs/backend-specs/error-handling
-                    //
-                    // However, at Launchbadge we try to adhere to web standards wherever possible,
-                    // if nothing else than to try to act as a vanguard of sanity on the web.
                     [(WWW_AUTHENTICATE, HeaderValue::from_static("Token"))]
                         .into_iter()
                         .collect::<HeaderMap>(),
@@ -95,18 +86,13 @@ impl IntoResponse for Error {
             }
 
             Self::Sqlx(ref e) => {
-                // TODO: we probably want to use `tracing` instead
-                // so that this gets linked to the HTTP request by `TraceLayer`.
                 error!("SQLx error: {:?}", e);
             }
 
             Self::Anyhow(ref e) => {
-                // TODO: we probably want to use `tracing` instead
-                // so that this gets linked to the HTTP request by `TraceLayer`.
                 error!("Generic error: {:?}", e);
             }
 
-            // Other errors get mapped normally.
             _ => (),
         }
 
