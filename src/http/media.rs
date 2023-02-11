@@ -45,8 +45,15 @@ async fn create_media(
         .await
         .map_err(|x| Error::unprocessable_entity([("file", format!("multipart error: {}", x.to_string()))]))?
         .to_vec();
+    let hash = MurMurHasher::hash_bytes(data.as_slice());
 
-    // TODO: check hash before uploading
+    let existing_id = sqlx::query_scalar::<_, i64>(r#"select id from media where hash = $1"#)
+        .bind(&hash)
+        .fetch_optional(&ctx.db)
+        .await?;
+    if existing_id.is_some() {
+        return Err(Error::unprocessable_entity([("hash", "media with such hash exists")]));
+    }
 
     let bucket = get_bucket(&ctx.config.s3);
     bucket.put_object_stream_with_content_type(&mut data.as_slice(), original_filename.as_str(), content_type.as_str())
@@ -54,14 +61,13 @@ async fn create_media(
         .map_err(Error::S3Error)?;
 
     let created_at = chrono::Utc::now().naive_utc();
-    let hash = MurMurHasher::hash_bytes(data.as_slice());
     let public_url = format!("{}{}", &ctx.config.s3.public_url_prefix, original_filename);
     let id = sqlx::query_scalar(r#"insert into media (original_filename, content_type, hash, public_url, created_at) values ($1, $2, $3, $4, $5) returning id"#)
         .bind(&original_filename)
         .bind(&content_type)
         .bind(&hash)
-        .bind(&created_at)
         .bind(&public_url)
+        .bind(created_at)
         .fetch_one(&ctx.db)
         .await
         .on_constraint("media_hash", |_| {
