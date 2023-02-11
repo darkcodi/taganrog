@@ -1,13 +1,10 @@
 use axum::extract::{Extension, Path};
 use axum::routing::{get};
 use axum::{Json, Router};
-use chrono::NaiveDateTime;
 use itertools::Itertools;
 use sea_orm::entity::prelude::*;
 use sea_orm::Set;
-use crate::http::tags::Entity as TagEntity;
-use crate::http::tags::Model as Tag;
-use crate::http::tags::ActiveModel as ActiveTag;
+use crate::entities::*;
 
 use crate::http::{ApiContext, Error, Result};
 
@@ -16,21 +13,6 @@ pub fn router() -> Router {
         .route("/api/tags", get(get_all_tags).post(create_tag))
         .route("/api/tags/:tag_id", get(get_tag).delete(delete_tag))
 }
-
-#[derive(serde::Serialize, serde::Deserialize, Clone, Debug, PartialEq, Eq, DeriveEntityModel)]
-#[sea_orm(table_name = "tags")]
-pub struct Model {
-    #[sea_orm(primary_key)]
-    pub id: i64,
-    pub name: String,
-    pub created_at: NaiveDateTime,
-}
-
-#[derive(Copy, Clone, Debug, EnumIter, DeriveRelation)]
-pub enum Relation {
-}
-
-impl ActiveModelBehavior for ActiveModel {}
 
 #[derive(serde::Deserialize, Debug, Default)]
 struct CreateTag {

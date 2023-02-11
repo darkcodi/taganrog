@@ -2,20 +2,16 @@ use std::ffi::OsStr;
 use axum::extract::{DefaultBodyLimit, Extension, Multipart, Path};
 use axum::routing::{get};
 use axum::{Json, Router};
-use chrono::NaiveDateTime;
 use sea_orm::entity::prelude::*;
 use s3::{Bucket, Region};
 use s3::creds::Credentials;
 use sea_orm::{Set};
 use uuid::Uuid;
 use crate::config::S3Configuration;
+use crate::entities::*;
 use crate::hash::MurMurHasher;
 use crate::http::error::{Error};
 use crate::http::{ApiContext, Result};
-use crate::http::media::Entity as MediaEntity;
-use crate::http::media::Column as MediaColumn;
-use crate::http::media::Model as Media;
-use crate::http::media::ActiveModel as ActiveMedia;
 
 const MAX_UPLOAD_SIZE_IN_BYTES: usize = 52_428_800; // 50 MB
 
@@ -25,27 +21,6 @@ pub fn router() -> Router {
         .route("/api/media/:media_id", get(get_media).delete(delete_media))
         .layer(DefaultBodyLimit::max(MAX_UPLOAD_SIZE_IN_BYTES))
 }
-
-#[derive(serde::Serialize, serde::Deserialize, Clone, Debug, PartialEq, Eq, DeriveEntityModel)]
-#[sea_orm(table_name = "media")]
-pub struct Model {
-    #[sea_orm(primary_key)]
-    pub id: i64,
-    pub guid: Uuid,
-    pub original_filename: String,
-    pub extension: Option<String>,
-    pub new_filename: String,
-    pub content_type: String,
-    pub created_at: NaiveDateTime,
-    pub hash: String,
-    pub public_url: String,
-}
-
-#[derive(Copy, Clone, Debug, EnumIter, DeriveRelation)]
-pub enum Relation {
-}
-
-impl ActiveModelBehavior for ActiveModel {}
 
 async fn create_media(
     ctx: Extension<ApiContext>,
