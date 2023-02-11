@@ -84,8 +84,9 @@ async fn get_media(
 ) -> Result<Json<Media>> {
     let media = sqlx::query_as::<_, Media>(r#"select id, original_filename, content_type, created_at, hash, public_url from media where id = $1"#)
         .bind(media_id)
-        .fetch_one(&ctx.db)
-        .await?;
+        .fetch_optional(&ctx.db)
+        .await?
+        .ok_or(Error::NotFound)?;
 
     Ok(Json(media))
 }

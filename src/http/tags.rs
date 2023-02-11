@@ -53,8 +53,9 @@ async fn get_tag(
 ) -> Result<Json<Tag>> {
     let tag = sqlx::query_as::<_, Tag>(r#"select id, name, created_at from tags where id = $1"#)
         .bind(tag_id)
-        .fetch_one(&ctx.db)
-        .await?;
+        .fetch_optional(&ctx.db)
+        .await?
+        .ok_or(Error::NotFound)?;
 
     Ok(Json(tag))
 }
