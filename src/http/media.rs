@@ -1,3 +1,4 @@
+use std::ffi::OsStr;
 use crate::http::{ApiContext, Result};
 use axum::extract::{DefaultBodyLimit, Extension, Multipart, Path};
 use axum::routing::{get};
@@ -6,6 +7,7 @@ use chrono::NaiveDateTime;
 use s3::{Bucket, Region};
 use s3::creds::Credentials;
 use sqlx::FromRow;
+use uuid::Uuid;
 use crate::config::S3Configuration;
 use crate::hash::MurMurHasher;
 use crate::http::error::{Error, ResultExt};
@@ -22,7 +24,10 @@ pub fn router() -> Router {
 #[derive(serde::Serialize, serde::Deserialize, Debug, Default, FromRow)]
 pub struct Media {
     id: i64,
+    guid: Uuid,
     original_filename: String,
+    extension: Option<String>,
+    new_filename: String,
     content_type: String,
     created_at: NaiveDateTime,
     hash: String,
@@ -57,15 +62,21 @@ async fn create_media(
         return Err(Error::unprocessable_entity([("hash", "media with such hash exists")]));
     }
 
+    let guid = Uuid::new_v4();
+    let extension = get_extension_from_filename(original_filename.as_str());
+    let new_filename = format!("{}{}", guid, extension.clone().unwrap_or("".to_string()));
     let bucket = get_bucket(&ctx.config.s3);
-    bucket.put_object_stream_with_content_type(&mut data.as_slice(), original_filename.as_str(), content_type.as_str())
+    bucket.put_object_stream_with_content_type(&mut data.as_slice(), new_filename.as_str(), content_type.as_str())
         .await
         .map_err(Error::S3Error)?;
 
     let created_at = chrono::Utc::now().naive_utc();
-    let public_url = format!("{}{}", &ctx.config.s3.public_url_prefix, original_filename);
-    let id = sqlx::query_scalar(r#"insert into media (original_filename, content_type, hash, public_url, created_at) values ($1, $2, $3, $4, $5) returning id"#)
+    let public_url = format!("{}{}", &ctx.config.s3.public_url_prefix, new_filename);
+    let id = sqlx::query_scalar(r#"insert into media (guid, original_filename, extension, new_filename, content_type, hash, public_url, created_at) values ($1, $2, $3, $4, $5, $6, $7, $8) returning id"#)
+        .bind(guid)
         .bind(&original_filename)
+        .bind(&extension)
+        .bind(&new_filename)
         .bind(&content_type)
         .bind(&hash)
         .bind(&public_url)
@@ -78,7 +89,10 @@ async fn create_media(
 
     Ok(Json(Media {
         id,
+        guid,
         original_filename,
+        extension,
+        new_filename,
         content_type,
         created_at,
         hash,
@@ -90,7 +104,7 @@ async fn get_media(
     ctx: Extension<ApiContext>,
     Path(media_id): Path<i64>,
 ) -> Result<Json<Media>> {
-    let media = sqlx::query_as::<_, Media>(r#"select id, original_filename, content_type, created_at, hash, public_url from media where id = $1"#)
+    let media = sqlx::query_as::<_, Media>(r#"select id, guid, original_filename, extension, new_filename, content_type, created_at, hash, public_url from media where id = $1"#)
         .bind(media_id)
         .fetch_optional(&ctx.db)
         .await?
@@ -102,7 +116,7 @@ async fn get_media(
 async fn get_all_media(
     ctx: Extension<ApiContext>,
 ) -> Result<Json<Vec<Media>>> {
-    let media_vec = sqlx::query_as::<_, Media>(r#"select id, original_filename, content_type, created_at, hash, public_url from media"#)
+    let media_vec = sqlx::query_as::<_, Media>(r#"select id, guid, original_filename, extension, new_filename, content_type, created_at, hash, public_url from media"#)
         .fetch_all(&ctx.db)
         .await?;
 
@@ -113,14 +127,14 @@ async fn delete_media(
     ctx: Extension<ApiContext>,
     Path(media_id): Path<i64>,
 ) -> Result<()> {
-    let media = sqlx::query_as::<_, Media>(r#"select id, original_filename, content_type, created_at, hash, public_url from media where id = $1"#)
+    let media = sqlx::query_as::<_, Media>(r#"select id, guid, original_filename, extension, new_filename, content_type, created_at, hash, public_url from media where id = $1"#)
         .bind(media_id)
         .fetch_optional(&ctx.db)
         .await?
         .ok_or(Error::NotFound)?;
 
     let bucket = get_bucket(&ctx.config.s3);
-    bucket.delete_object(&media.original_filename).await?;
+    bucket.delete_object(&media.new_filename).await?;
 
     sqlx::query(r#"delete from media where id = $1"#)
         .bind(media_id)
@@ -139,4 +153,11 @@ fn get_bucket(conf: &S3Configuration) -> Bucket {
         Credentials::new(Some(conf.access_key.as_str()), Some(conf.secret_key.as_str()), None, None, None).unwrap(),
     ).unwrap().with_path_style();
     bucket
+}
+
+fn get_extension_from_filename(filename: &str) -> Option<String> {
+    std::path::Path::new(filename)
+        .extension()
+        .and_then(OsStr::to_str)
+        .map(|x| format!(".{x}"))
 }
