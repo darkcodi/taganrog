@@ -18,6 +18,11 @@ pub enum Error {
     #[error("request path not found")]
     NotFound,
 
+    #[error("such entity already exists")]
+    Conflict {
+        serialized_entity: String,
+    },
+
     #[error("error in the request body")]
     UnprocessableEntity {
         errors: HashMap<Cow<'static, str>, Vec<Cow<'static, str>>>,
@@ -34,6 +39,11 @@ pub enum Error {
 }
 
 impl Error {
+    pub fn conflict<K: serde::Serialize>(entity: K) -> Self {
+        let serialized_entity = serde_json::to_string(&entity).unwrap();
+        Self::Conflict { serialized_entity }
+    }
+
     pub fn unprocessable_entity<K, V>(errors: impl IntoIterator<Item = (K, V)>) -> Self
     where
         K: Into<Cow<'static, str>>,
@@ -56,6 +66,7 @@ impl Error {
             Self::Unauthorized => StatusCode::UNAUTHORIZED,
             Self::Forbidden => StatusCode::FORBIDDEN,
             Self::NotFound => StatusCode::NOT_FOUND,
+            Self::Conflict { .. } => StatusCode::CONFLICT,
             Self::UnprocessableEntity { .. } => StatusCode::UNPROCESSABLE_ENTITY,
             Self::SeaOrm(_) | Self::S3Error(_) | Self::Anyhow(_) => StatusCode::INTERNAL_SERVER_ERROR,
         }
@@ -73,6 +84,16 @@ impl IntoResponse for Error {
 
                 return (StatusCode::UNPROCESSABLE_ENTITY, Json(Errors { errors })).into_response();
             }
+
+            Self::Conflict { serialized_entity } => {
+                const CONTENT_TYPE_HEADER: &str = "content-type";
+                const APPLICATION_JSON: &str = "application/json";
+                let mut response = (StatusCode::CONFLICT, serialized_entity).into_response();
+                response.headers_mut().remove(CONTENT_TYPE_HEADER);
+                response.headers_mut().append(CONTENT_TYPE_HEADER, HeaderValue::from_static(APPLICATION_JSON));
+                return response;
+            }
+
             Self::Unauthorized => {
                 return (
                     self.status_code(),

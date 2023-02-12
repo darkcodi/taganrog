@@ -24,6 +24,14 @@ async fn create_tag(
     Json(req): Json<CreateTag>,
 ) -> Result<Json<Tag>> {
     let name = slugify(&req.name);
+    let existing_tag = TagEntity::find()
+        .filter(TagColumn::Name.eq(&name))
+        .one(&ctx.db)
+        .await?;
+    if existing_tag.is_some() {
+        return Err(Error::conflict(existing_tag.unwrap()));
+    }
+
     let created_at = chrono::Utc::now().naive_utc();
     let tag = ActiveTag {
         name: Set(name),

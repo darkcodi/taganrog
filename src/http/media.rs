@@ -93,7 +93,7 @@ impl From<MediaWithTags> for Option<MediaResponse> {
 async fn create_media(
     ctx: Extension<ApiContext>,
     mut files: Multipart,
-) -> Result<Json<MediaResponse>> {
+) -> Result<Json<Media>> {
     let file = files.next_field()
         .await
         .map_err(|x| Error::unprocessable_entity([("file", format!("multipart error: {}", x.to_string()))]))?
@@ -115,7 +115,7 @@ async fn create_media(
         .one(&ctx.db)
         .await?;
     if existing_media.is_some() {
-        return Err(Error::unprocessable_entity([("hash", "media with such hash exists")]));
+        return Err(Error::conflict(existing_media.unwrap()));
     }
 
     let guid = Uuid::new_v4();
@@ -140,7 +140,7 @@ async fn create_media(
         public_url: Set(public_url),
         ..Default::default()
     };
-    let media = media.insert(&ctx.db).await?.into();
+    let media = media.insert(&ctx.db).await?;
 
     Ok(Json(media))
 }
@@ -202,7 +202,7 @@ async fn add_tag_to_media(
 
     let name = slugify(&req.name);
     if media.tags.contains(&name) {
-        return Err(Error::unprocessable_entity([("name", "media already has a tag with such name")]));
+        return Err(Error::conflict(media));
     }
 
     let tag = tag::ensure_exists(name.as_str(), &ctx.db).await?;
