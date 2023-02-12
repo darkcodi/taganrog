@@ -1,4 +1,5 @@
 use sea_orm::entity::prelude::*;
+use sea_orm::Set;
 
 #[derive(serde::Serialize, serde::Deserialize, Clone, Debug, PartialEq, Eq, DeriveEntityModel)]
 #[sea_orm(table_name = "media_tags")]
@@ -47,3 +48,21 @@ impl Linked for MediaToTag {
 }
 
 impl ActiveModelBehavior for ActiveModel {}
+
+pub async fn ensure_exists(
+    media_id: i64,
+    tag_id: i64,
+    db: &DatabaseConnection
+) -> Result<Model, DbErr> {
+    let existing = Entity::find_by_id((media_id, tag_id))
+        .one(db)
+        .await?;
+    if existing.is_some() {
+        return Ok(existing.unwrap());
+    }
+    let new = ActiveModel {
+        media_id: Set(media_id),
+        tag_id: Set(tag_id),
+    }.insert(db).await?;
+    Ok(new)
+}

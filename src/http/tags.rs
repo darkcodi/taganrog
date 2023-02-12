@@ -75,7 +75,7 @@ async fn delete_tag(
 ///
 /// E.g. `slugify("Doctests are the Bee's Knees") == "doctests-are-the-bees-knees"`
 ///
-fn slugify(string: &str) -> String {
+pub fn slugify(string: &str) -> String {
     const QUOTE_CHARS: &[char] = &['\'', '"'];
 
     string

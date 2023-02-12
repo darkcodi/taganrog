@@ -1,7 +1,7 @@
 use std::ffi::OsStr;
 use amplify_derive::Wrapper;
 use axum::extract::{DefaultBodyLimit, Extension, Multipart, Path};
-use axum::routing::{get};
+use axum::routing::{get, post};
 use axum::{Json, Router};
 use chrono::NaiveDateTime;
 use sea_orm::entity::prelude::*;
@@ -14,6 +14,7 @@ use crate::entities::*;
 use crate::hash::MurMurHasher;
 use crate::http::error::{Error};
 use crate::http::{ApiContext, Result};
+use crate::http::tags::slugify;
 
 const MAX_UPLOAD_SIZE_IN_BYTES: usize = 52_428_800; // 50 MB
 
@@ -21,6 +22,7 @@ pub fn router() -> Router {
     Router::new()
         .route("/api/media", get(get_all_media).post(create_media))
         .route("/api/media/:media_id", get(get_media).delete(delete_media))
+        .route("/api/media/:media_id/tag", post(add_tag_to_media).delete(delete_tag_from_media))
         .layer(DefaultBodyLimit::max(MAX_UPLOAD_SIZE_IN_BYTES))
 }
 
@@ -44,6 +46,11 @@ struct MediaWithTags(
     #[from]
     Vec<(Media, Option<Tag>)>
 );
+
+#[derive(serde::Deserialize, Debug, Default)]
+struct TagBody {
+    name: String,
+}
 
 impl From<Media> for MediaResponse {
     fn from(value: Media) -> Self {
@@ -178,6 +185,38 @@ async fn delete_media(
     media.delete(&ctx.db).await?;
 
     Ok(())
+}
+
+async fn add_tag_to_media(
+    ctx: Extension<ApiContext>,
+    Path(media_id): Path<i64>,
+    Json(req): Json<TagBody>,
+) -> Result<Json<MediaResponse>> {
+    let media: MediaWithTags = MediaEntity::find_by_id(media_id)
+        .find_also_linked(media_tag::MediaToTag)
+        .all(&ctx.db)
+        .await?
+        .into();
+    let media: Option<MediaResponse> = media.into();
+    let mut media = media.ok_or(Error::NotFound)?;
+
+    let name = slugify(&req.name);
+    if media.tags.contains(&name) {
+        return Err(Error::unprocessable_entity([("name", "media already has a tag with such name")]));
+    }
+
+    let tag = tag::ensure_exists(name.as_str(), &ctx.db).await?;
+    media_tag::ensure_exists(media_id, tag.id, &ctx.db).await?;
+    media.tags.push(tag.name);
+    Ok(Json(media))
+}
+
+async fn delete_tag_from_media(
+    ctx: Extension<ApiContext>,
+    Path(media_id): Path<i64>,
+    Json(req): Json<TagBody>,
+) -> Result<Json<MediaResponse>> {
+    todo!()
 }
 
 fn get_bucket(conf: &S3Configuration) -> Bucket {
