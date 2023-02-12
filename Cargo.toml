@@ -8,6 +8,8 @@ authors = [
 ]
 
 [dependencies]
+amplify = "3.14.1"
+amplify_derive = "2.11.3"
 anyhow = "1.0.69"
 async-trait = "0.1.64"
 axum = { version = "0.6.4", features = ["multipart", "tower-log"] }

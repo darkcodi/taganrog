@@ -1,7 +1,9 @@
 use std::ffi::OsStr;
+use amplify_derive::Wrapper;
 use axum::extract::{DefaultBodyLimit, Extension, Multipart, Path};
 use axum::routing::{get};
 use axum::{Json, Router};
+use chrono::NaiveDateTime;
 use sea_orm::entity::prelude::*;
 use s3::{Bucket, Region};
 use s3::creds::Credentials;
@@ -22,10 +24,69 @@ pub fn router() -> Router {
         .layer(DefaultBodyLimit::max(MAX_UPLOAD_SIZE_IN_BYTES))
 }
 
+#[derive(serde::Serialize, serde::Deserialize)]
+struct MediaResponse {
+    id: i64,
+    guid: Uuid,
+    original_filename: String,
+    extension: Option<String>,
+    new_filename: String,
+    content_type: String,
+    created_at: NaiveDateTime,
+    hash: String,
+    public_url: String,
+    tags: Vec<String>,
+}
+
+#[derive(Clone, Wrapper, Default, amplify_derive::From, Debug)]
+struct MediaWithTags(
+    #[wrap]
+    #[from]
+    Vec<(Media, Option<Tag>)>
+);
+
+impl From<Media> for MediaResponse {
+    fn from(value: Media) -> Self {
+        Self {
+            id: value.id,
+            guid: value.guid,
+            original_filename: value.original_filename,
+            extension: value.extension,
+            new_filename: value.new_filename,
+            content_type: value.content_type,
+            created_at: value.created_at,
+            hash: value.hash,
+            public_url: value.public_url,
+            tags: Vec::new(),
+        }
+    }
+}
+
+impl From<MediaWithTags> for Option<MediaResponse> {
+    fn from(value: MediaWithTags) -> Self {
+        if value.is_empty() {
+            return None;
+        }
+
+        let mut tags_vec = Vec::with_capacity(value.0.len());
+        for kvp in &value.0 {
+            let tag = &kvp.1;
+            if tag.is_some() {
+                tags_vec.push(tag.as_ref().unwrap().name.clone());
+            }
+        }
+
+        let media = value[0].0.clone();
+        let mut media: MediaResponse = media.into();
+        media.tags = tags_vec;
+        Some(media)
+    }
+}
+
 async fn create_media(
     ctx: Extension<ApiContext>,
     mut files: Multipart,
-) -> Result<Json<Media>> {
+) -> Result<Json<MediaResponse>> {
     let file = files.next_field()
         .await
         .map_err(|x| Error::unprocessable_entity([("file", format!("multipart error: {}", x.to_string()))]))?
@@ -72,7 +133,7 @@ async fn create_media(
         public_url: Set(public_url),
         ..Default::default()
     };
-    let media = media.insert(&ctx.db).await?;
+    let media = media.insert(&ctx.db).await?.into();
 
     Ok(Json(media))
 }
@@ -80,11 +141,14 @@ async fn create_media(
 async fn get_media(
     ctx: Extension<ApiContext>,
     Path(media_id): Path<i64>,
-) -> Result<Json<Media>> {
-    let media = MediaEntity::find_by_id(media_id)
-        .one(&ctx.db)
+) -> Result<Json<MediaResponse>> {
+    let media: MediaWithTags = MediaEntity::find_by_id(media_id)
+        .find_also_linked(media_tag::MediaToTag)
+        .all(&ctx.db)
         .await?
-        .ok_or(Error::NotFound)?;
+        .into();
+    let media: Option<MediaResponse> = media.into();
+    let media = media.ok_or(Error::NotFound)?;
 
     Ok(Json(media))
 }
