@@ -3,7 +3,7 @@ use sea_orm::entity::prelude::*;
 use uuid::Uuid;
 use amplify_derive::Wrapper;
 use sea_orm::{QueryOrder, QuerySelect};
-use crate::entities::{media_tag, tag};
+use crate::entities::{media_tag, MediaTagColumn, MediaTagEntity, tag, TagColumn, TagEntity};
 
 #[derive(serde::Serialize, serde::Deserialize, Clone, Debug, PartialEq, Eq, DeriveEntityModel)]
 #[sea_orm(table_name = "media")]
@@ -65,11 +65,12 @@ impl From<Model> for MediaResponse {
 }
 
 impl From<MediaWithTagsRows> for Vec<MediaResponse> {
-    fn from(value: MediaWithTagsRows) -> Self {
+    fn from(mut value: MediaWithTagsRows) -> Self {
         if value.is_empty() {
             return Vec::new();
         }
 
+        value.sort_by(|x, y| x.0.id.cmp(&y.0.id));
         let grouping = value.0.group_by(|x, y| x.0.id == y.0.id);
         let mut result = Vec::new();
         for kvp in grouping {
@@ -106,6 +107,34 @@ pub async fn find_all(
     let max_id = *media_ids.last().unwrap();
     let media: MediaWithTagsRows = Entity::find()
         .filter(Column::Id.between(min_id, max_id))
+        .find_also_linked(media_tag::MediaToTag)
+        .all(db)
+        .await?
+        .into();
+    let media: Vec<MediaResponse> = media.into();
+    Ok(media)
+}
+
+pub async fn search(
+    tags: &Vec<String>,
+    db: &DatabaseConnection,
+) -> Result<Vec<MediaResponse>, DbErr>  {
+    let tag_ids: Vec<i64> = TagEntity::find()
+        .filter(TagColumn::Name.is_in(tags))
+        .select_only()
+        .column(TagColumn::Id)
+        .into_tuple()
+        .all(db)
+        .await?;
+    let media_ids: Vec<i64> = MediaTagEntity::find()
+        .filter(MediaTagColumn::TagId.is_in(tag_ids))
+        .select_only()
+        .column(MediaTagColumn::MediaId)
+        .into_tuple()
+        .all(db)
+        .await?;
+    let media: MediaWithTagsRows = Entity::find()
+        .filter(Column::Id.is_in(media_ids))
         .find_also_linked(media_tag::MediaToTag)
         .all(db)
         .await?

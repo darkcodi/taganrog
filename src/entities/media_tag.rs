@@ -34,15 +34,29 @@ impl RelationTrait for Relation {
 #[derive(Debug)]
 pub struct MediaToTag;
 
+#[derive(Debug)]
+pub struct TagToMedia;
+
 impl Linked for MediaToTag {
     type FromEntity = super::media::Entity;
-
     type ToEntity = super::tag::Entity;
 
     fn link(&self) -> Vec<RelationDef> {
         vec![
             Relation::Media.def().rev(),
             Relation::Tag.def(),
+        ]
+    }
+}
+
+impl Linked for TagToMedia {
+    type FromEntity = super::tag::Entity;
+    type ToEntity = super::media::Entity;
+
+    fn link(&self) -> Vec<RelationDef> {
+        vec![
+            Relation::Tag.def().rev(),
+            Relation::Media.def(),
         ]
     }
 }

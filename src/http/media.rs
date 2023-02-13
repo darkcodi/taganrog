@@ -22,12 +22,18 @@ pub fn router() -> Router {
         .route("/api/media", get(get_all_media).post(create_media))
         .route("/api/media/:media_id", get(get_media).delete(delete_media))
         .route("/api/media/:media_id/tag", post(add_tag_to_media).delete(delete_tag_from_media))
+        .route("/api/media/search", post(search_media))
         .layer(DefaultBodyLimit::max(MAX_UPLOAD_SIZE_IN_BYTES))
 }
 
 #[derive(serde::Deserialize, Debug, Default)]
 struct TagBody {
     name: String,
+}
+
+#[derive(serde::Deserialize, Debug, Default)]
+struct SearchBody {
+    tags: Vec<String>,
 }
 
 #[derive(serde::Deserialize, Debug, Default)]
@@ -167,6 +173,15 @@ async fn delete_tag_from_media(
     media_tag::ensure_not_exists(media_id, tag.id, &ctx.db).await?;
     media.tags.remove(tag_index.unwrap());
     Ok(Json(media))
+}
+
+async fn search_media(
+    ctx: Extension<ApiContext>,
+    Json(req): Json<SearchBody>,
+) -> Result<Json<Vec<MediaResponse>>> {
+    let media_vec: Vec<MediaResponse> = media::search(&req.tags, &ctx.db).await?;
+
+    Ok(Json(media_vec))
 }
 
 fn get_bucket(conf: &S3Configuration) -> Bucket {
