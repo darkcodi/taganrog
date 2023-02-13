@@ -2,6 +2,7 @@ use chrono::NaiveDateTime;
 use sea_orm::entity::prelude::*;
 use uuid::Uuid;
 use amplify_derive::Wrapper;
+use sea_orm::{QueryOrder, QuerySelect};
 use crate::entities::{media_tag, tag};
 
 #[derive(serde::Serialize, serde::Deserialize, Clone, Debug, PartialEq, Eq, DeriveEntityModel)]
@@ -89,10 +90,24 @@ pub async fn find_all(
     page_number: u64,
     db: &DatabaseConnection,
 ) -> Result<Vec<MediaResponse>, DbErr>  {
-    let media: MediaWithTagsRows = Entity::find()
-        .find_also_linked(media_tag::MediaToTag)
+    let media_ids: Vec<i64> = Entity::find()
+        .select_only()
+        .column(Column::Id)
+        .order_by_asc(Column::Id)
+        .into_tuple()
         .paginate(db, page_size)
         .fetch_page(page_number)
+        .await?;
+    if media_ids.is_empty() {
+        return Ok(Vec::new());
+    }
+
+    let min_id = *media_ids.first().unwrap();
+    let max_id = *media_ids.last().unwrap();
+    let media: MediaWithTagsRows = Entity::find()
+        .filter(Column::Id.between(min_id, max_id))
+        .find_also_linked(media_tag::MediaToTag)
+        .all(db)
         .await?
         .into();
     let media: Vec<MediaResponse> = media.into();
