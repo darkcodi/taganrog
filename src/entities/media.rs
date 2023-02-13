@@ -63,25 +63,40 @@ impl From<Model> for MediaResponse {
     }
 }
 
-impl From<MediaWithTagsRows> for Option<MediaResponse> {
+impl From<MediaWithTagsRows> for Vec<MediaResponse> {
     fn from(value: MediaWithTagsRows) -> Self {
         if value.is_empty() {
-            return None;
+            return Vec::new();
         }
 
-        let mut tags_vec = Vec::with_capacity(value.0.len());
-        for kvp in &value.0 {
-            let tag = &kvp.1;
-            if tag.is_some() {
-                tags_vec.push(tag.as_ref().unwrap().name.clone());
-            }
+        let grouping = value.0.group_by(|x, y| x.0.id == y.0.id);
+        let mut result = Vec::new();
+        for kvp in grouping {
+            let mut model: MediaResponse = kvp[0].0.clone().into();
+            let tags = kvp.iter()
+                .filter(|x| x.1.is_some())
+                .map(|x| x.1.as_ref().unwrap().name.clone())
+                .collect();
+            model.tags = tags;
+            result.push(model);
         }
-
-        let media = value[0].0.clone();
-        let mut media: MediaResponse = media.into();
-        media.tags = tags_vec;
-        Some(media)
+        result
     }
+}
+
+pub async fn find_all(
+    page_size: u64,
+    page_number: u64,
+    db: &DatabaseConnection,
+) -> Result<Vec<MediaResponse>, DbErr>  {
+    let media: MediaWithTagsRows = Entity::find()
+        .find_also_linked(media_tag::MediaToTag)
+        .paginate(db, page_size)
+        .fetch_page(page_number)
+        .await?
+        .into();
+    let media: Vec<MediaResponse> = media.into();
+    Ok(media)
 }
 
 pub async fn find_by_id(
@@ -93,8 +108,12 @@ pub async fn find_by_id(
         .all(db)
         .await?
         .into();
-    let media: Option<MediaResponse> = media.into();
-    Ok(media)
+    let mut media: Vec<MediaResponse> = media.into();
+    if media.is_empty() {
+        return Ok(None);
+    }
+    let media = media.remove(0);
+    Ok(Some(media))
 }
 
 pub async fn find_by_hash(
@@ -102,11 +121,15 @@ pub async fn find_by_hash(
     db: &DatabaseConnection,
 ) -> Result<Option<MediaResponse>, DbErr>  {
     let media: MediaWithTagsRows = Entity::find()
-        .find_also_linked(media_tag::MediaToTag)
         .filter(Column::Hash.eq(hash))
+        .find_also_linked(media_tag::MediaToTag)
         .all(db)
         .await?
         .into();
-    let media: Option<MediaResponse> = media.into();
-    Ok(media)
+    let mut media: Vec<MediaResponse> = media.into();
+    if media.is_empty() {
+        return Ok(None);
+    }
+    let media = media.remove(0);
+    Ok(Some(media))
 }

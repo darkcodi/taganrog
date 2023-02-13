@@ -1,5 +1,5 @@
 use std::ffi::OsStr;
-use axum::extract::{DefaultBodyLimit, Extension, Multipart, Path};
+use axum::extract::{DefaultBodyLimit, Extension, Multipart, Path, Query};
 use axum::routing::{get, post};
 use axum::{Json, Router};
 use sea_orm::entity::prelude::*;
@@ -28,6 +28,12 @@ pub fn router() -> Router {
 #[derive(serde::Deserialize, Debug, Default)]
 struct TagBody {
     name: String,
+}
+
+#[derive(serde::Deserialize, Debug, Default)]
+struct Pagination {
+    page_size: Option<u64>,
+    page_index: Option<u64>,
 }
 
 async fn create_media(
@@ -96,10 +102,11 @@ async fn get_media(
 
 async fn get_all_media(
     ctx: Extension<ApiContext>,
-) -> Result<Json<Vec<Media>>> {
-    let media_vec: Vec<Media> = MediaEntity::find()
-        .all(&ctx.db)
-        .await?;
+    Query(pagination): Query<Pagination>,
+) -> Result<Json<Vec<MediaResponse>>> {
+    let page_size = pagination.page_size.unwrap_or(10).clamp(1, 50);
+    let page_index = pagination.page_index.unwrap_or(0);
+    let media_vec: Vec<MediaResponse> = media::find_all(page_size, page_index, &ctx.db).await?;
 
     Ok(Json(media_vec))
 }
