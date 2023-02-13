@@ -137,12 +137,12 @@ async fn add_tag_to_media(
         .await?
         .ok_or(Error::NotFound)?;
 
-    let name = slugify(&req.name);
-    if media.tags.contains(&name) {
+    let tag_name = slugify(&req.name);
+    if media.tags.contains(&tag_name) {
         return Err(Error::conflict(media));
     }
 
-    let tag = tag::ensure_exists(name.as_str(), &ctx.db).await?;
+    let tag = tag::ensure_exists(tag_name.as_str(), &ctx.db).await?;
     media_tag::ensure_exists(media_id, tag.id, &ctx.db).await?;
     media.tags.push(tag.name);
     Ok(Json(media))
@@ -153,7 +153,20 @@ async fn delete_tag_from_media(
     Path(media_id): Path<i64>,
     Json(req): Json<TagBody>,
 ) -> Result<Json<MediaResponse>> {
-    todo!()
+    let mut media = media::find_by_id(media_id, &ctx.db)
+        .await?
+        .ok_or(Error::NotFound)?;
+
+    let tag_name = slugify(&req.name);
+    let tag_index = media.tags.iter().position(|x| x.eq(&tag_name));
+    if tag_index.is_none() {
+        return Ok(Json(media));
+    }
+
+    let tag = tag::ensure_exists(tag_name.as_str(), &ctx.db).await?;
+    media_tag::ensure_not_exists(media_id, tag.id, &ctx.db).await?;
+    media.tags.remove(tag_index.unwrap());
+    Ok(Json(media))
 }
 
 fn get_bucket(conf: &S3Configuration) -> Bucket {

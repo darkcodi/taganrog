@@ -66,3 +66,17 @@ pub async fn ensure_exists(
     }.insert(db).await?;
     Ok(new)
 }
+
+pub async fn ensure_not_exists(
+    media_id: i64,
+    tag_id: i64,
+    db: &DatabaseConnection
+) -> Result<(), DbErr> {
+    let existing = Entity::find_by_id((media_id, tag_id))
+        .one(db)
+        .await?;
+    if existing.is_some() {
+        existing.unwrap().delete(db).await?;
+    }
+    Ok(())
+}
