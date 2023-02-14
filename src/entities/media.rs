@@ -71,16 +71,23 @@ impl From<MediaWithTagsRows> for Vec<MediaResponse> {
         }
 
         value.sort_by(|x, y| x.0.id.cmp(&y.0.id));
-        let grouping = value.0.group_by(|x, y| x.0.id == y.0.id);
-        let mut result = Vec::new();
-        for kvp in grouping {
-            let mut model: MediaResponse = kvp[0].0.clone().into();
-            let tags = kvp.iter()
-                .filter(|x| x.1.is_some())
-                .map(|x| x.1.as_ref().unwrap().name.clone())
-                .collect();
-            model.tags = tags;
-            result.push(model);
+
+        let mut result: Vec<MediaResponse> = Vec::new();
+        let mut current_index: Option<usize> = None;
+        for kvp in value.iter() {
+            let tag_name = kvp.1.clone().unwrap().name;
+            if current_index.is_some() {
+                let current_item: &mut _ = result.get_mut(current_index.unwrap()).unwrap();
+                if current_item.id == kvp.0.id {
+                    current_item.tags.push(tag_name);
+                    continue;
+                }
+            }
+
+            let mut new_item: MediaResponse = kvp.0.clone().into();
+            new_item.tags.push(tag_name);
+            result.push(new_item);
+            current_index = Some(current_index.map(|x| x + 1).unwrap_or(0));
         }
         result
     }
