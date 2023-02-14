@@ -6,11 +6,15 @@ use std::borrow::Cow;
 use std::collections::HashMap;
 use s3::error::S3Error;
 use tracing::error;
+use crate::http::auth::AuthError;
 
 #[derive(thiserror::Error, Debug)]
 pub enum Error {
     #[error("authentication required")]
     Unauthorized,
+
+    #[error("authentication failed")]
+    AuthError(#[from] AuthError),
 
     #[error("user may not perform that action")]
     Forbidden,
@@ -63,7 +67,7 @@ impl Error {
 
     fn status_code(&self) -> StatusCode {
         match self {
-            Self::Unauthorized => StatusCode::UNAUTHORIZED,
+            Self::Unauthorized | Self::AuthError(_) => StatusCode::UNAUTHORIZED,
             Self::Forbidden => StatusCode::FORBIDDEN,
             Self::NotFound => StatusCode::NOT_FOUND,
             Self::Conflict { .. } => StatusCode::CONFLICT,

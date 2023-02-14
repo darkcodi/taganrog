@@ -12,6 +12,7 @@ mod error;
 mod media;
 mod tags;
 mod ping;
+mod auth;
 
 pub type Result<T, E = Error> = std::result::Result<T, E>;
 

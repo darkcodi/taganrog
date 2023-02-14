@@ -13,6 +13,7 @@ amplify_derive = "2.11.3"
 anyhow = "1.0.69"
 async-trait = "0.1.64"
 axum = { version = "0.6.4", features = ["multipart", "tower-log"] }
+axum-auth = "0.4.0"
 chrono = { version = "0.4.23", features = ["serde"] }
 clap = { version = "4.1.4", features = ["derive", "env"] }
 dotenv = "0.15.0"

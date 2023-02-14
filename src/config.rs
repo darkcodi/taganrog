@@ -5,6 +5,9 @@ pub struct FlatConfig {
     #[arg(env = "DATABASE_URL", required = true, help = "Postgres connection string")]
     database_url: String,
 
+    #[arg(env = "API_TOKEN", required = true, help = "API Bearer token")]
+    bearer_token: String,
+
     #[arg(env = "S3_ACCOUNT_ID", required = true, help = "S3 account id")]
     s3_account_id: String,
 
@@ -25,6 +28,7 @@ pub struct FlatConfig {
 pub struct Config {
     pub db: DbConfiguration,
     pub s3: S3Configuration,
+    pub api: ApiConfiguration,
 }
 
 #[derive(Debug)]
@@ -41,6 +45,11 @@ pub struct S3Configuration {
     pub public_url_prefix: String, // S3_PUBLIC_URL
 }
 
+#[derive(Debug)]
+pub struct ApiConfiguration {
+    pub bearer_token: String, // API_TOKEN
+}
+
 impl From<FlatConfig> for Config {
     fn from(value: FlatConfig) -> Self {
         Config {
@@ -53,6 +62,9 @@ impl From<FlatConfig> for Config {
                 access_key: value.s3_access_key,
                 secret_key: value.s3_secret_key,
                 public_url_prefix: value.s3_public_url_prefix,
+            },
+            api: ApiConfiguration {
+                bearer_token: value.bearer_token,
             },
         }
     }

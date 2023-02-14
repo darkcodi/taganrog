@@ -2,6 +2,7 @@ use std::ffi::OsStr;
 use axum::extract::{DefaultBodyLimit, Extension, Multipart, Path, Query};
 use axum::routing::{get, post};
 use axum::{Json, Router};
+use axum_auth::AuthBearer;
 use sea_orm::entity::prelude::*;
 use s3::{Bucket, Region};
 use s3::creds::Credentials;
@@ -12,7 +13,8 @@ use crate::entities::*;
 use crate::entities::media::MediaResponse;
 use crate::hash::MurMurHasher;
 use crate::http::error::{Error};
-use crate::http::{ApiContext, Result};
+use crate::http::{ApiContext, auth, Result};
+use crate::http::auth::MyCustomBearerAuth;
 use crate::http::tags::slugify;
 
 const MAX_UPLOAD_SIZE_IN_BYTES: usize = 52_428_800; // 50 MB
@@ -44,8 +46,11 @@ struct Pagination {
 
 async fn create_media(
     ctx: Extension<ApiContext>,
+    MyCustomBearerAuth(token): MyCustomBearerAuth,
     mut files: Multipart,
 ) -> Result<Json<MediaResponse>> {
+    auth::is_token_valid(token.as_str(), ctx.config.api.bearer_token.as_str())?;
+
     let file = files.next_field()
         .await
         .map_err(|x| Error::unprocessable_entity([("file", format!("multipart error: {}", x.to_string()))]))?
@@ -97,8 +102,11 @@ async fn create_media(
 
 async fn get_media(
     ctx: Extension<ApiContext>,
+    MyCustomBearerAuth(token): MyCustomBearerAuth,
     Path(media_id): Path<i64>,
 ) -> Result<Json<MediaResponse>> {
+    auth::is_token_valid(token.as_str(), ctx.config.api.bearer_token.as_str())?;
+
     let media = media::find_by_id(media_id, &ctx.db)
         .await?
         .ok_or(Error::NotFound)?;
@@ -108,8 +116,10 @@ async fn get_media(
 
 async fn get_all_media(
     ctx: Extension<ApiContext>,
+    MyCustomBearerAuth(token): MyCustomBearerAuth,
     Query(pagination): Query<Pagination>,
 ) -> Result<Json<Vec<MediaResponse>>> {
+    auth::is_token_valid(token.as_str(), ctx.config.api.bearer_token.as_str())?;
     let page_size = pagination.page_size.unwrap_or(10).clamp(1, 50);
     let page_index = pagination.page_index.unwrap_or(0);
     let media_vec: Vec<MediaResponse> = media::find_all(page_size, page_index, &ctx.db).await?;
@@ -119,8 +129,11 @@ async fn get_all_media(
 
 async fn delete_media(
     ctx: Extension<ApiContext>,
+    MyCustomBearerAuth(token): MyCustomBearerAuth,
     Path(media_id): Path<i64>,
 ) -> Result<()> {
+    auth::is_token_valid(token.as_str(), ctx.config.api.bearer_token.as_str())?;
+
     let media = MediaEntity::find_by_id(media_id)
         .one(&ctx.db)
         .await?
@@ -136,9 +149,12 @@ async fn delete_media(
 
 async fn add_tag_to_media(
     ctx: Extension<ApiContext>,
+    MyCustomBearerAuth(token): MyCustomBearerAuth,
     Path(media_id): Path<i64>,
     Json(req): Json<TagBody>,
 ) -> Result<Json<MediaResponse>> {
+    auth::is_token_valid(token.as_str(), ctx.config.api.bearer_token.as_str())?;
+
     let mut media = media::find_by_id(media_id, &ctx.db)
         .await?
         .ok_or(Error::NotFound)?;
@@ -156,9 +172,12 @@ async fn add_tag_to_media(
 
 async fn delete_tag_from_media(
     ctx: Extension<ApiContext>,
+    MyCustomBearerAuth(token): MyCustomBearerAuth,
     Path(media_id): Path<i64>,
     Json(req): Json<TagBody>,
 ) -> Result<Json<MediaResponse>> {
+    auth::is_token_valid(token.as_str(), ctx.config.api.bearer_token.as_str())?;
+
     let mut media = media::find_by_id(media_id, &ctx.db)
         .await?
         .ok_or(Error::NotFound)?;
@@ -177,8 +196,11 @@ async fn delete_tag_from_media(
 
 async fn search_media(
     ctx: Extension<ApiContext>,
+    MyCustomBearerAuth(token): MyCustomBearerAuth,
     Json(req): Json<SearchBody>,
 ) -> Result<Json<Vec<MediaResponse>>> {
+    auth::is_token_valid(token.as_str(), ctx.config.api.bearer_token.as_str())?;
+
     let media_vec: Vec<MediaResponse> = media::search(&req.tags, &ctx.db).await?;
 
     Ok(Json(media_vec))

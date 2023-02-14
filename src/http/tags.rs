@@ -6,7 +6,8 @@ use sea_orm::entity::prelude::*;
 use sea_orm::Set;
 use crate::entities::*;
 
-use crate::http::{ApiContext, Error, Result};
+use crate::http::{ApiContext, auth, Error, Result};
+use crate::http::auth::MyCustomBearerAuth;
 
 pub fn router() -> Router {
     Router::new()
@@ -21,8 +22,11 @@ struct CreateTag {
 
 async fn create_tag(
     ctx: Extension<ApiContext>,
+    MyCustomBearerAuth(token): MyCustomBearerAuth,
     Json(req): Json<CreateTag>,
 ) -> Result<Json<Tag>> {
+    auth::is_token_valid(token.as_str(), ctx.config.api.bearer_token.as_str())?;
+
     let name = slugify(&req.name);
     let existing_tag = TagEntity::find()
         .filter(TagColumn::Name.eq(&name))
@@ -45,8 +49,11 @@ async fn create_tag(
 
 async fn get_tag(
     ctx: Extension<ApiContext>,
+    MyCustomBearerAuth(token): MyCustomBearerAuth,
     Path(tag_id): Path<i64>,
 ) -> Result<Json<Tag>> {
+    auth::is_token_valid(token.as_str(), ctx.config.api.bearer_token.as_str())?;
+
     let tag = TagEntity::find_by_id(tag_id)
         .one(&ctx.db)
         .await?
@@ -57,7 +64,10 @@ async fn get_tag(
 
 async fn get_all_tags(
     ctx: Extension<ApiContext>,
+    MyCustomBearerAuth(token): MyCustomBearerAuth,
 ) -> Result<Json<Vec<Tag>>> {
+    auth::is_token_valid(token.as_str(), ctx.config.api.bearer_token.as_str())?;
+
     let tag_vec: Vec<Tag> = TagEntity::find()
         .all(&ctx.db)
         .await?;
@@ -67,8 +77,11 @@ async fn get_all_tags(
 
 async fn delete_tag(
     ctx: Extension<ApiContext>,
+    MyCustomBearerAuth(token): MyCustomBearerAuth,
     Path(tag_id): Path<i64>,
 ) -> Result<()> {
+    auth::is_token_valid(token.as_str(), ctx.config.api.bearer_token.as_str())?;
+
     let tag = TagEntity::find_by_id(tag_id)
         .one(&ctx.db)
         .await?
