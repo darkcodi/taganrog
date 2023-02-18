@@ -17,6 +17,7 @@ pub struct Model {
     pub content_type: String,
     pub created_at: NaiveDateTime,
     pub hash: String,
+    pub size: i64,
     pub public_url: String,
 }
 
@@ -37,6 +38,7 @@ pub struct MediaResponse {
     pub created_at: NaiveDateTime,
     pub hash: String,
     pub public_url: String,
+    pub size: i64,
     pub tags: Vec<String>,
 }
 
@@ -59,6 +61,7 @@ impl From<Model> for MediaResponse {
             created_at: value.created_at,
             hash: value.hash,
             public_url: value.public_url,
+            size: value.size,
             tags: Vec::new(),
         }
     }

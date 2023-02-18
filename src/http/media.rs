@@ -65,6 +65,7 @@ async fn create_media(
         .await
         .map_err(|x| Error::unprocessable_entity([("file", format!("multipart error: {}", x.to_string()))]))?
         .to_vec();
+    let size = data.len();
     let hash = MurMurHasher::hash_bytes(data.as_slice());
 
     let existing_media = media::find_by_hash(&hash, &ctx.db)
@@ -92,6 +93,7 @@ async fn create_media(
         content_type: Set(content_type),
         created_at: Set(created_at),
         hash: Set(hash),
+        size: Set(size as i64),
         public_url: Set(public_url),
         ..Default::default()
     };
