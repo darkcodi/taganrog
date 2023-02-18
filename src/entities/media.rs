@@ -75,17 +75,21 @@ impl From<MediaWithTagsRows> for Vec<MediaResponse> {
         let mut result: Vec<MediaResponse> = Vec::new();
         let mut current_index: Option<usize> = None;
         for kvp in value.iter() {
-            let tag_name = kvp.1.clone().unwrap().name;
+            let tag_name = kvp.1.clone().map(|x| x.name);
             if current_index.is_some() {
                 let current_item: &mut _ = result.get_mut(current_index.unwrap()).unwrap();
                 if current_item.id == kvp.0.id {
-                    current_item.tags.push(tag_name);
+                    if tag_name.is_some() {
+                        current_item.tags.push(tag_name.unwrap());
+                    }
                     continue;
                 }
             }
 
             let mut new_item: MediaResponse = kvp.0.clone().into();
-            new_item.tags.push(tag_name);
+            if tag_name.is_some() {
+                new_item.tags.push(tag_name.unwrap());
+            }
             result.push(new_item);
             current_index = Some(current_index.map(|x| x + 1).unwrap_or(0));
         }
