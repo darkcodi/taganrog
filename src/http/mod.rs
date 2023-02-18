@@ -2,8 +2,10 @@ use crate::config::Config;
 use anyhow::Context;
 use axum::{Extension, Router};
 use std::sync::Arc;
+use axum::http::Method;
 use sea_orm::DatabaseConnection;
 use tower::ServiceBuilder;
+use tower_http::cors::{any, Any, CorsLayer};
 use tower_http::trace::TraceLayer;
 use tracing::info;
 pub use error::{Error};
@@ -23,13 +25,18 @@ struct ApiContext {
 }
 
 pub async fn serve(config: Config, db: DatabaseConnection) -> anyhow::Result<()> {
-    let app = api_router().layer(
-        ServiceBuilder::new()
-            .layer(Extension(ApiContext {
-                config: Arc::new(config),
-                db,
-            }))
-            .layer(TraceLayer::new_for_http()),
+    let app = api_router()
+        .layer(CorsLayer::new()
+            .allow_methods(Any)
+            .allow_headers(Any)
+            .allow_origin(Any))
+        .layer(
+            ServiceBuilder::new()
+                .layer(Extension(ApiContext {
+                    config: Arc::new(config),
+                    db,
+                }))
+                .layer(TraceLayer::new_for_http()),
     );
 
     let addr = "[::]:3000".parse()?;
