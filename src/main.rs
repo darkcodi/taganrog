@@ -1,6 +1,6 @@
 use anyhow::Context;
 use clap::Parser;
-use sea_orm::Database;
+use surrealdb::Datastore;
 use tracing::info;
 use taganrog::config::{Config, FlatConfig};
 use taganrog::http;
@@ -16,13 +16,11 @@ async fn main() -> anyhow::Result<()> {
 
     let config: Config = FlatConfig::parse().into();
 
-    info!("Connecting pool to DB...");
-    let db = Database::connect(&config.db.database_url)
+    info!("Connecting to DB...");
+    let db = Datastore::new(&config.db.database_url)
         .await
         .context("Database connection failed")?;
     info!("Connected to DB!");
-
-    // Migrator::up(&conn, None).await.unwrap();
 
     http::serve(config, db).await?;
 

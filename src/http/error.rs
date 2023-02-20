@@ -7,6 +7,7 @@ use std::collections::HashMap;
 use s3::error::S3Error;
 use tracing::error;
 use crate::http::auth::AuthError;
+use crate::http::{APPLICATION_JSON, CONTENT_TYPE_HEADER};
 
 #[derive(thiserror::Error, Debug)]
 pub enum Error {
@@ -33,7 +34,7 @@ pub enum Error {
     },
 
     #[error("an error occurred with the database: {0}")]
-    SeaOrm(#[from] sea_orm::DbErr),
+    DbErr(#[from] surrealdb::Error),
 
     #[error("an error occurred with the S3: {0}")]
     S3Error(#[from] S3Error),
@@ -72,7 +73,7 @@ impl Error {
             Self::NotFound => StatusCode::NOT_FOUND,
             Self::Conflict { .. } => StatusCode::CONFLICT,
             Self::UnprocessableEntity { .. } => StatusCode::UNPROCESSABLE_ENTITY,
-            Self::SeaOrm(_) | Self::S3Error(_) | Self::Anyhow(_) => StatusCode::INTERNAL_SERVER_ERROR,
+            Self::DbErr(_) | Self::S3Error(_) | Self::Anyhow(_) => StatusCode::INTERNAL_SERVER_ERROR,
         }
     }
 }
@@ -90,11 +91,8 @@ impl IntoResponse for Error {
             }
 
             Self::Conflict { serialized_entity } => {
-                const CONTENT_TYPE_HEADER: &str = "content-type";
-                const APPLICATION_JSON: &str = "application/json";
                 let mut response = (StatusCode::CONFLICT, serialized_entity).into_response();
-                response.headers_mut().remove(CONTENT_TYPE_HEADER);
-                response.headers_mut().append(CONTENT_TYPE_HEADER, HeaderValue::from_static(APPLICATION_JSON));
+                response.headers_mut().insert(CONTENT_TYPE_HEADER, HeaderValue::from_static(APPLICATION_JSON));
                 return response;
             }
 
@@ -109,8 +107,8 @@ impl IntoResponse for Error {
                     .into_response();
             }
 
-            Self::SeaOrm(ref e) => {
-                error!("SeaOrm error: {:?}", e);
+            Self::DbErr(ref e) => {
+                error!("Database error: {:?}", e);
             }
 
             Self::Anyhow(ref e) => {
