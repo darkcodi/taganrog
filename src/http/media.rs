@@ -11,7 +11,6 @@ use crate::entities::media::MediaResponse;
 use crate::http::error::{Error};
 use crate::http::{ApiContext, auth, Result};
 use crate::http::auth::MyCustomBearerAuth;
-use crate::http::tags::slugify;
 
 const MAX_UPLOAD_SIZE_IN_BYTES: usize = 52_428_800; // 50 MB
 
