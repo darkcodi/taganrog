@@ -8,6 +8,7 @@ use tower_http::cors::{Any, CorsLayer};
 use tower_http::trace::TraceLayer;
 use tracing::info;
 pub use error::{Error};
+use crate::db::DbContext;
 
 mod error;
 mod media;
@@ -21,9 +22,18 @@ pub const APPLICATION_JSON: &str = "application/json";
 pub type Result<T, E = Error> = std::result::Result<T, E>;
 
 #[derive(Clone)]
-struct ApiContext {
-    config: Arc<Config>,
-    db: Arc<Datastore>,
+pub struct ApiContext {
+    cfg: Arc<Config>,
+    db: DbContext,
+}
+
+impl ApiContext {
+    fn new(config: Config, db: Datastore) -> Self {
+        Self {
+            cfg: Arc::new(config),
+            db: DbContext::new(db),
+        }
+    }
 }
 
 pub async fn serve(config: Config, db: Datastore) -> anyhow::Result<()> {
@@ -34,10 +44,7 @@ pub async fn serve(config: Config, db: Datastore) -> anyhow::Result<()> {
             .allow_origin(Any))
         .layer(
             ServiceBuilder::new()
-                .layer(Extension(ApiContext {
-                    config: Arc::new(config),
-                    db: Arc::new(db),
-                }))
+                .layer(Extension(ApiContext::new(config, db)))
                 .layer(TraceLayer::new_for_http()),
     );
 

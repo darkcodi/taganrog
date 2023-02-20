@@ -1,6 +1,27 @@
+use std::sync::Arc;
 use anyhow::anyhow;
 use serde::Deserialize;
-use surrealdb::Response;
+use surrealdb::{Datastore, Response, Session};
+
+#[derive(Clone)]
+pub struct DbContext {
+    store: Arc<Datastore>,
+}
+
+impl DbContext {
+    pub fn new(db: Datastore) -> Self {
+        Self {
+            store: Arc::new(db),
+        }
+    }
+
+    pub async fn exec(&self, query: &str) -> Result<Vec<Response>, surrealdb::Error>  {
+        let session = Session::for_kv().with_ns("tg1").with_db("tg1");
+        let db_response = self.store.execute(query, &session, None, false)
+            .await?;
+        Ok(db_response)
+    }
+}
 
 #[derive(Deserialize)]
 pub struct SurrealDbResult<T> {

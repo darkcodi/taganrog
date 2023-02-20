@@ -20,9 +20,7 @@ async fn ping() -> String {
 async fn ping_db(
     ctx: Extension<ApiContext>,
 ) -> Result<axum::response::Response> {
-    let session = Session::for_kv().with_ns("tg1").with_db("tg1");
-    let query = "INFO FOR DB;";
-    let db_response = ctx.db.execute(query, &session, None, false)
+    let db_response = ctx.db.exec("INFO FOR DB;")
         .await?
         .surr_to_string()?;
     let mut response = (StatusCode::OK, db_response).into_response();
