@@ -1,7 +1,7 @@
 use chrono::NaiveDateTime;
 
 #[derive(serde::Serialize, serde::Deserialize, Clone, Debug, PartialEq, Eq)]
-pub struct Model {
+pub struct Tag {
     pub id: i64,
     pub name: String,
     pub created_at: NaiveDateTime,

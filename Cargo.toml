@@ -24,7 +24,7 @@ rand = "0.8.5"
 rust-s3 = { version = "0.32.3", features = ["tokio-rustls-tls"] }
 serde = { version = "1.0.152", features = ["derive"] }
 serde_json = "1.0.92"
-surrealdb = "1.0.0-beta.8"
+surrealdb = { version = "1.0.0-beta.8", features = ["parallel", "http"] }
 time = "0.3.17"
 thiserror = "1.0.38"
 tokio = { version = "1.25.0", features = ["full"] }

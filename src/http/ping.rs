@@ -20,7 +20,10 @@ async fn ping() -> String {
 async fn ping_db(
     ctx: Extension<ApiContext>,
 ) -> Result<axum::response::Response> {
-    let db_response = ctx.db.exec("INFO FOR DB;")
+    let db_response = ctx.db.exec("CREATE tag
+SET
+    name = 'cr',
+    created_at = time::now();")
         .await?
         .surr_to_string()?;
     let mut response = (StatusCode::OK, db_response).into_response();

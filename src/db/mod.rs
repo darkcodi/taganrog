@@ -17,17 +17,25 @@ impl DbContext {
 
     pub async fn exec(&self, query: &str) -> Result<Vec<Response>, surrealdb::Error>  {
         let session = Session::for_kv().with_ns("tg1").with_db("tg1");
-        let db_response = self.store.execute(query, &session, None, false)
+        let db_response = self.store.execute(query, &session, None, true)
             .await?;
         Ok(db_response)
     }
 }
 
 #[derive(Deserialize)]
-pub struct SurrealDbResult<T> {
-    pub time: String,
-    pub status: String,
-    pub result: T,
+#[serde(untagged)]
+pub enum SurrealDbResult<T> {
+    Ok {
+        time: String,
+        status: String,
+        result: T,
+    },
+    Err {
+        time: String,
+        status: String,
+        detail: String,
+    },
 }
 
 pub trait SurrealStringify {
@@ -61,7 +69,9 @@ impl SurrealDeserializable for String {
     fn surr_deserialize<'a, T: Deserialize<'a>>(&'a self) -> anyhow::Result<T> {
         let mut vec: Vec<SurrealDbResult<T>> = serde_json::from_str(self).map_err(anyhow::Error::new)?;
         let db_result = vec.remove_first().ok_or(anyhow!("Vec shouldn't be empty"))?;
-        let result = db_result.result;
-        Ok(result)
+        match db_result {
+            SurrealDbResult::Ok { result, .. } => Ok(result),
+            SurrealDbResult::Err { detail, .. } => Err(anyhow!(format!("Error from DB: {}", detail))),
+        }
     }
 }

@@ -2,13 +2,14 @@ use axum::extract::{Extension, Path};
 use axum::routing::{get};
 use axum::{Json, Router};
 use itertools::Itertools;
+use crate::entities::tag::Tag;
 
 use crate::http::{ApiContext, auth, Error, Result};
 use crate::http::auth::MyCustomBearerAuth;
 
 pub fn router() -> Router {
     Router::new()
-        // .route("/api/tags", get(get_all_tags).post(create_tag))
+        //.route("/api/tags", get(get_all_tags).post(create_tag))
         //.route("/api/tags/:tag_id", get(get_tag).delete(delete_tag))
 }
 
@@ -56,7 +57,7 @@ struct CreateTag {
 //
 //     Ok(Json(tag_vec))
 // }
-//
+
 // async fn get_tag(
 //     ctx: Extension<ApiContext>,
 //     MyCustomBearerAuth(token): MyCustomBearerAuth,
