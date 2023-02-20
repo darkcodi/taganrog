@@ -1,25 +1,65 @@
-use std::sync::Arc;
+use std::fmt::Formatter;
 use anyhow::anyhow;
+use reqwest::{Client, ClientBuilder};
+use reqwest::header::{HeaderMap, HeaderValue};
 use serde::Deserialize;
-use surrealdb::{Datastore, Response, Session};
+
+#[derive(Debug, thiserror::Error)]
+pub enum DbError {
+    NetworkError(reqwest::Error),
+    QueryError(String),
+}
+
+impl std::fmt::Display for DbError {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        match self {
+            DbError::NetworkError(e) => write!(f, "{e}"),
+            DbError::QueryError(e) => write!(f, "{e}"),
+        }
+    }
+}
 
 #[derive(Clone)]
 pub struct DbContext {
-    store: Arc<Datastore>,
+    http_client: Client,
+    url: String,
 }
 
 impl DbContext {
-    pub fn new(db: Datastore) -> Self {
+    pub fn new(base_url: String) -> Self {
+        let mut header_map = HeaderMap::new();
+        header_map.insert("Accept", HeaderValue::from_static("application/json"));
+        header_map.insert("NS", HeaderValue::from_static("tg1"));
+        header_map.insert("DB", HeaderValue::from_static("tg1"));
+        let http_client = ClientBuilder::new()
+            .default_headers(header_map)
+            .use_rustls_tls()
+            .build()
+            .unwrap();
+        let url = base_url + "/sql";
         Self {
-            store: Arc::new(db),
+            http_client,
+            url,
         }
     }
 
-    pub async fn exec(&self, query: &str) -> Result<Vec<Response>, surrealdb::Error>  {
-        let session = Session::for_kv().with_ns("tg1").with_db("tg1");
-        let db_response = self.store.execute(query, &session, None, true)
-            .await?;
-        Ok(db_response)
+    pub async fn exec(&self, query: &str) -> Result<String, DbError>  {
+        let http_response = self.http_client.post(&self.url)
+            .basic_auth("root", Some("root"))
+            .body(query.to_string())
+            .send()
+            .await
+            .map_err(DbError::NetworkError)?;
+        let is_success = http_response.status().is_success();
+        let db_response = http_response
+            .text()
+            .await
+            .map_err(DbError::NetworkError)?;
+        if is_success {
+            Ok(db_response)
+        } else {
+            Err(DbError::QueryError(db_response))
+        }
     }
 }
 
@@ -36,16 +76,6 @@ pub enum SurrealDbResult<T> {
         status: String,
         detail: String,
     },
-}
-
-pub trait SurrealStringify {
-    fn surr_to_string(&self) -> anyhow::Result<String>;
-}
-
-impl SurrealStringify for Vec<Response> {
-    fn surr_to_string(&self) -> anyhow::Result<String> {
-        serde_json::to_string(self).map_err(anyhow::Error::new)
-    }
 }
 
 pub trait RemoveFirst<T> {

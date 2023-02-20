@@ -2,7 +2,6 @@ use crate::config::Config;
 use anyhow::Context;
 use axum::{Extension, Router};
 use std::sync::Arc;
-use surrealdb::Datastore;
 use tower::ServiceBuilder;
 use tower_http::cors::{Any, CorsLayer};
 use tower_http::trace::TraceLayer;
@@ -28,15 +27,17 @@ pub struct ApiContext {
 }
 
 impl ApiContext {
-    fn new(config: Config, db: Datastore) -> Self {
+    fn new(config: Config) -> Self {
+        let cfg = Arc::new(config);
+        let db = DbContext::new(cfg.db.database_url.clone());
         Self {
-            cfg: Arc::new(config),
-            db: DbContext::new(db),
+            cfg,
+            db,
         }
     }
 }
 
-pub async fn serve(config: Config, db: Datastore) -> anyhow::Result<()> {
+pub async fn serve(config: Config) -> anyhow::Result<()> {
     let app = api_router()
         .layer(CorsLayer::new()
             .allow_methods(Any)
@@ -44,7 +45,7 @@ pub async fn serve(config: Config, db: Datastore) -> anyhow::Result<()> {
             .allow_origin(Any))
         .layer(
             ServiceBuilder::new()
-                .layer(Extension(ApiContext::new(config, db)))
+                .layer(Extension(ApiContext::new(config)))
                 .layer(TraceLayer::new_for_http()),
     );
 

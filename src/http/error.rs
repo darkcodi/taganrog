@@ -6,6 +6,7 @@ use std::borrow::Cow;
 use std::collections::HashMap;
 use s3::error::S3Error;
 use tracing::error;
+use crate::db::DbError;
 use crate::http::auth::AuthError;
 use crate::http::{APPLICATION_JSON, CONTENT_TYPE_HEADER};
 
@@ -34,7 +35,7 @@ pub enum Error {
     },
 
     #[error("an error occurred with the database: {0}")]
-    DbErr(#[from] surrealdb::Error),
+    DbErr(#[from] DbError),
 
     #[error("an error occurred with the S3: {0}")]
     S3Error(#[from] S3Error),

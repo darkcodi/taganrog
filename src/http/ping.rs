@@ -4,8 +4,6 @@ use axum::routing::{get};
 use axum::{Router};
 use axum::http::{HeaderValue, StatusCode};
 use axum::response::IntoResponse;
-use surrealdb::{Response, Session};
-use crate::db::SurrealStringify;
 
 pub fn router() -> Router {
     Router::new()
@@ -24,8 +22,7 @@ async fn ping_db(
 SET
     name = 'cr',
     created_at = time::now();")
-        .await?
-        .surr_to_string()?;
+        .await?;
     let mut response = (StatusCode::OK, db_response).into_response();
     response.headers_mut().insert(CONTENT_TYPE_HEADER, HeaderValue::from_static(APPLICATION_JSON));
     Ok(response)
