@@ -1,20 +1,26 @@
 use std::fmt::Formatter;
-use anyhow::anyhow;
 use reqwest::{Client, ClientBuilder};
 use reqwest::header::{HeaderMap, HeaderValue};
-use serde::Deserialize;
+use serde::de::DeserializeOwned;
+use serde::{Deserialize, Serialize};
 
 #[derive(Debug, thiserror::Error)]
 pub enum DbError {
     NetworkError(reqwest::Error),
-    QueryError(String),
+    DeserializationError(serde_json::Error),
+    EmptyResponse,
+    QueryExecutionError(String),
+    NonSuccessfulStatusCode(SurrealDbError),
 }
 
 impl std::fmt::Display for DbError {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         match self {
-            DbError::NetworkError(e) => write!(f, "{e}"),
-            DbError::QueryError(e) => write!(f, "{e}"),
+            DbError::NetworkError(e) => write!(f, "network error: {e}"),
+            DbError::DeserializationError(e) => write!(f, "deserialization error: {e}"),
+            DbError::EmptyResponse => write!(f, "Response is empty"),
+            DbError::QueryExecutionError(e) => write!(f, "query execution error: {e}"),
+            DbError::NonSuccessfulStatusCode(e) => write!(f, "non-OK response: {}", serde_json::to_string(e).unwrap()),
         }
     }
 }
@@ -43,39 +49,54 @@ impl DbContext {
         }
     }
 
-    pub async fn exec(&self, query: &str) -> Result<String, DbError>  {
+    pub async fn exec(&self, query: &str) -> Result<Vec<SurrealDbResult>, DbError>  {
         let http_response = self.http_client.post(&self.url)
             .basic_auth("root", Some("root"))
             .body(query.to_string())
             .send()
             .await
             .map_err(DbError::NetworkError)?;
-        let is_success = http_response.status().is_success();
-        let db_response = http_response
+        let response_str = http_response
             .text()
             .await
             .map_err(DbError::NetworkError)?;
-        if is_success {
-            Ok(db_response)
-        } else {
-            Err(DbError::QueryError(db_response))
+        let db_response: SurrealDbResponse = serde_json::from_str(&response_str)
+            .map_err(DbError::DeserializationError)?;
+        match db_response {
+            SurrealDbResponse::Ok(res_vec) => Ok(res_vec),
+            SurrealDbResponse::Err(e) => Err(DbError::NonSuccessfulStatusCode(e)),
         }
     }
 }
 
-#[derive(Deserialize)]
+#[derive(Debug, Serialize, Deserialize)]
 #[serde(untagged)]
-pub enum SurrealDbResult<T> {
+pub enum SurrealDbResponse {
+    Ok(Vec<SurrealDbResult>),
+    Err(SurrealDbError),
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+#[serde(untagged)]
+pub enum SurrealDbResult {
     Ok {
         time: String,
         status: String,
-        result: T,
+        result: serde_json::Value,
     },
     Err {
         time: String,
         status: String,
         detail: String,
     },
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct SurrealDbError {
+    pub code: u16,
+    pub details: String,
+    pub description: String,
+    pub information: String,
 }
 
 pub trait RemoveFirst<T> {
@@ -92,16 +113,25 @@ impl<T> RemoveFirst<T> for Vec<T> {
 }
 
 pub trait SurrealDeserializable {
-    fn surr_deserialize<'a, T: Deserialize<'a>>(&'a self) -> anyhow::Result<T>;
+    fn surr_deserialize<T: DeserializeOwned>(self) -> Result<T, DbError>;
 }
 
-impl SurrealDeserializable for String {
-    fn surr_deserialize<'a, T: Deserialize<'a>>(&'a self) -> anyhow::Result<T> {
-        let mut vec: Vec<SurrealDbResult<T>> = serde_json::from_str(self).map_err(anyhow::Error::new)?;
-        let db_result = vec.remove_first().ok_or(anyhow!("Vec shouldn't be empty"))?;
-        match db_result {
-            SurrealDbResult::Ok { result, .. } => Ok(result),
-            SurrealDbResult::Err { detail, .. } => Err(anyhow!(format!("Error from DB: {}", detail))),
+impl SurrealDeserializable for SurrealDbResult {
+    fn surr_deserialize<T: DeserializeOwned>(self) -> Result<T, DbError> {
+        match self {
+            SurrealDbResult::Ok { result, .. } => {
+                let entity: T = serde_json::from_value(result)
+                    .map_err(DbError::DeserializationError)?;
+                Ok(entity)
+            },
+            SurrealDbResult::Err { detail, .. } => Err(DbError::QueryExecutionError(detail.clone())),
         }
+    }
+}
+
+impl SurrealDeserializable for Vec<SurrealDbResult> {
+    fn surr_deserialize<T: DeserializeOwned>(mut self) -> Result<T, DbError> {
+        let first_result = self.remove_first().ok_or(DbError::EmptyResponse)?;
+        first_result.surr_deserialize()
     }
 }

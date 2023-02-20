@@ -1,10 +1,10 @@
-use chrono::NaiveDateTime;
+use chrono::{DateTime, Utc};
 
 #[derive(serde::Serialize, serde::Deserialize, Clone, Debug, PartialEq, Eq)]
 pub struct Tag {
-    pub id: i64,
+    pub id: String,
     pub name: String,
-    pub created_at: NaiveDateTime,
+    pub created_at: DateTime<Utc>,
 }
 
 // pub async fn ensure_exists(

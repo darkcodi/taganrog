@@ -1,9 +1,11 @@
 use crate::http::{ApiContext, APPLICATION_JSON, CONTENT_TYPE_HEADER, Result};
 use axum::extract::{Extension};
 use axum::routing::{get};
-use axum::{Router};
+use axum::{Json, Router};
 use axum::http::{HeaderValue, StatusCode};
 use axum::response::IntoResponse;
+use crate::db::{RemoveFirst, SurrealDbResult, SurrealDeserializable};
+use crate::entities::tag::Tag;
 
 pub fn router() -> Router {
     Router::new()
@@ -17,14 +19,8 @@ async fn ping() -> String {
 
 async fn ping_db(
     ctx: Extension<ApiContext>,
-) -> Result<axum::response::Response> {
-    let db_response = ctx.db.exec("CREATE tag
-SET
-    name = 'cr',
-    created_at = time::now();")
-        .await?;
-    let mut response = (StatusCode::OK, db_response).into_response();
-    response.headers_mut().insert(CONTENT_TYPE_HEADER, HeaderValue::from_static(APPLICATION_JSON));
-    Ok(response)
+) -> Result<Json<Vec<SurrealDbResult>>> {
+    let res = ctx.db.exec("INFO FOR DB;").await?;
+    Ok(Json(res))
 }
 
