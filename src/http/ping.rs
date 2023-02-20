@@ -1,11 +1,8 @@
-use crate::http::{ApiContext, APPLICATION_JSON, CONTENT_TYPE_HEADER, Result};
+use crate::http::{ApiContext, Result};
 use axum::extract::{Extension};
 use axum::routing::{get};
 use axum::{Json, Router};
-use axum::http::{HeaderValue, StatusCode};
-use axum::response::IntoResponse;
-use crate::db::{RemoveFirst, SurrealDbResult, SurrealDeserializable};
-use crate::entities::tag::Tag;
+use crate::db::surreal_http::SurrealDbResult;
 
 pub fn router() -> Router {
     Router::new()

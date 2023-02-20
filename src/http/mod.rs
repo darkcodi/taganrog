@@ -7,7 +7,7 @@ use tower_http::cors::{Any, CorsLayer};
 use tower_http::trace::TraceLayer;
 use tracing::info;
 pub use error::{Error};
-use crate::db::DbContext;
+use crate::db::surreal_http::SurrealHttpClient;
 
 mod error;
 mod media;
@@ -23,13 +23,13 @@ pub type Result<T, E = Error> = std::result::Result<T, E>;
 #[derive(Clone)]
 pub struct ApiContext {
     cfg: Arc<Config>,
-    db: DbContext,
+    db: SurrealHttpClient,
 }
 
 impl ApiContext {
     fn new(config: Config) -> Self {
         let cfg = Arc::new(config);
-        let db = DbContext::new(cfg.db.database_url.clone());
+        let db = SurrealHttpClient::new(cfg.db.database_url.as_str(), "root", "root", "tg1", "tg1");
         Self {
             cfg,
             db,

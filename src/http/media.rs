@@ -8,7 +8,6 @@ use s3::creds::Credentials;
 use uuid::Uuid;
 use crate::config::S3Configuration;
 use crate::entities::media::MediaResponse;
-use crate::hash::MurMurHasher;
 use crate::http::error::{Error};
 use crate::http::{ApiContext, auth, Result};
 use crate::http::auth::MyCustomBearerAuth;
