@@ -65,18 +65,23 @@ pub struct SurrealHttpClient {
 
 impl SurrealHttpClient {
     pub fn new(base_url: &str, user: &str, pass: &str, ns: &str, db: &str) -> Self {
-        let basic_auth = Credentials::new(user, pass).as_http_header();
+        let auth = Credentials::new(user, pass).as_http_header();
+        let mut auth = HeaderValue::from_str(auth.as_str()).unwrap();
+        auth.set_sensitive(true);
+
         let mut header_map = HeaderMap::new();
+        header_map.insert("Authorization", auth);
         header_map.insert("Accept", HeaderValue::from_static("application/json"));
-        header_map.insert("Authorization", HeaderValue::from_str(basic_auth.as_str()).unwrap());
         header_map.insert("NS", HeaderValue::from_str(ns).unwrap());
         header_map.insert("DB", HeaderValue::from_str(db).unwrap());
+
         let http_client = ClientBuilder::new()
             .default_headers(header_map)
             .use_rustls_tls()
             .build()
             .unwrap();
         let url = base_url.to_string() + "/sql";
+
         Self {
             http_client,
             url,
