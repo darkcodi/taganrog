@@ -62,7 +62,7 @@ impl Media {
         Ok(maybe_media)
     }
 
-    pub async fn insert(
+    pub async fn create(
         media: &Media,
         db: &SurrealHttpClient,
     ) -> Result<MediaWithTags, SurrealDbError> {
@@ -106,6 +106,30 @@ size = {size};");
         Ok(media_vec)
     }
 
+    pub async fn get_by_id(
+        id: &MediaId,
+        db: &SurrealHttpClient,
+    ) -> Result<Option<MediaWithTags>, SurrealDbError> {
+        let query = format!("SELECT *, ->has->tag AS tags FROM media WHERE id = '{id}';");
+        let mut media_vec: Vec<MediaWithTags> = db.exec(query.as_str())
+            .await?
+            .surr_deserialize_last()?;
+        let maybe_media = media_vec.remove_last();
+        Ok(maybe_media)
+    }
+
+    pub async fn delete_by_id(
+        id: &MediaId,
+        db: &SurrealHttpClient,
+    ) -> Result<Option<Media>, SurrealDbError> {
+        let query = format!("DELETE FROM media WHERE id = '{id}' RETURN BEFORE;");
+        let mut media_vec: Vec<Media> = db.exec(query.as_str())
+            .await?
+            .surr_deserialize_last()?;
+        let maybe_media = media_vec.remove_last();
+        Ok(maybe_media)
+    }
+
     // pub async fn search(
     //     tags: &Vec<String>,
     //     db: &DatabaseConnection,
@@ -132,22 +156,5 @@ size = {size};");
     //         .into();
     //     let media: Vec<MediaResponse> = media.into();
     //     Ok(media)
-    // }
-    //
-    // pub async fn find_by_id(
-    //     media_id: i64,
-    //     db: &DatabaseConnection,
-    // ) -> Result<Option<MediaResponse>, DbErr>  {
-    //     let media: MediaWithTagsRows = Entity::find_by_id(media_id)
-    //         .find_also_linked(media_tag::MediaToTag)
-    //         .all(db)
-    //         .await?
-    //         .into();
-    //     let mut media: Vec<MediaResponse> = media.into();
-    //     if media.is_empty() {
-    //         return Ok(None);
-    //     }
-    //     let media = media.remove(0);
-    //     Ok(Some(media))
     // }
 }
