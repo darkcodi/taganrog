@@ -1,16 +1,17 @@
 use itertools::Itertools;
 
-pub trait StringExtensions {
+pub trait StringExtensions<'a, T: Into<&'a str>> {
     /// Convert a title string to a slug for identifying an article.
     /// E.g. `slugify("Doctests are the Bee's Knees") == "doctests-are-the-bees-knees"`
-    fn slugify(&self) -> String;
+    fn slugify(self) -> String;
 }
 
-impl StringExtensions for str {
-    fn slugify(&self) -> String {
+impl<'a, T: Into<&'a str>> StringExtensions<'a, T> for T {
+    fn slugify(self) -> String {
         const QUOTE_CHARS: &[char] = &['\'', '"'];
 
         self
+            .into()
             .split(|c: char| !(QUOTE_CHARS.contains(&c) || c.is_alphanumeric()))
             .filter(|s| !s.is_empty())
             .map(|s| {
@@ -19,12 +20,6 @@ impl StringExtensions for str {
                 s
             })
             .join("-")
-    }
-}
-
-impl StringExtensions for String {
-    fn slugify(&self) -> String {
-        StringExtensions::slugify(self.as_str())
     }
 }
 
