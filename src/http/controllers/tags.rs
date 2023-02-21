@@ -1,8 +1,9 @@
+use std::str::FromStr;
 use axum::extract::{Extension, Path};
 use axum::routing::{get};
 use axum::{Json, Router};
 use crate::db::DbResult;
-use crate::db::entities::tag::Tag;
+use crate::db::entities::tag::{Tag, TagId};
 
 use crate::http::{ApiContext, auth, ApiError, Result};
 use crate::http::auth::MyCustomBearerAuth;
@@ -51,10 +52,8 @@ async fn get_tag(
 ) -> Result<Json<Tag>> {
     auth::is_token_valid(token.as_str(), ctx.cfg.api.bearer_token.as_str())?;
 
-    if !tag_id.starts_with("tag:") {
-        return Err(ApiError::unprocessable_entity([("id", "tag id should start with 'tag:'")]));
-    }
-    let maybe_tag = Tag::get_by_id(tag_id.as_str(), &ctx.db).await?;
+    let tag_id = TagId::from_str(&tag_id)?;
+    let maybe_tag = Tag::get_by_id(&tag_id, &ctx.db).await?;
     if maybe_tag.is_none() {
         return Err(ApiError::NotFound);
     }
@@ -70,11 +69,8 @@ async fn delete_tag(
 ) -> Result<Json<Tag>> {
     auth::is_token_valid(token.as_str(), ctx.cfg.api.bearer_token.as_str())?;
 
-    if !tag_id.starts_with("tag:") {
-        return Err(ApiError::unprocessable_entity([("id", "tag id should start with 'tag:'")]));
-    }
-
-    let maybe_tag = Tag::delete_by_id(tag_id.as_str(), &ctx.db).await?;
+    let tag_id = TagId::from_str(&tag_id)?;
+    let maybe_tag = Tag::delete_by_id(&tag_id, &ctx.db).await?;
     match maybe_tag {
         None => Err(ApiError::NotFound),
         Some(tag) => Ok(Json(tag)),

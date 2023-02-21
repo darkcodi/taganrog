@@ -1,12 +1,15 @@
 use chrono::{DateTime, Utc};
 use crate::db::DbResult;
+use crate::db::id::Id;
 use crate::db::surreal_http::{SurrealDbError, SurrealHttpClient, SurrealVecDeserializable};
 use crate::utils::str_utils::StringExtensions;
 use crate::utils::vec_utils::RemoveExtensions;
 
+pub type TagId = Id<"tag">;
+
 #[derive(serde::Serialize, serde::Deserialize, Clone, Debug, PartialEq, Eq)]
 pub struct Tag {
-    pub id: String,
+    pub id: TagId,
     pub name: String,
     pub created_at: DateTime<Utc>,
 }
@@ -22,7 +25,7 @@ impl Tag {
     }
 
     pub async fn get_by_id(
-        id: &str,
+        id: &TagId,
         db: &SurrealHttpClient,
     ) -> Result<Option<Tag>, SurrealDbError> {
         let query = format!("SELECT * FROM tag WHERE id = '{id}';");
@@ -34,7 +37,7 @@ impl Tag {
     }
 
     pub async fn delete_by_id(
-        id: &str,
+        id: &TagId,
         db: &SurrealHttpClient,
     ) -> Result<Option<Tag>, SurrealDbError> {
         let query = format!("DELETE FROM tag WHERE id = '{id}' RETURN BEFORE;");
@@ -49,10 +52,12 @@ impl Tag {
         name: &str,
         db: &SurrealHttpClient,
     ) -> Result<DbResult<Tag>, SurrealDbError> {
+        let tag_id = TagId::new();
         let name = name.slugify();
         let query = format!("LET $tag_name = '{name}';
-CREATE tag SET name = $tag_name, created_at = time::now();
+CREATE {tag_id} SET name = $tag_name, created_at = time::now();
 SELECT * FROM tag WHERE name = $tag_name;");
+        dbg!(&query);
         let result_vec = db.exec(query.as_str()).await?;
         let already_existed = result_vec.iter().any(|x| x.is_err());
         let mut tags_vec: Vec<Tag> = result_vec.surr_deserialize_last()?;
