@@ -38,6 +38,10 @@ impl<const T: &'static str> Id<T> {
             entity_id: s,
         })
     }
+
+    pub fn just_id(&self) -> String {
+        self.entity_id.to_string()
+    }
 }
 
 impl<const T: &'static str> Default for Id<T> {

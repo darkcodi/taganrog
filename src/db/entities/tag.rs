@@ -57,7 +57,6 @@ impl Tag {
         let query = format!("LET $tag_name = '{name}';
 CREATE {tag_id} SET name = $tag_name, created_at = time::now();
 SELECT * FROM tag WHERE name = $tag_name;");
-        dbg!(&query);
         let result_vec = db.exec(query.as_str()).await?;
         let already_existed = result_vec.iter().any(|x| x.is_err());
         let mut tags_vec: Vec<Tag> = result_vec.surr_deserialize_last()?;

@@ -99,6 +99,7 @@ impl SurrealHttpClient {
     }
 
     pub async fn exec(&self, query: &str) -> Result<Vec<SurrealDbResult>, SurrealDbError>  {
+        dbg!(query);
         let http_response = self.http_client.post(&self.url)
             .body(query.to_string())
             .send()
@@ -108,6 +109,7 @@ impl SurrealHttpClient {
             .text()
             .await
             .map_err(SurrealDbError::NetworkError)?;
+        dbg!(&response_str);
         let db_response: SurrealDbResponse = serde_json::from_str(&response_str)
             .map_err(SurrealDbError::DeserializationError)?;
         match db_response {
