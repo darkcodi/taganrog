@@ -1,6 +1,6 @@
 use chrono::{DateTime, Utc};
 use crate::db::DbResult;
-use crate::db::surreal_http::{SurrealDbError, SurrealDeserializable, SurrealHttpClient, SurrealVecDeserializable};
+use crate::db::surreal_http::{SurrealDbError, SurrealHttpClient, SurrealVecDeserializable};
 use crate::utils::str_utils::StringExtensions;
 use crate::utils::vec_utils::RemoveExtensions;
 

@@ -1,5 +1,5 @@
 pub mod surreal_http;
-pub mod tag;
+pub mod entities;
 
 pub enum DbResult<T> {
     Existing(T),

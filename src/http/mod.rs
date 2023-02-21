@@ -8,12 +8,11 @@ use tower_http::trace::TraceLayer;
 use tracing::info;
 pub use error::{ApiError};
 use crate::db::surreal_http::SurrealHttpClient;
+use crate::http::controllers::{media, ping, tags};
 
 mod error;
-mod media;
-mod tags;
-mod ping;
 mod auth;
+mod controllers;
 
 pub const CONTENT_TYPE_HEADER: &str = "content-type";
 pub const APPLICATION_JSON: &str = "application/json";

@@ -2,7 +2,7 @@ use axum::extract::{Extension, Path};
 use axum::routing::{get};
 use axum::{Json, Router};
 use crate::db::DbResult;
-use crate::db::tag::Tag;
+use crate::db::entities::tag::Tag;
 
 use crate::http::{ApiContext, auth, ApiError, Result};
 use crate::http::auth::MyCustomBearerAuth;

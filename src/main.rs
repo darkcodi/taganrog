@@ -1,6 +1,4 @@
-use anyhow::Context;
 use clap::Parser;
-use tracing::info;
 use taganrog::config::{Config, FlatConfig};
 use taganrog::http;
 
