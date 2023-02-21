@@ -6,7 +6,7 @@ use tower::ServiceBuilder;
 use tower_http::cors::{Any, CorsLayer};
 use tower_http::trace::TraceLayer;
 use tracing::info;
-pub use error::{Error};
+pub use error::{ApiError};
 use crate::db::surreal_http::SurrealHttpClient;
 
 mod error;
@@ -18,7 +18,7 @@ mod auth;
 pub const CONTENT_TYPE_HEADER: &str = "content-type";
 pub const APPLICATION_JSON: &str = "application/json";
 
-pub type Result<T, E = Error> = std::result::Result<T, E>;
+pub type Result<T, E = ApiError> = std::result::Result<T, E>;
 
 #[derive(Clone)]
 pub struct ApiContext {

@@ -6,7 +6,7 @@ pub trait StringExtensions {
     fn slugify(&self) -> String;
 }
 
-impl StringExtensions for String {
+impl StringExtensions for str {
     fn slugify(&self) -> String {
         const QUOTE_CHARS: &[char] = &['\'', '"'];
 
@@ -19,6 +19,12 @@ impl StringExtensions for String {
                 s
             })
             .join("-")
+    }
+}
+
+impl StringExtensions for String {
+    fn slugify(&self) -> String {
+        StringExtensions::slugify(self.as_str())
     }
 }
 

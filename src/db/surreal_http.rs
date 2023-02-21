@@ -4,7 +4,7 @@ use reqwest::{Client, ClientBuilder};
 use reqwest::header::{HeaderMap, HeaderValue};
 use serde::{Deserialize, Serialize};
 use serde::de::DeserializeOwned;
-use crate::utils::vec_utils::RemoveFirst;
+use crate::utils::vec_utils::RemoveExtensions;
 
 #[derive(Debug, thiserror::Error)]
 pub enum SurrealDbError {
@@ -47,6 +47,20 @@ pub enum SurrealDbResult {
         status: String,
         detail: String,
     },
+}
+
+impl SurrealDbResult {
+    pub fn is_ok(&self) -> bool {
+        if let SurrealDbResult::Ok { .. } = self {
+            true
+        } else {
+            false
+        }
+    }
+
+    pub fn is_err(&self) -> bool {
+        !self.is_ok()
+    }
 }
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -126,7 +140,7 @@ impl SurrealDeserializable for SurrealDbResult {
 
 impl SurrealDeserializable for Vec<SurrealDbResult> {
     fn surr_deserialize<T: DeserializeOwned>(mut self) -> Result<T, SurrealDbError> {
-        let first_result = self.remove_first().ok_or(SurrealDbError::EmptyResponse)?;
-        first_result.surr_deserialize()
+        let db_result = self.remove_last().ok_or(SurrealDbError::EmptyResponse)?;
+        db_result.surr_deserialize()
     }
 }

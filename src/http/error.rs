@@ -11,7 +11,7 @@ use crate::http::auth::AuthError;
 use crate::http::{APPLICATION_JSON, CONTENT_TYPE_HEADER};
 
 #[derive(thiserror::Error, Debug)]
-pub enum Error {
+pub enum ApiError {
     #[error("authentication required")]
     Unauthorized,
 
@@ -44,7 +44,7 @@ pub enum Error {
     Anyhow(#[from] anyhow::Error),
 }
 
-impl Error {
+impl ApiError {
     pub fn conflict<K: serde::Serialize>(entity: K) -> Self {
         let serialized_entity = serde_json::to_string(&entity).unwrap();
         Self::Conflict { serialized_entity }
@@ -79,7 +79,7 @@ impl Error {
     }
 }
 
-impl IntoResponse for Error {
+impl IntoResponse for ApiError {
     fn into_response(self) -> Response {
         match self {
             Self::UnprocessableEntity { errors } => {

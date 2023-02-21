@@ -1,9 +1,10 @@
 use axum::extract::{Extension, Path};
 use axum::routing::{get};
 use axum::{Json, Router};
+use crate::db::DbResult;
 use crate::db::tag::Tag;
 
-use crate::http::{ApiContext, auth, Error, Result};
+use crate::http::{ApiContext, auth, ApiError, Result};
 use crate::http::auth::MyCustomBearerAuth;
 use crate::utils::str_utils::StringExtensions;
 
@@ -24,27 +25,14 @@ async fn create_tag(
     Json(req): Json<CreateTag>,
 ) -> Result<Json<Tag>> {
     auth::is_token_valid(token.as_str(), ctx.cfg.api.bearer_token.as_str())?;
-    let name = &req.name.slugify();
 
-    todo!()
-
-    // let existing_tag = TagEntity::find()
-    //     .filter(TagColumn::Name.eq(&name))
-    //     .one(&ctx.db)
-    //     .await?;
-    // if existing_tag.is_some() {
-    //     return Err(Error::conflict(existing_tag.unwrap()));
-    // }
-    //
-    // let created_at = chrono::Utc::now().naive_utc();
-    // let tag = ActiveTag {
-    //     name: Set(name),
-    //     created_at: Set(created_at),
-    //     ..Default::default()
-    // };
-    // let tag = tag.insert(&ctx.db).await?;
-    //
-    // Ok(Json(tag))
+    let db_result = Tag::ensure_exists(&req.name, &ctx.db).await?;
+    match db_result {
+        DbResult::Existing(tag) => Err(ApiError::Conflict {
+            serialized_entity: serde_json::to_string(&tag).unwrap(),
+        }),
+        DbResult::New(tag) => Ok(Json(tag)),
+    }
 }
 
 async fn get_all_tags(
