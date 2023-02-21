@@ -51,11 +51,7 @@ pub enum SurrealDbResult {
 
 impl SurrealDbResult {
     pub fn is_ok(&self) -> bool {
-        if let SurrealDbResult::Ok { .. } = self {
-            true
-        } else {
-            false
-        }
+        matches!(self, SurrealDbResult::Ok { .. })
     }
 
     pub fn is_err(&self) -> bool {
@@ -138,8 +134,18 @@ impl SurrealDeserializable for SurrealDbResult {
     }
 }
 
-impl SurrealDeserializable for Vec<SurrealDbResult> {
-    fn surr_deserialize<T: DeserializeOwned>(mut self) -> Result<T, SurrealDbError> {
+pub trait SurrealVecDeserializable {
+    fn surr_deserialize_first<T: DeserializeOwned>(self) -> Result<T, SurrealDbError>;
+    fn surr_deserialize_last<T: DeserializeOwned>(self) -> Result<T, SurrealDbError>;
+}
+
+impl SurrealVecDeserializable for Vec<SurrealDbResult> {
+    fn surr_deserialize_first<T: DeserializeOwned>(mut self) -> Result<T, SurrealDbError> {
+        let db_result = self.remove_first().ok_or(SurrealDbError::EmptyResponse)?;
+        db_result.surr_deserialize()
+    }
+
+    fn surr_deserialize_last<T: DeserializeOwned>(mut self) -> Result<T, SurrealDbError> {
         let db_result = self.remove_last().ok_or(SurrealDbError::EmptyResponse)?;
         db_result.surr_deserialize()
     }

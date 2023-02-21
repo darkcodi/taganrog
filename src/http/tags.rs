@@ -6,12 +6,11 @@ use crate::db::tag::Tag;
 
 use crate::http::{ApiContext, auth, ApiError, Result};
 use crate::http::auth::MyCustomBearerAuth;
-use crate::utils::str_utils::StringExtensions;
 
 pub fn router() -> Router {
     Router::new()
         .route("/api/tags", get(get_all_tags).post(create_tag))
-        //.route("/api/tags/:tag_id", get(get_tag).delete(delete_tag))
+        .route("/api/tags/:tag_id", get(get_tag).delete(delete_tag))
 }
 
 #[derive(serde::Deserialize, Debug, Default)]
@@ -40,38 +39,44 @@ async fn get_all_tags(
     MyCustomBearerAuth(token): MyCustomBearerAuth,
 ) -> Result<Json<Vec<Tag>>> {
     auth::is_token_valid(token.as_str(), ctx.cfg.api.bearer_token.as_str())?;
+
     let tags = Tag::get_all(&ctx.db).await?;
     Ok(Json(tags))
 }
 
-// async fn get_tag(
-//     ctx: Extension<ApiContext>,
-//     MyCustomBearerAuth(token): MyCustomBearerAuth,
-//     Path(tag_id): Path<i64>,
-// ) -> Result<Json<Tag>> {
-//     auth::is_token_valid(token.as_str(), ctx.config.api.bearer_token.as_str())?;
-//
-//     let tag = TagEntity::find_by_id(tag_id)
-//         .one(&ctx.db)
-//         .await?
-//         .ok_or(Error::NotFound)?;
-//
-//     Ok(Json(tag))
-// }
-//
-// async fn delete_tag(
-//     ctx: Extension<ApiContext>,
-//     MyCustomBearerAuth(token): MyCustomBearerAuth,
-//     Path(tag_id): Path<i64>,
-// ) -> Result<()> {
-//     auth::is_token_valid(token.as_str(), ctx.config.api.bearer_token.as_str())?;
-//
-//     let tag = TagEntity::find_by_id(tag_id)
-//         .one(&ctx.db)
-//         .await?
-//         .ok_or(Error::NotFound)?;
-//
-//     tag.delete(&ctx.db).await?;
-//
-//     Ok(())
-// }
+async fn get_tag(
+    ctx: Extension<ApiContext>,
+    MyCustomBearerAuth(token): MyCustomBearerAuth,
+    Path(tag_id): Path<String>,
+) -> Result<Json<Tag>> {
+    auth::is_token_valid(token.as_str(), ctx.cfg.api.bearer_token.as_str())?;
+
+    if !tag_id.starts_with("tag:") {
+        return Err(ApiError::unprocessable_entity([("id", "tag id should start with 'tag:'")]));
+    }
+    let maybe_tag = Tag::get_by_id(tag_id.as_str(), &ctx.db).await?;
+    if maybe_tag.is_none() {
+        return Err(ApiError::NotFound);
+    }
+
+    let tag = maybe_tag.unwrap();
+    Ok(Json(tag))
+}
+
+async fn delete_tag(
+    ctx: Extension<ApiContext>,
+    MyCustomBearerAuth(token): MyCustomBearerAuth,
+    Path(tag_id): Path<String>,
+) -> Result<Json<Tag>> {
+    auth::is_token_valid(token.as_str(), ctx.cfg.api.bearer_token.as_str())?;
+
+    if !tag_id.starts_with("tag:") {
+        return Err(ApiError::unprocessable_entity([("id", "tag id should start with 'tag:'")]));
+    }
+
+    let maybe_tag = Tag::delete_by_id(tag_id.as_str(), &ctx.db).await?;
+    match maybe_tag {
+        None => Err(ApiError::NotFound),
+        Some(tag) => Ok(Json(tag)),
+    }
+}
