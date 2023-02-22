@@ -12,6 +12,15 @@ pub enum DbResult<T> {
     New(T),
 }
 
+impl<T> DbResult<T> {
+    pub fn safe_unwrap(self) -> T {
+        match self {
+            DbResult::Existing(x) => x,
+            DbResult::New(x) => x,
+        }
+    }
+}
+
 pub async fn migrate(ctx: ApiContext) -> anyhow::Result<()> {
     info!("Starting DB migration...");
     Tag::migrate(&ctx.db).await?;

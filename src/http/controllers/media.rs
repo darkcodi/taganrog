@@ -9,7 +9,9 @@ use s3::{Bucket, Region};
 use s3::creds::Credentials;
 use uuid::Uuid;
 use crate::config::S3Configuration;
+use crate::db::DbResult;
 use crate::db::entities::media::{Media, MediaId, MediaWithTags};
+use crate::db::entities::tag::Tag;
 use crate::http::error::{ApiError};
 use crate::http::{ApiContext, auth, Result};
 use crate::http::auth::MyCustomBearerAuth;
@@ -21,7 +23,7 @@ pub fn router() -> Router {
     Router::new()
         .route("/api/media", get(get_all_media).post(create_media))
         .route("/api/media/:media_id", get(get_media).delete(delete_media))
-        // .route("/api/media/:media_id/tag", post(add_tag_to_media).delete(delete_tag_from_media))
+        .route("/api/media/:media_id/tag", post(add_tag_to_media).delete(delete_tag_from_media))
         // .route("/api/media/search", post(search_media))
         .layer(DefaultBodyLimit::max(MAX_UPLOAD_SIZE_IN_BYTES))
 }
@@ -173,53 +175,52 @@ async fn delete_media(
     }
 }
 
-// async fn add_tag_to_media(
-//     ctx: Extension<ApiContext>,
-//     MyCustomBearerAuth(token): MyCustomBearerAuth,
-//     Path(media_id): Path<i64>,
-//     Json(req): Json<TagBody>,
-// ) -> Result<Json<MediaResponse>> {
-//     auth::is_token_valid(token.as_str(), ctx.config.api.bearer_token.as_str())?;
-//
-//     let mut media = media::find_by_id(media_id, &ctx.db)
-//         .await?
-//         .ok_or(Error::NotFound)?;
-//
-//     let tag_name = slugify(&req.name);
-//     if media.tags.contains(&tag_name) {
-//         return Err(Error::conflict(media));
-//     }
-//
-//     let tag = tag::ensure_exists(tag_name.as_str(), &ctx.db).await?;
-//     media_tag::ensure_exists(media_id, tag.id, &ctx.db).await?;
-//     media.tags.push(tag.name);
-//     Ok(Json(media))
-// }
-//
-// async fn delete_tag_from_media(
-//     ctx: Extension<ApiContext>,
-//     MyCustomBearerAuth(token): MyCustomBearerAuth,
-//     Path(media_id): Path<i64>,
-//     Json(req): Json<TagBody>,
-// ) -> Result<Json<MediaResponse>> {
-//     auth::is_token_valid(token.as_str(), ctx.config.api.bearer_token.as_str())?;
-//
-//     let mut media = media::find_by_id(media_id, &ctx.db)
-//         .await?
-//         .ok_or(Error::NotFound)?;
-//
-//     let tag_name = slugify(&req.name);
-//     let tag_index = media.tags.iter().position(|x| x.eq(&tag_name));
-//     if tag_index.is_none() {
-//         return Ok(Json(media));
-//     }
-//
-//     let tag = tag::ensure_exists(tag_name.as_str(), &ctx.db).await?;
-//     media_tag::ensure_not_exists(media_id, tag.id, &ctx.db).await?;
-//     media.tags.remove(tag_index.unwrap());
-//     Ok(Json(media))
-// }
-//
+async fn add_tag_to_media(
+    ctx: Extension<ApiContext>,
+    MyCustomBearerAuth(token): MyCustomBearerAuth,
+    Path(media_id): Path<String>,
+    Json(req): Json<TagBody>,
+) -> Result<Json<MediaWithTags>> {
+    auth::is_token_valid(token.as_str(), ctx.cfg.api.bearer_token.as_str())?;
+
+    let media_id = MediaId::from_str(&media_id)?;
+    let maybe_media = Media::get_by_id(&media_id, &ctx.db).await?;
+    if maybe_media.is_none() {
+        return Err(ApiError::NotFound);
+    }
+
+    let mut media = maybe_media.unwrap();
+    if !media.tags.contains(&req.name) {
+        let tag = Tag::ensure_exists(&req.name, &ctx.db).await?.safe_unwrap();
+        Media::add_tag(&media_id, &tag.id, &ctx.db).await?;
+        media.tags.push(tag.name);
+    }
+    Ok(Json(media))
+}
+
+async fn delete_tag_from_media(
+    ctx: Extension<ApiContext>,
+    MyCustomBearerAuth(token): MyCustomBearerAuth,
+    Path(media_id): Path<String>,
+    Json(req): Json<TagBody>,
+) -> Result<Json<MediaWithTags>> {
+    auth::is_token_valid(token.as_str(), ctx.cfg.api.bearer_token.as_str())?;
+
+    let media_id = MediaId::from_str(&media_id)?;
+    let maybe_media = Media::get_by_id(&media_id, &ctx.db).await?;
+    if maybe_media.is_none() {
+        return Err(ApiError::NotFound);
+    }
+
+    let mut media = maybe_media.unwrap();
+    if media.tags.contains(&req.name) {
+        Media::remove_tag(&media_id, &req.name, &ctx.db).await?;
+        let pos = media.tags.iter().position(|x| x == &req.name).unwrap();
+        media.tags.remove(pos);
+    }
+    Ok(Json(media))
+}
+
 // async fn search_media(
 //     ctx: Extension<ApiContext>,
 //     MyCustomBearerAuth(token): MyCustomBearerAuth,

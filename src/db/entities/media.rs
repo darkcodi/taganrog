@@ -1,6 +1,9 @@
 use chrono::{DateTime, Utc};
+use crate::db::DbResult;
+use crate::db::entities::tag::TagId;
 use crate::db::id::Id;
 use crate::db::surreal_http::{SurrealDbError, SurrealDbResult, SurrealHttpClient, SurrealVecDeserializable};
+use crate::utils::str_utils::StringExtensions;
 use crate::utils::vec_utils::RemoveExtensions;
 
 pub type MediaId = Id<"media">;
@@ -54,7 +57,7 @@ impl Media {
         hash: &str,
         db: &SurrealHttpClient,
     ) -> Result<Option<MediaWithTags>, SurrealDbError>  {
-        let query = format!("SELECT *, ->has->tag AS tags FROM media WHERE hash = '{hash}';");
+        let query = format!("SELECT *, ->has->tag.name AS tags FROM media WHERE hash = '{hash}';");
         let mut media_vec: Vec<MediaWithTags> = db.exec(query.as_str())
             .await?
             .surr_deserialize_last()?;
@@ -99,7 +102,7 @@ size = {size};");
     ) -> Result<Vec<MediaWithTags>, SurrealDbError>  {
         let start = page_size * page_index;
         let limit = page_size;
-        let query = format!("SELECT *, ->has->tag AS tags FROM media ORDER BY created_at LIMIT {limit} START {start};");
+        let query = format!("SELECT *, ->has->tag.name AS tags FROM media ORDER BY created_at LIMIT {limit} START {start};");
         let media_vec: Vec<MediaWithTags> = db.exec(query.as_str())
             .await?
             .surr_deserialize_last()?;
@@ -110,12 +113,35 @@ size = {size};");
         id: &MediaId,
         db: &SurrealHttpClient,
     ) -> Result<Option<MediaWithTags>, SurrealDbError> {
-        let query = format!("SELECT *, ->has->tag AS tags FROM media WHERE id = '{id}';");
+        let query = format!("SELECT *, ->has->tag.name AS tags FROM media WHERE id = '{id}';");
         let mut media_vec: Vec<MediaWithTags> = db.exec(query.as_str())
             .await?
             .surr_deserialize_last()?;
         let maybe_media = media_vec.remove_last();
         Ok(maybe_media)
+    }
+
+    pub async fn add_tag(
+        media_id: &MediaId,
+        tag_id: &TagId,
+        db: &SurrealHttpClient,
+    ) -> Result<(), SurrealDbError> {
+        let query = format!("RELATE {media_id}->has->{tag_id} SET time.added = time::now();");
+        let mut result = db.exec(query.as_str()).await?;
+        let _ = result.remove_last().ok_or(SurrealDbError::EmptyResponse)?;
+        Ok(())
+    }
+
+    pub async fn remove_tag(
+        media_id: &MediaId,
+        tag_name: &str,
+        db: &SurrealHttpClient,
+    ) -> Result<(), SurrealDbError> {
+        let tag_name = tag_name.slugify();
+        let query = format!("DELETE FROM has WHERE in = {media_id} and out.name = '{tag_name}';");
+        let mut result = db.exec(query.as_str()).await?;
+        let _ = result.remove_last().ok_or(SurrealDbError::EmptyResponse)?;
+        Ok(())
     }
 
     pub async fn delete_by_id(
