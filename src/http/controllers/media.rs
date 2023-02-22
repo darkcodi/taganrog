@@ -105,7 +105,7 @@ async fn create_media(
     }
 
     let id = MediaId::new();
-    let new_filename = format!("{}{}", id.just_id(), &file.extension.clone().unwrap_or("".to_string()));
+    let new_filename = format!("{}{}", &file.hash, &file.extension.clone().unwrap_or("".to_string()));
     let bucket = get_bucket(&ctx.cfg.s3);
     bucket.put_object_stream_with_content_type(&mut file.data.as_slice(), new_filename.as_str(), &file.content_type.as_str())
         .await
