@@ -24,7 +24,7 @@ pub fn router() -> Router {
         .route("/api/media", get(get_all_media).post(create_media))
         .route("/api/media/:media_id", get(get_media).delete(delete_media))
         .route("/api/media/:media_id/tag", post(add_tag_to_media).delete(delete_tag_from_media))
-        // .route("/api/media/search", post(search_media))
+        .route("/api/media/search", post(search_media))
         .layer(DefaultBodyLimit::max(MAX_UPLOAD_SIZE_IN_BYTES))
 }
 
@@ -226,17 +226,15 @@ async fn delete_tag_from_media(
     Ok(Json(media))
 }
 
-// async fn search_media(
-//     ctx: Extension<ApiContext>,
-//     MyCustomBearerAuth(token): MyCustomBearerAuth,
-//     Json(req): Json<SearchBody>,
-// ) -> Result<Json<Vec<MediaResponse>>> {
-//     auth::is_token_valid(token.as_str(), ctx.config.api.bearer_token.as_str())?;
-//
-//     let media_vec: Vec<MediaResponse> = media::search(&req.tags, &ctx.db).await?;
-//
-//     Ok(Json(media_vec))
-// }
+async fn search_media(
+    ctx: Extension<ApiContext>,
+    MyCustomBearerAuth(token): MyCustomBearerAuth,
+    Json(req): Json<SearchBody>,
+) -> Result<Json<Vec<MediaWithTags>>> {
+    auth::is_token_valid(token.as_str(), ctx.cfg.api.bearer_token.as_str())?;
+    let media_vec: Vec<MediaWithTags> = Media::search(&req.tags, &ctx.db).await?;
+    Ok(Json(media_vec))
+}
 
 fn get_bucket(conf: &S3Configuration) -> Bucket {
     let bucket = Bucket::new(

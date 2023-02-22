@@ -1,4 +1,5 @@
 use chrono::{DateTime, Utc};
+use itertools::Itertools;
 use crate::db::DbResult;
 use crate::db::entities::tag::TagId;
 use crate::db::id::Id;
@@ -178,31 +179,17 @@ COMMIT TRANSACTION;";
         Ok(())
     }
 
-    // pub async fn search(
-    //     tags: &Vec<String>,
-    //     db: &DatabaseConnection,
-    // ) -> Result<Vec<MediaResponse>, DbErr>  {
-    //     let tag_ids: Vec<i64> = TagEntity::find()
-    //         .filter(TagColumn::Name.is_in(tags))
-    //         .select_only()
-    //         .column(TagColumn::Id)
-    //         .into_tuple()
-    //         .all(db)
-    //         .await?;
-    //     let media_ids: Vec<i64> = MediaTagEntity::find()
-    //         .filter(MediaTagColumn::TagId.is_in(tag_ids))
-    //         .select_only()
-    //         .column(MediaTagColumn::MediaId)
-    //         .into_tuple()
-    //         .all(db)
-    //         .await?;
-    //     let media: MediaWithTagsRows = Entity::find()
-    //         .filter(Column::Id.is_in(media_ids))
-    //         .find_also_linked(media_tag::MediaToTag)
-    //         .all(db)
-    //         .await?
-    //         .into();
-    //     let media: Vec<MediaResponse> = media.into();
-    //     Ok(media)
-    // }
+    pub async fn search(
+        tags: &[String],
+        db: &SurrealHttpClient,
+    ) -> Result<Vec<MediaWithTags>, SurrealDbError>  {
+        let tags_arr = tags.iter().map(|x| format!("'{x}'")).join(", ");
+        let query = format!("SELECT *, ->has->tag.name AS tags
+FROM media
+WHERE ->has->tag.name CONTAINSALL [{tags_arr}];");
+        let media_vec: Vec<MediaWithTags> = db.exec(query.as_str())
+            .await?
+            .surr_deserialize_last()?;
+        Ok(media_vec)
+    }
 }
