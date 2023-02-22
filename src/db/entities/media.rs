@@ -1,6 +1,6 @@
 use chrono::{DateTime, Utc};
 use crate::db::id::Id;
-use crate::db::surreal_http::{SurrealDbError, SurrealHttpClient, SurrealVecDeserializable};
+use crate::db::surreal_http::{SurrealDbError, SurrealDbResult, SurrealHttpClient, SurrealVecDeserializable};
 use crate::utils::vec_utils::RemoveExtensions;
 
 pub type MediaId = Id<"media">;
@@ -128,6 +128,28 @@ size = {size};");
             .surr_deserialize_last()?;
         let maybe_media = media_vec.remove_last();
         Ok(maybe_media)
+    }
+
+    pub async fn migrate(db: &SurrealHttpClient) -> Result<(), SurrealDbError> {
+        let query = "BEGIN TRANSACTION;
+DEFINE TABLE media SCHEMAFULL;
+DEFINE FIELD original_filename ON media TYPE string ASSERT $value != NONE VALUE $value;
+DEFINE FIELD extension ON media TYPE string VALUE $value;
+DEFINE FIELD new_filename ON media TYPE string ASSERT $value != NONE VALUE $value;
+DEFINE FIELD content_type ON media TYPE string ASSERT $value != NONE VALUE $value;
+DEFINE FIELD created_at ON media TYPE datetime VALUE $value OR time::now();
+DEFINE FIELD hash ON media TYPE string ASSERT $value != NONE VALUE $value;
+DEFINE FIELD public_url ON media TYPE string ASSERT $value != NONE VALUE $value;
+DEFINE FIELD size ON media TYPE int ASSERT $value != 0 VALUE $value;
+DEFINE INDEX media_hash ON TABLE media COLUMNS hash UNIQUE;
+DEFINE INDEX media_has_tag_uc ON TABLE has COLUMNS in, out UNIQUE;
+COMMIT TRANSACTION;";
+        let mut result_vec = db.exec(query).await?;
+        let last_result = result_vec.remove_last().ok_or(SurrealDbError::EmptyResponse)?;
+        if let SurrealDbResult::Err { detail, .. } = last_result {
+            return Err(SurrealDbError::QueryExecutionError(detail));
+        }
+        Ok(())
     }
 
     // pub async fn search(

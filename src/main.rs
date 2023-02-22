@@ -1,6 +1,7 @@
 use clap::Parser;
 use taganrog::config::{Config, FlatConfig};
-use taganrog::http;
+use taganrog::{db, http};
+use taganrog::http::ApiContext;
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
@@ -11,8 +12,11 @@ async fn main() -> anyhow::Result<()> {
         .init();
 
     let config: Config = FlatConfig::parse().into();
+    let ctx = ApiContext::new(config);
 
-    http::serve(config).await?;
+    db::migrate(ctx.clone()).await?;
+
+    http::serve(ctx).await?;
 
     Ok(())
 }

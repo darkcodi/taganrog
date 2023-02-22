@@ -21,12 +21,12 @@ pub type Result<T, E = ApiError> = std::result::Result<T, E>;
 
 #[derive(Clone)]
 pub struct ApiContext {
-    cfg: Arc<Config>,
-    db: SurrealHttpClient,
+    pub cfg: Arc<Config>,
+    pub db: SurrealHttpClient,
 }
 
 impl ApiContext {
-    fn new(config: Config) -> Self {
+    pub fn new(config: Config) -> Self {
         let cfg = Arc::new(config);
         let db = SurrealHttpClient::new(cfg.db.database_url.as_str(), "root", "root", "tg1", "tg1");
         Self {
@@ -36,7 +36,7 @@ impl ApiContext {
     }
 }
 
-pub async fn serve(config: Config) -> anyhow::Result<()> {
+pub async fn serve(ctx: ApiContext) -> anyhow::Result<()> {
     let app = api_router()
         .layer(CorsLayer::new()
             .allow_methods(Any)
@@ -44,7 +44,7 @@ pub async fn serve(config: Config) -> anyhow::Result<()> {
             .allow_origin(Any))
         .layer(
             ServiceBuilder::new()
-                .layer(Extension(ApiContext::new(config)))
+                .layer(Extension(ctx))
                 .layer(TraceLayer::new_for_http()),
     );
 

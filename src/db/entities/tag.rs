@@ -1,7 +1,7 @@
 use chrono::{DateTime, Utc};
 use crate::db::DbResult;
 use crate::db::id::Id;
-use crate::db::surreal_http::{SurrealDbError, SurrealHttpClient, SurrealVecDeserializable};
+use crate::db::surreal_http::{SurrealDbError, SurrealDbResult, SurrealHttpClient, SurrealVecDeserializable};
 use crate::utils::str_utils::StringExtensions;
 use crate::utils::vec_utils::RemoveExtensions;
 
@@ -63,5 +63,20 @@ SELECT * FROM tag WHERE name = $tag_name;");
         let tag = tags_vec.remove_last().ok_or(SurrealDbError::EmptyResponse)?;
         let db_result = if already_existed { DbResult::Existing(tag) } else { DbResult::New(tag) };
         Ok(db_result)
+    }
+
+    pub async fn migrate(db: &SurrealHttpClient) -> Result<(), SurrealDbError> {
+        let query = "BEGIN TRANSACTION;
+DEFINE TABLE tag SCHEMAFULL;
+DEFINE FIELD name ON tag TYPE string ASSERT $value != NONE VALUE $value;
+DEFINE INDEX tag_name ON TABLE tag COLUMNS name UNIQUE;
+DEFINE FIELD created_at ON tag TYPE datetime VALUE $value OR time::now();
+COMMIT TRANSACTION;";
+        let mut result_vec = db.exec(query).await?;
+        let last_result = result_vec.remove_last().ok_or(SurrealDbError::EmptyResponse)?;
+        if let SurrealDbResult::Err { detail, .. } = last_result {
+            return Err(SurrealDbError::QueryExecutionError(detail));
+        }
+        Ok(())
     }
 }
