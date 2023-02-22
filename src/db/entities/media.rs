@@ -183,7 +183,7 @@ COMMIT TRANSACTION;";
         tags: &[String],
         db: &SurrealHttpClient,
     ) -> Result<Vec<MediaWithTags>, SurrealDbError>  {
-        let tags_arr = tags.iter().map(|x| format!("'{x}'")).join(", ");
+        let tags_arr = tags.iter().map(|x| format!("'{}'", x.slugify())).join(", ");
         let query = format!("SELECT *, ->has->tag.name AS tags
 FROM media
 WHERE ->has->tag.name CONTAINSALL [{tags_arr}];");

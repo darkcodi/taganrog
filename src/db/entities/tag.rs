@@ -1,4 +1,5 @@
 use chrono::{DateTime, Utc};
+use itertools::Itertools;
 use crate::db::DbResult;
 use crate::db::id::Id;
 use crate::db::surreal_http::{SurrealDbError, SurrealDbResult, SurrealHttpClient, SurrealVecDeserializable};
@@ -12,6 +13,13 @@ pub struct Tag {
     pub id: TagId,
     pub name: String,
     pub created_at: DateTime<Utc>,
+}
+
+#[derive(serde::Serialize, serde::Deserialize, Debug, Default)]
+pub struct CountMediaModel {
+    count: i64,
+    id: String,
+    name: String,
 }
 
 impl Tag {
@@ -63,6 +71,27 @@ SELECT * FROM tag WHERE name = $tag_name;");
         let tag = tags_vec.remove_last().ok_or(SurrealDbError::EmptyResponse)?;
         let db_result = if already_existed { DbResult::Existing(tag) } else { DbResult::New(tag) };
         Ok(db_result)
+    }
+
+    pub async fn count_media(
+        tags: &[String],
+        db: &SurrealHttpClient,
+    ) -> Result<Vec<CountMediaModel>, SurrealDbError> {
+        let tags_arr = tags.iter().map(|x| format!("'{}'", x.slugify())).join(", ");
+        let query = format!("LET $input = [{tags_arr}];
+SELECT id, name, count(id)
+FROM array::flatten((
+    SELECT ->has->tag AS rel_tags
+    FROM media
+    WHERE ->has->tag.name
+    CONTAINSALL $input
+))
+WHERE $input CONTAINSNOT name
+GROUP BY id, name;");
+        let result: Vec<CountMediaModel> = db.exec(&query)
+            .await?
+            .surr_deserialize_last()?;
+        Ok(result)
     }
 
     pub async fn migrate(db: &SurrealHttpClient) -> Result<(), SurrealDbError> {

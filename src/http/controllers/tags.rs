@@ -1,9 +1,9 @@
 use std::str::FromStr;
 use axum::extract::{Extension, Path};
-use axum::routing::{get};
+use axum::routing::{get, post};
 use axum::{Json, Router};
 use crate::db::DbResult;
-use crate::db::entities::tag::{Tag, TagId};
+use crate::db::entities::tag::{CountMediaModel, Tag, TagId};
 
 use crate::http::{ApiContext, auth, ApiError, Result};
 use crate::http::auth::MyCustomBearerAuth;
@@ -12,11 +12,17 @@ pub fn router() -> Router {
     Router::new()
         .route("/api/tags", get(get_all_tags).post(create_tag))
         .route("/api/tags/:tag_id", get(get_tag).delete(delete_tag))
+        .route("/api/tags/count_media", post(count_media))
 }
 
 #[derive(serde::Deserialize, Debug, Default)]
 struct CreateTag {
     name: String,
+}
+
+#[derive(serde::Deserialize, Debug, Default)]
+struct CountMediaRequest {
+    tags: Vec<String>,
 }
 
 async fn create_tag(
@@ -75,4 +81,15 @@ async fn delete_tag(
         None => Err(ApiError::NotFound),
         Some(tag) => Ok(Json(tag)),
     }
+}
+
+async fn count_media(
+    ctx: Extension<ApiContext>,
+    MyCustomBearerAuth(token): MyCustomBearerAuth,
+    Json(req): Json<CountMediaRequest>,
+) -> Result<Json<Vec<CountMediaModel>>> {
+    auth::is_token_valid(token.as_str(), ctx.cfg.api.bearer_token.as_str())?;
+
+    let counts_vec = Tag::count_media(&req.tags, &ctx.db).await?;
+    Ok(Json(counts_vec))
 }
