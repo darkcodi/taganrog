@@ -169,10 +169,15 @@ async fn delete_media(
 
     let media_id = MediaId::from_str(&media_id)?;
     let maybe_media = Media::delete_by_id(&media_id, &ctx.db).await?;
-    match maybe_media {
-        None => Err(ApiError::NotFound),
-        Some(media) => Ok(Json(media)),
+    if maybe_media.is_none() {
+        return Err(ApiError::NotFound);
     }
+
+    let media = maybe_media.unwrap();
+    let bucket = get_bucket(&ctx.cfg.s3);
+    bucket.delete_object(&media.new_filename).await?;
+
+    Ok(Json(media))
 }
 
 async fn add_tag_to_media(
