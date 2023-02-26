@@ -3,7 +3,7 @@ use axum::extract::{Extension, Path};
 use axum::routing::{get, post};
 use axum::{Json, Router};
 use crate::db::DbResult;
-use crate::db::entities::tag::{CountMediaModel, Tag, TagId};
+use crate::db::entities::tag::{TagWithCount, Tag, TagId};
 
 use crate::http::{ApiContext, auth, ApiError, Result};
 use crate::http::auth::MyCustomBearerAuth;
@@ -87,7 +87,7 @@ async fn count_media(
     ctx: Extension<ApiContext>,
     MyCustomBearerAuth(token): MyCustomBearerAuth,
     Json(req): Json<CountMediaRequest>,
-) -> Result<Json<Vec<CountMediaModel>>> {
+) -> Result<Json<Vec<TagWithCount>>> {
     auth::is_token_valid(token.as_str(), ctx.cfg.api.bearer_token.as_str())?;
 
     let counts_vec = Tag::count_media(&req.tags, &ctx.db).await?;

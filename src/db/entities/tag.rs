@@ -16,10 +16,11 @@ pub struct Tag {
 }
 
 #[derive(serde::Serialize, serde::Deserialize, Debug, Default)]
-pub struct CountMediaModel {
-    count: i64,
+pub struct TagWithCount {
     id: String,
     name: String,
+    created_at: DateTime<Utc>,
+    count: i64,
 }
 
 impl Tag {
@@ -76,10 +77,10 @@ SELECT * FROM tag WHERE name = $tag_name;");
     pub async fn count_media(
         tags: &[String],
         db: &SurrealHttpClient,
-    ) -> Result<Vec<CountMediaModel>, SurrealDbError> {
+    ) -> Result<Vec<TagWithCount>, SurrealDbError> {
         let tags_arr = tags.iter().map(|x| format!("'{}'", x.slugify())).join(", ");
         let query = format!("LET $input = [{tags_arr}];
-SELECT id, name, count(id)
+SELECT id, name, created_at, count(id)
 FROM array::flatten((
     SELECT ->has->tag AS rel_tags
     FROM media
@@ -87,8 +88,8 @@ FROM array::flatten((
     CONTAINSALL $input
 ))
 WHERE $input CONTAINSNOT name
-GROUP BY id, name;");
-        let result: Vec<CountMediaModel> = db.exec(&query)
+GROUP BY id, name, created_at;");
+        let result: Vec<TagWithCount> = db.exec(&query)
             .await?
             .surr_deserialize_last()?;
         Ok(result)
