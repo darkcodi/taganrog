@@ -23,7 +23,8 @@ pub fn router() -> Router {
     Router::new()
         .route("/api/media", get(get_all_media).post(create_media))
         .route("/api/media/:media_id", get(get_media).delete(delete_media))
-        .route("/api/media/:media_id/tag", post(add_tag_to_media).delete(delete_tag_from_media))
+        .route("/api/media/:media_id/add-tag", post(add_tag_to_media))
+        .route("/api/media/:media_id/remove-tag", post(delete_tag_from_media))
         .route("/api/media/search", post(search_media))
         .layer(DefaultBodyLimit::max(MAX_UPLOAD_SIZE_IN_BYTES))
 }
