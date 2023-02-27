@@ -236,7 +236,12 @@ async fn search_media(
     if req.tags.len() == 1 && req.tags.first().unwrap() == "null" {
         let media_vec: Vec<MediaWithTags> = Media::get_untagged(&ctx.db).await?;
         Ok(Json(media_vec))
-    } else {
+    }
+    else if req.tags.len() == 1 && req.tags.first().unwrap() == "all" {
+        let media_vec: Vec<MediaWithTags> = Media::get_all(50, 0, &ctx.db).await?;
+        Ok(Json(media_vec))
+    }
+    else {
         let media_vec: Vec<MediaWithTags> = Media::search(&req.tags, &ctx.db).await?;
         Ok(Json(media_vec))
     }
