@@ -192,4 +192,15 @@ WHERE ->has->tag.name CONTAINSALL [{tags_arr}];");
             .surr_deserialize_last()?;
         Ok(media_vec)
     }
+
+    pub async fn get_untagged(
+        db: &SurrealHttpClient,
+    ) -> Result<Vec<MediaWithTags>, SurrealDbError>  {
+        let media_vec: Vec<MediaWithTags> = db.exec("SELECT *, ->has->tag.name AS tags
+FROM media
+WHERE array::len(->has->tag) == 0;")
+            .await?
+            .surr_deserialize_last()?;
+        Ok(media_vec)
+    }
 }

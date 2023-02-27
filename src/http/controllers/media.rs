@@ -232,8 +232,13 @@ async fn search_media(
     Json(req): Json<SearchBody>,
 ) -> Result<Json<Vec<MediaWithTags>>> {
     auth::is_token_valid(token.as_str(), ctx.cfg.api.bearer_token.as_str())?;
-    let media_vec: Vec<MediaWithTags> = Media::search(&req.tags, &ctx.db).await?;
-    Ok(Json(media_vec))
+    if req.tags.len() == 1 && req.tags.first().unwrap() == "null" {
+        let media_vec: Vec<MediaWithTags> = Media::get_untagged(&ctx.db).await?;
+        Ok(Json(media_vec))
+    } else {
+        let media_vec: Vec<MediaWithTags> = Media::search(&req.tags, &ctx.db).await?;
+        Ok(Json(media_vec))
+    }
 }
 
 fn get_bucket(conf: &S3Configuration) -> Bucket {
