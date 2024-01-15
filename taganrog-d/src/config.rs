@@ -1,27 +1,27 @@
+use std::path::PathBuf;
 use clap::Parser;
 
 #[derive(Parser, Debug)]
 pub struct FlatConfig {
-    #[arg(env = "DATABASE_URL", required = true, help = "Postgres connection string")]
-    database_url: String,
+    #[arg(env = "TAG_WORKDIR", default_value = ".", help = "Working directory for the taganrog-d server")]
+    pub workdir: String,
 }
 
 #[derive(Debug)]
 pub struct Config {
-    pub db: DbConfiguration,
+    pub workdir: PathBuf,
+    pub db_path: PathBuf,
 }
 
-#[derive(Debug)]
-pub struct DbConfiguration {
-    pub database_url: String, // DATABASE_URL
-}
-
-impl From<FlatConfig> for Config {
-    fn from(value: FlatConfig) -> Self {
-        Config {
-            db: DbConfiguration {
-                database_url: value.database_url,
-            },
-        }
+impl Config {
+    pub fn parse() -> anyhow::Result<Self> {
+        let flat_config = FlatConfig::parse();
+        let workdir = std::env::current_dir()?
+           .join(flat_config.workdir).canonicalize()?;
+        let db_path = workdir.join("taganrog.db");
+        Ok(Self {
+            workdir,
+            db_path,
+        })
     }
 }

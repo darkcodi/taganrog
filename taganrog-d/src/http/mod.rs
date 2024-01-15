@@ -1,13 +1,13 @@
-use crate::config::Config;
 use anyhow::Context;
 use axum::{Extension, Router};
 use std::sync::Arc;
+use tokio_rusqlite::Connection;
 use tower::ServiceBuilder;
 use tower_http::cors::{Any, CorsLayer};
 use tower_http::trace::TraceLayer;
 use tracing::info;
 pub use error::{ApiError};
-use crate::db::surreal_http::SurrealHttpClient;
+use crate::config::Config;
 use crate::http::controllers::{media, ping, tags};
 
 mod error;
@@ -21,16 +21,14 @@ pub type Result<T, E = ApiError> = std::result::Result<T, E>;
 #[derive(Clone)]
 pub struct ApiContext {
     pub cfg: Arc<Config>,
-    pub db: SurrealHttpClient,
+    pub db: Connection,
 }
 
 impl ApiContext {
-    pub fn new(config: Config) -> Self {
-        let cfg = Arc::new(config);
-        let db = SurrealHttpClient::new(cfg.db.database_url.as_str(), "root", "root", "tg1", "tg1");
+    pub fn new(config: Config, db_conn: Connection) -> Self {
         Self {
-            cfg,
-            db,
+            cfg: Arc::new(config),
+            db: db_conn,
         }
     }
 }
