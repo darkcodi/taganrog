@@ -1,6 +1,5 @@
 use chrono::{DateTime, Utc};
 use itertools::Itertools;
-use crate::db::DbResult;
 use crate::db::entities::tag::TagId;
 use crate::db::id::Id;
 use crate::db::surreal_http::{SurrealDbError, SurrealDbResult, SurrealHttpClient, SurrealVecDeserializable};
@@ -13,25 +12,21 @@ pub type MediaId = Id<"media">;
 pub struct Media {
     pub id: MediaId,
     pub original_filename: String,
-    pub extension: Option<String>,
-    pub new_filename: String,
     pub content_type: String,
     pub created_at: DateTime<Utc>,
     pub hash: String,
     pub size: i64,
-    pub public_url: String,
+    pub location: String,
 }
 
 #[derive(serde::Serialize, serde::Deserialize)]
 pub struct MediaWithTags {
     pub id: MediaId,
     pub original_filename: String,
-    pub extension: Option<String>,
-    pub new_filename: String,
     pub content_type: String,
     pub created_at: DateTime<Utc>,
     pub hash: String,
-    pub public_url: String,
+    pub location: String,
     pub size: i64,
     pub tags: Vec<String>,
 }
@@ -41,12 +36,10 @@ impl From<Media> for MediaWithTags {
         Self {
             id: value.id,
             original_filename: value.original_filename,
-            extension: value.extension,
-            new_filename: value.new_filename,
             content_type: value.content_type,
             created_at: value.created_at,
             hash: value.hash,
-            public_url: value.public_url,
+            location: value.location,
             size: value.size,
             tags: Vec::new(),
         }
@@ -72,22 +65,18 @@ impl Media {
     ) -> Result<MediaWithTags, SurrealDbError> {
         let media_id = &media.id;
         let original_filename = &media.original_filename;
-        let extension = &media.extension.clone().map(|x| format!("'{x}'")).unwrap_or("null".to_string());
-        let new_filename = &media.new_filename;
         let content_type = &media.content_type;
         let created_at = &media.created_at;
         let hash = &media.hash;
-        let public_url = &media.public_url;
+        let location = &media.location;
         let size = &media.size;
 
         let query = format!("CREATE {media_id}
 SET original_filename = '{original_filename}',
-extension = {extension},
-new_filename = '{new_filename}',
 content_type = '{content_type}',
 created_at = '{created_at}',
 hash = '{hash}',
-public_url = '{public_url}',
+location = '{location}',
 size = {size};");
         let result_vec = db.exec(query.as_str()).await?;
         let mut media_vec: Vec<Media> = result_vec.surr_deserialize_last()?;
@@ -161,12 +150,10 @@ size = {size};");
         let query = "BEGIN TRANSACTION;
 DEFINE TABLE media SCHEMAFULL;
 DEFINE FIELD original_filename ON media TYPE string ASSERT $value != NONE VALUE $value;
-DEFINE FIELD extension ON media TYPE string VALUE $value;
-DEFINE FIELD new_filename ON media TYPE string ASSERT $value != NONE VALUE $value;
 DEFINE FIELD content_type ON media TYPE string ASSERT $value != NONE VALUE $value;
 DEFINE FIELD created_at ON media TYPE datetime VALUE $value OR time::now();
 DEFINE FIELD hash ON media TYPE string ASSERT $value != NONE VALUE $value;
-DEFINE FIELD public_url ON media TYPE string ASSERT $value != NONE VALUE $value;
+DEFINE FIELD location ON media TYPE string ASSERT $value != NONE VALUE $value;
 DEFINE FIELD size ON media TYPE int ASSERT $value != 0 VALUE $value;
 DEFINE INDEX media_hash ON TABLE media COLUMNS hash UNIQUE;
 DEFINE INDEX media_has_tag_uc ON TABLE has COLUMNS in, out UNIQUE;

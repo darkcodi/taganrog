@@ -4,7 +4,6 @@ use axum::response::{IntoResponse, Response};
 use axum::Json;
 use std::borrow::Cow;
 use std::collections::HashMap;
-use s3::error::S3Error;
 use tracing::error;
 use crate::db::surreal_http::SurrealDbError;
 use crate::http::auth::AuthError;
@@ -36,9 +35,6 @@ pub enum ApiError {
 
     #[error("an error occurred with the database: {0}")]
     DbErr(#[from] SurrealDbError),
-
-    #[error("an error occurred with the S3: {0}")]
-    S3Error(#[from] S3Error),
 
     #[error("an internal server error occurred: {0}")]
     Anyhow(#[from] anyhow::Error),
@@ -74,7 +70,7 @@ impl ApiError {
             Self::NotFound => StatusCode::NOT_FOUND,
             Self::Conflict { .. } => StatusCode::CONFLICT,
             Self::UnprocessableEntity { .. } => StatusCode::UNPROCESSABLE_ENTITY,
-            Self::DbErr(_) | Self::S3Error(_) | Self::Anyhow(_) => StatusCode::INTERNAL_SERVER_ERROR,
+            Self::DbErr(_) | Self::Anyhow(_) => StatusCode::INTERNAL_SERVER_ERROR,
         }
     }
 }

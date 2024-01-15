@@ -3,13 +3,7 @@ use std::str::FromStr;
 use axum::extract::{DefaultBodyLimit, Extension, Multipart, Path, Query};
 use axum::routing::{get, post};
 use axum::{Json, Router};
-use axum_auth::AuthBearer;
 use chrono::{DateTime, Utc};
-use s3::{Bucket, Region};
-use s3::creds::Credentials;
-use uuid::Uuid;
-use crate::config::S3Configuration;
-use crate::db::DbResult;
 use crate::db::entities::media::{Media, MediaId, MediaWithTags};
 use crate::db::entities::tag::Tag;
 use crate::http::error::{ApiError};
@@ -106,25 +100,16 @@ async fn create_media(
     }
 
     let id = MediaId::new();
-    let new_filename = format!("{}{}", &file.hash, &file.extension.clone().unwrap_or("".to_string()));
-    let bucket = get_bucket(&ctx.cfg.s3);
-    bucket.put_object_stream_with_content_type(&mut file.data.as_slice(), new_filename.as_str(), &file.content_type.as_str())
-        .await
-        .map_err(ApiError::S3Error)?;
-
-    let created_at = DateTime::<Utc>::from_utc(Utc::now().naive_utc(), Utc);
-    let public_url = format!("{}{}", &ctx.cfg.s3.public_url_prefix, new_filename);
+    let created_at = DateTime::from_naive_utc_and_offset(Utc::now().naive_utc(), Utc);
 
     let media = Media {
         id: id,
-        original_filename: file.original_filename,
-        extension: file.extension,
-        new_filename,
+        original_filename: file.original_filename.clone(),
         content_type: file.content_type,
         created_at,
         hash: file.hash,
         size: file.size as i64,
-        public_url,
+        location: file.original_filename,
     };
     let media = Media::create(&media, &ctx.db).await?;
     Ok(Json(media))
@@ -175,8 +160,6 @@ async fn delete_media(
     }
 
     let media = maybe_media.unwrap();
-    let bucket = get_bucket(&ctx.cfg.s3);
-    bucket.delete_object(&media.new_filename).await?;
 
     Ok(Json(media))
 }
@@ -245,15 +228,4 @@ async fn search_media(
         let media_vec: Vec<MediaWithTags> = Media::search(&req.tags, &ctx.db).await?;
         Ok(Json(media_vec))
     }
-}
-
-fn get_bucket(conf: &S3Configuration) -> Bucket {
-    let bucket = Bucket::new(
-        conf.bucket_name.as_str(),
-        Region::R2 {
-            account_id: conf.account_id.clone(),
-        },
-        Credentials::new(Some(conf.access_key.as_str()), Some(conf.secret_key.as_str()), None, None, None).unwrap(),
-    ).unwrap().with_path_style();
-    bucket
 }
