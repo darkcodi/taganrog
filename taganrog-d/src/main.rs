@@ -1,7 +1,7 @@
 use clap::Parser;
-use taganrog::config::{Config, FlatConfig};
-use taganrog::{db, http};
-use taganrog::http::ApiContext;
+use taganrog_d::config::{Config, FlatConfig};
+use taganrog_d::{db, http};
+use taganrog_d::http::ApiContext;
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
