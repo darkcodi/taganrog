@@ -7,8 +7,7 @@ use chrono::{DateTime, Utc};
 use crate::db::entities::media::{Media, MediaId, MediaWithTags};
 use crate::db::entities::tag::Tag;
 use crate::http::error::{ApiError};
-use crate::http::{ApiContext, auth, Result};
-use crate::http::auth::MyCustomBearerAuth;
+use crate::http::{ApiContext, Result};
 use crate::utils::hash_utils::MurMurHasher;
 
 const MAX_UPLOAD_SIZE_IN_BYTES: usize = 52_428_800; // 50 MB
@@ -88,10 +87,8 @@ impl File {
 
 async fn create_media(
     ctx: Extension<ApiContext>,
-    MyCustomBearerAuth(token): MyCustomBearerAuth,
     files: Multipart,
 ) -> Result<Json<MediaWithTags>> {
-    auth::is_token_valid(token.as_str(), ctx.cfg.api.bearer_token.as_str())?;
 
     let file = File::try_from(files).await?;
     let existing_media = Media::get_by_hash(&file.hash, &ctx.db).await?;
@@ -118,10 +115,8 @@ async fn create_media(
 
 async fn get_all_media(
     ctx: Extension<ApiContext>,
-    MyCustomBearerAuth(token): MyCustomBearerAuth,
     Query(pagination): Query<Pagination>,
 ) -> Result<Json<Vec<MediaWithTags>>> {
-    auth::is_token_valid(token.as_str(), ctx.cfg.api.bearer_token.as_str())?;
     let page_size = pagination.page_size.unwrap_or(10).clamp(1, 50);
     let page_index = pagination.page_index.unwrap_or(0);
     let media_vec: Vec<MediaWithTags> = Media::get_all(page_size, page_index, &ctx.db).await?;
@@ -131,11 +126,8 @@ async fn get_all_media(
 
 async fn get_media(
     ctx: Extension<ApiContext>,
-    MyCustomBearerAuth(token): MyCustomBearerAuth,
     Path(media_id): Path<String>,
 ) -> Result<Json<MediaWithTags>> {
-    auth::is_token_valid(token.as_str(), ctx.cfg.api.bearer_token.as_str())?;
-
     let media_id = MediaId::from_str(&media_id)?;
     let maybe_media = Media::get_by_id(&media_id, &ctx.db).await?;
     if maybe_media.is_none() {
@@ -148,11 +140,8 @@ async fn get_media(
 
 async fn delete_media(
     ctx: Extension<ApiContext>,
-    MyCustomBearerAuth(token): MyCustomBearerAuth,
     Path(media_id): Path<String>,
 ) -> Result<Json<Media>> {
-    auth::is_token_valid(token.as_str(), ctx.cfg.api.bearer_token.as_str())?;
-
     let media_id = MediaId::from_str(&media_id)?;
     let maybe_media = Media::delete_by_id(&media_id, &ctx.db).await?;
     if maybe_media.is_none() {
@@ -166,12 +155,9 @@ async fn delete_media(
 
 async fn add_tag_to_media(
     ctx: Extension<ApiContext>,
-    MyCustomBearerAuth(token): MyCustomBearerAuth,
     Path(media_id): Path<String>,
     Json(req): Json<TagBody>,
 ) -> Result<Json<MediaWithTags>> {
-    auth::is_token_valid(token.as_str(), ctx.cfg.api.bearer_token.as_str())?;
-
     let media_id = MediaId::from_str(&media_id)?;
     let maybe_media = Media::get_by_id(&media_id, &ctx.db).await?;
     if maybe_media.is_none() {
@@ -189,12 +175,9 @@ async fn add_tag_to_media(
 
 async fn delete_tag_from_media(
     ctx: Extension<ApiContext>,
-    MyCustomBearerAuth(token): MyCustomBearerAuth,
     Path(media_id): Path<String>,
     Json(req): Json<TagBody>,
 ) -> Result<Json<MediaWithTags>> {
-    auth::is_token_valid(token.as_str(), ctx.cfg.api.bearer_token.as_str())?;
-
     let media_id = MediaId::from_str(&media_id)?;
     let maybe_media = Media::get_by_id(&media_id, &ctx.db).await?;
     if maybe_media.is_none() {
@@ -212,10 +195,8 @@ async fn delete_tag_from_media(
 
 async fn search_media(
     ctx: Extension<ApiContext>,
-    MyCustomBearerAuth(token): MyCustomBearerAuth,
     Json(req): Json<SearchBody>,
 ) -> Result<Json<Vec<MediaWithTags>>> {
-    auth::is_token_valid(token.as_str(), ctx.cfg.api.bearer_token.as_str())?;
     if req.tags.len() == 1 && req.tags.first().unwrap() == "null" {
         let media_vec: Vec<MediaWithTags> = Media::get_untagged(&ctx.db).await?;
         Ok(Json(media_vec))

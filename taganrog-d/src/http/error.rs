@@ -6,16 +6,12 @@ use std::borrow::Cow;
 use std::collections::HashMap;
 use tracing::error;
 use crate::db::surreal_http::SurrealDbError;
-use crate::http::auth::AuthError;
 use crate::http::{APPLICATION_JSON, CONTENT_TYPE_HEADER};
 
 #[derive(thiserror::Error, Debug)]
 pub enum ApiError {
     #[error("authentication required")]
     Unauthorized,
-
-    #[error("authentication failed")]
-    AuthError(#[from] AuthError),
 
     #[error("user may not perform that action")]
     Forbidden,
@@ -65,7 +61,7 @@ impl ApiError {
 
     fn status_code(&self) -> StatusCode {
         match self {
-            Self::Unauthorized | Self::AuthError(_) => StatusCode::UNAUTHORIZED,
+            Self::Unauthorized => StatusCode::UNAUTHORIZED,
             Self::Forbidden => StatusCode::FORBIDDEN,
             Self::NotFound => StatusCode::NOT_FOUND,
             Self::Conflict { .. } => StatusCode::CONFLICT,

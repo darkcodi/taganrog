@@ -5,8 +5,7 @@ use axum::{Json, Router};
 use crate::db::DbResult;
 use crate::db::entities::tag::{TagWithCount, Tag, TagId};
 
-use crate::http::{ApiContext, auth, ApiError, Result};
-use crate::http::auth::MyCustomBearerAuth;
+use crate::http::{ApiContext, ApiError, Result};
 
 pub fn router() -> Router {
     Router::new()
@@ -27,11 +26,8 @@ struct CountMediaRequest {
 
 async fn create_tag(
     ctx: Extension<ApiContext>,
-    MyCustomBearerAuth(token): MyCustomBearerAuth,
     Json(req): Json<CreateTag>,
 ) -> Result<Json<Tag>> {
-    auth::is_token_valid(token.as_str(), ctx.cfg.api.bearer_token.as_str())?;
-
     let db_result = Tag::ensure_exists(&req.name, &ctx.db).await?;
     match db_result {
         DbResult::Existing(tag) => Err(ApiError::Conflict {
@@ -43,21 +39,15 @@ async fn create_tag(
 
 async fn get_all_tags(
     ctx: Extension<ApiContext>,
-    MyCustomBearerAuth(token): MyCustomBearerAuth,
 ) -> Result<Json<Vec<Tag>>> {
-    auth::is_token_valid(token.as_str(), ctx.cfg.api.bearer_token.as_str())?;
-
     let tags = Tag::get_all(&ctx.db).await?;
     Ok(Json(tags))
 }
 
 async fn get_tag(
     ctx: Extension<ApiContext>,
-    MyCustomBearerAuth(token): MyCustomBearerAuth,
     Path(tag_id): Path<String>,
 ) -> Result<Json<Tag>> {
-    auth::is_token_valid(token.as_str(), ctx.cfg.api.bearer_token.as_str())?;
-
     let tag_id = TagId::from_str(&tag_id)?;
     let maybe_tag = Tag::get_by_id(&tag_id, &ctx.db).await?;
     if maybe_tag.is_none() {
@@ -70,11 +60,8 @@ async fn get_tag(
 
 async fn delete_tag(
     ctx: Extension<ApiContext>,
-    MyCustomBearerAuth(token): MyCustomBearerAuth,
     Path(tag_id): Path<String>,
 ) -> Result<Json<Tag>> {
-    auth::is_token_valid(token.as_str(), ctx.cfg.api.bearer_token.as_str())?;
-
     let tag_id = TagId::from_str(&tag_id)?;
     let maybe_tag = Tag::delete_by_id(&tag_id, &ctx.db).await?;
     match maybe_tag {
@@ -85,11 +72,8 @@ async fn delete_tag(
 
 async fn count_media(
     ctx: Extension<ApiContext>,
-    MyCustomBearerAuth(token): MyCustomBearerAuth,
     Json(req): Json<CountMediaRequest>,
 ) -> Result<Json<Vec<TagWithCount>>> {
-    auth::is_token_valid(token.as_str(), ctx.cfg.api.bearer_token.as_str())?;
-
     let counts_vec = Tag::count_media(&req.tags, &ctx.db).await?;
     Ok(Json(counts_vec))
 }

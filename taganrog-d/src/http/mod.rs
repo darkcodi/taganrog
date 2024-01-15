@@ -11,7 +11,6 @@ use crate::db::surreal_http::SurrealHttpClient;
 use crate::http::controllers::{media, ping, tags};
 
 mod error;
-mod auth;
 mod controllers;
 
 pub const CONTENT_TYPE_HEADER: &str = "content-type";
