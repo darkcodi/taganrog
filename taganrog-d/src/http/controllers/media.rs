@@ -52,8 +52,6 @@ async fn create_media(
 ) -> Result<Json<Media>> {
     let filepath = std::path::Path::new(req.filename.as_str()).absolutize_from(&ctx.cfg.workdir)
         .map_err(|_| ApiError::unprocessable_entity([("filename", "invalid path 1")]))?;
-    warn!("filepath: {:?}", filepath);
-    warn!("workdir: {:?}", ctx.cfg.workdir);
     let relative_path = filepath.relative_to(&ctx.cfg.workdir)
         .map_err(|_| ApiError::unprocessable_entity([("filename", "invalid path 2")]))?;
 
