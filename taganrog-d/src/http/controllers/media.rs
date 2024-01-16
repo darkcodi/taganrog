@@ -5,6 +5,7 @@ use axum::{Json, Router};
 use chrono::{DateTime, Utc};
 use path_absolutize::Absolutize;
 use relative_path::PathExt;
+use tracing::warn;
 use crate::db;
 use crate::db::entities::Media;
 use crate::http::error::{ApiError};
@@ -50,17 +51,23 @@ async fn create_media(
     Json(req): Json<ImportMediaRequest>,
 ) -> Result<Json<Media>> {
     let filepath = std::path::Path::new(req.filename.as_str()).absolutize_from(&ctx.cfg.workdir)
-        .map_err(|_| ApiError::unprocessable_entity([("filename", "invalid path")]))?;
+        .map_err(|_| ApiError::unprocessable_entity([("filename", "invalid path 1")]))?;
+    warn!("filepath: {:?}", filepath);
+    warn!("workdir: {:?}", ctx.cfg.workdir);
     let relative_path = filepath.relative_to(&ctx.cfg.workdir)
-        .map_err(|_| ApiError::unprocessable_entity([("filename", "invalid path")]))?;
+        .map_err(|_| ApiError::unprocessable_entity([("filename", "invalid path 2")]))?;
 
     if relative_path.starts_with("..") { return Err(ApiError::unprocessable_entity([("filename", "workdir violation")])); }
     if !filepath.exists() { return Err(ApiError::unprocessable_entity([("filename", "file does not exist")])); }
     if filepath.is_dir() { return Err(ApiError::unprocessable_entity([("filename", "file is a directory")])); }
 
     let media = Media::from_file(&filepath, &relative_path)?;
-    db::DbRepo::insert_media(&ctx, &media).await?;
+    let existing_media = db::DbRepo::get_media_by_hash(&ctx, media.hash.clone()).await?;
+    if existing_media.is_some() {
+        return Err(ApiError::conflict(existing_media.unwrap()));
+    }
 
+    db::DbRepo::insert_media(&ctx, &media).await?;
     Ok(Json(media))
 }
 

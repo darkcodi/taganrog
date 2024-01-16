@@ -1,6 +1,7 @@
+use std::str::FromStr;
 use rusqlite::params;
 use tracing::info;
-use crate::db::entities::{Media, Tag};
+use crate::db::entities::{Media, MediaId, Tag};
 use crate::http::ApiContext;
 
 pub mod entities;
@@ -9,6 +10,47 @@ pub mod id;
 pub struct DbRepo;
 
 impl DbRepo {
+    pub async fn get_media_by_hash(ctx: &ApiContext, hash: String) -> anyhow::Result<Option<Media>> {
+        let sql = "SELECT id, filename, relative_path, imported_at, content_type, hash, size, was_uploaded FROM media WHERE hash = ?";
+        info!("Executing SQL: {}", sql);
+
+        let media = ctx.db.call(move |conn| {
+            let mut stmt = conn.prepare(sql)?;
+            let mut rows = stmt.query(params![hash])?;
+
+            let row = rows.next()?;
+            if row.is_none() {
+                return Ok(None);
+            }
+
+            let row = row.unwrap();
+            let id: String = row.get(0)?;
+            let filename: String = row.get(1)?;
+            let relative_path: String = row.get(2)?;
+            let imported_at: i64 = row.get(3)?;
+            let content_type: String = row.get(4)?;
+            let hash: String = row.get(5)?;
+            let size: i64 = row.get(6)?;
+            let was_uploaded: bool = row.get(7)?;
+
+            let media = Media {
+                id: MediaId::from_str(id.as_str()).unwrap(),
+                filename,
+                relative_path,
+                imported_at: chrono::DateTime::from_utc(chrono::NaiveDateTime::from_timestamp(imported_at, 0), chrono::Utc),
+                content_type,
+                hash,
+                size,
+                was_uploaded,
+            };
+
+            Ok(Some(media))
+        }).await?;
+
+        Ok(media)
+    }
+
+
     pub async fn insert_media(ctx: &ApiContext, media: &Media) -> anyhow::Result<()> {
         let sql = "INSERT INTO media (id, filename, relative_path, imported_at, content_type, hash, size, was_uploaded) VALUES (?, ?, ?, ?, ?, ?, ?, ?)";
         let id = media.id.to_string();
