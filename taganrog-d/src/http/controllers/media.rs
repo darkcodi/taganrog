@@ -1,4 +1,5 @@
 use std::ffi::OsStr;
+use std::str::FromStr;
 use axum::extract::{DefaultBodyLimit, Extension, Multipart, Path, Query};
 use axum::routing::{get, post};
 use axum::{Json, Router};
@@ -7,7 +8,7 @@ use path_absolutize::Absolutize;
 use relative_path::PathExt;
 use tracing::warn;
 use crate::db;
-use crate::db::entities::{Media, MediaWithTags};
+use crate::db::entities::{Media, MediaId, MediaWithTags};
 use crate::http::error::{ApiError};
 use crate::http::{ApiContext, Result};
 use crate::utils::hash_utils::MurMurHasher;
@@ -17,7 +18,7 @@ const MAX_UPLOAD_SIZE_IN_BYTES: usize = 52_428_800; // 50 MB
 pub fn router() -> Router {
     Router::new()
         .route("/api/media", get(get_all_media).post(create_media))
-        // .route("/api/media/:media_id", get(get_media).delete(delete_media))
+        .route("/api/media/:media_id", get(get_media).delete(delete_media))
         // .route("/api/media/:media_id/add-tag", post(add_tag_to_media))
         // .route("/api/media/:media_id/remove-tag", post(delete_tag_from_media))
         // .route("/api/media/search", post(search_media))
@@ -109,35 +110,37 @@ async fn get_all_media(
     Ok(Json(media_vec))
 }
 
-// async fn get_media(
-//     ctx: Extension<ApiContext>,
-//     Path(media_id): Path<String>,
-// ) -> Result<Json<MediaWithTags>> {
-//     let media_id = MediaId::from_str(&media_id)?;
-//     let maybe_media = Media::get_by_id(&media_id, &ctx.db).await?;
-//     if maybe_media.is_none() {
-//         return Err(ApiError::NotFound);
-//     }
-//
-//     let media = maybe_media.unwrap();
-//     Ok(Json(media))
-// }
-//
-// async fn delete_media(
-//     ctx: Extension<ApiContext>,
-//     Path(media_id): Path<String>,
-// ) -> Result<Json<Media>> {
-//     let media_id = MediaId::from_str(&media_id)?;
-//     let maybe_media = Media::delete_by_id(&media_id, &ctx.db).await?;
-//     if maybe_media.is_none() {
-//         return Err(ApiError::NotFound);
-//     }
-//
-//     let media = maybe_media.unwrap();
-//
-//     Ok(Json(media))
-// }
-//
+async fn get_media(
+    ctx: Extension<ApiContext>,
+    Path(media_id): Path<String>,
+) -> Result<Json<MediaWithTags>> {
+    let media_id = MediaId::from_str(&media_id)
+        .map_err(|_| ApiError::unprocessable_entity([("media_id", "invalid id")]))?;
+    let maybe_media = db::DbRepo::get_media_by_id(&ctx, media_id).await?;
+    if maybe_media.is_none() {
+        return Err(ApiError::NotFound);
+    }
+
+    let media = maybe_media.unwrap();
+    Ok(Json(media))
+}
+
+async fn delete_media(
+    ctx: Extension<ApiContext>,
+    Path(media_id): Path<String>,
+) -> Result<Json<MediaWithTags>> {
+    let media_id = MediaId::from_str(&media_id)
+        .map_err(|_| ApiError::unprocessable_entity([("media_id", "invalid id")]))?;
+    let maybe_media = db::DbRepo::get_media_by_id(&ctx, media_id.clone()).await?;
+    if maybe_media.is_none() {
+        return Err(ApiError::NotFound);
+    }
+
+    let media = maybe_media.unwrap();
+    db::DbRepo::delete_media(&ctx, media_id).await?;
+    Ok(Json(media))
+}
+
 // async fn add_tag_to_media(
 //     ctx: Extension<ApiContext>,
 //     Path(media_id): Path<String>,

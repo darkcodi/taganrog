@@ -1,7 +1,7 @@
 use std::str::FromStr;
 use rusqlite::params;
 use tracing::info;
-use crate::db::entities::{Media, MediaId, Tag};
+use crate::db::entities::{Media, MediaId, MediaWithTags, Tag};
 use crate::http::ApiContext;
 
 pub mod entities;
@@ -93,6 +93,76 @@ impl DbRepo {
         Ok(media_vec)
     }
 
+    pub async fn get_media_by_id(ctx: &ApiContext, id: MediaId) -> anyhow::Result<Option<MediaWithTags>> {
+        let sql = "SELECT m.id, m.filename, m.relative_path, m.imported_at, m.content_type, m.hash, m.size, m.was_uploaded, t.id, t.name, t.created_at \
+        FROM media m \
+        LEFT JOIN media_tags mt ON m.id = mt.media_id \
+        LEFT JOIN tags t ON mt.tag_id = t.id \
+        WHERE m.id = ? \
+        ORDER BY m.imported_at DESC";
+        info!("Executing SQL: {}", sql);
+
+        let media = ctx.db.call(move |conn| {
+            let mut stmt = conn.prepare(sql)?;
+            let mut rows = stmt.query(params![id.to_string()])?;
+
+            let mut current_media: Option<Media> = None;
+            let mut current_tags: Vec<Tag> = Vec::new();
+
+            while let Some(row) = rows.next()? {
+                let media_id: String = row.get(0)?;
+                let filename: String = row.get(1)?;
+                let relative_path: String = row.get(2)?;
+                let imported_at: i64 = row.get(3)?;
+                let content_type: String = row.get(4)?;
+                let hash: String = row.get(5)?;
+                let size: i64 = row.get(6)?;
+                let was_uploaded: bool = row.get(7)?;
+                let tag_id: Option<String> = row.get(8)?;
+                let tag_name: Option<String> = row.get(9)?;
+                let tag_created_at: Option<i64> = row.get(10)?;
+
+                if current_media.is_none() {
+                    current_media = Some(Media {
+                        id: MediaId::from_str(media_id.as_str()).unwrap(),
+                        filename,
+                        relative_path,
+                        imported_at: chrono::DateTime::from_utc(chrono::NaiveDateTime::from_timestamp(imported_at, 0), chrono::Utc),
+                        content_type,
+                        hash,
+                        size,
+                        was_uploaded,
+                    });
+                }
+
+                if tag_id.is_some() {
+                    let tag_id = tag_id.unwrap();
+                    let tag_name = tag_name.unwrap();
+                    let tag_created_at = tag_created_at.unwrap();
+                    let tag = Tag {
+                        id: entities::TagId::from_str(tag_id.as_str()).unwrap(),
+                        name: tag_name,
+                        created_at: chrono::DateTime::from_utc(chrono::NaiveDateTime::from_timestamp(tag_created_at, 0), chrono::Utc),
+                    };
+                    current_tags.push(tag);
+                }
+            }
+
+            if current_media.is_some() {
+                let media = current_media.unwrap();
+                let media_with_tags = entities::MediaWithTags {
+                    media,
+                    tags: current_tags,
+                };
+                return Ok(Some(media_with_tags));
+            }
+
+            Ok(None)
+        }).await?;
+
+        Ok(media)
+    }
+
     pub async fn get_media_by_hash(ctx: &ApiContext, hash: String) -> anyhow::Result<Option<Media>> {
         let sql = "SELECT id, filename, relative_path, imported_at, content_type, hash, size, was_uploaded FROM media WHERE hash = ?";
         info!("Executing SQL: {}", sql);
@@ -133,7 +203,6 @@ impl DbRepo {
         Ok(media)
     }
 
-
     pub async fn insert_media(ctx: &ApiContext, media: &Media) -> anyhow::Result<()> {
         let sql = "INSERT INTO media (id, filename, relative_path, imported_at, content_type, hash, size, was_uploaded) VALUES (?, ?, ?, ?, ?, ?, ?, ?)";
         let id = media.id.to_string();
@@ -157,6 +226,19 @@ impl DbRepo {
                 size,
                 was_uploaded
             ])?;
+
+            Ok(())
+        }).await?;
+
+        Ok(())
+    }
+
+    pub async fn delete_media(ctx: &ApiContext, id: MediaId) -> anyhow::Result<()> {
+        let sql = "DELETE FROM media WHERE id = ?";
+        info!("Executing SQL: {}", sql);
+
+        ctx.db.call(move |conn| {
+            conn.execute(sql, params![id.to_string()])?;
 
             Ok(())
         }).await?;
