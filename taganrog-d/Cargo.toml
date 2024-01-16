@@ -15,7 +15,6 @@ async-trait = "0.1.64"
 axum = { version = "0.6.4", features = ["multipart", "tower-log"] }
 chrono = { version = "0.4.23", features = ["serde"] }
 clap = { version = "4.1.4", features = ["derive", "env"] }
-dotenv = "0.15.0"
 fastmurmur3 = "0.1.2"
 futures = "0.3.26"
 heapless = { version = "0.7.16", features = ["serde"] }
