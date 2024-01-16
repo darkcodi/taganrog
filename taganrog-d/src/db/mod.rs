@@ -53,6 +53,11 @@ pub async fn migrate(ctx: ApiContext) -> anyhow::Result<()> {
             [],
         )?;
 
+        conn.execute(
+            "CREATE UNIQUE INDEX IF NOT EXISTS ix_media_hash ON media (hash)",
+            [],
+        )?;
+
         Ok(())
     }).await?;
 
