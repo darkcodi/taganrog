@@ -3,6 +3,10 @@ use axum::extract::{DefaultBodyLimit, Extension, Multipart, Path, Query};
 use axum::routing::{get, post};
 use axum::{Json, Router};
 use chrono::{DateTime, Utc};
+use path_absolutize::Absolutize;
+use relative_path::PathExt;
+use crate::db;
+use crate::db::entities::Media;
 use crate::http::error::{ApiError};
 use crate::http::{ApiContext, Result};
 use crate::utils::hash_utils::MurMurHasher;
@@ -11,6 +15,7 @@ const MAX_UPLOAD_SIZE_IN_BYTES: usize = 52_428_800; // 50 MB
 
 pub fn router() -> Router {
     Router::new()
+        .route("/api/media", post(create_media))
         // .route("/api/media", get(get_all_media).post(create_media))
         // .route("/api/media/:media_id", get(get_media).delete(delete_media))
         // .route("/api/media/:media_id/add-tag", post(add_tag_to_media))
@@ -19,70 +24,47 @@ pub fn router() -> Router {
         // .layer(DefaultBodyLimit::max(MAX_UPLOAD_SIZE_IN_BYTES))
 }
 
-// #[derive(serde::Deserialize, Debug, Default)]
-// struct TagBody {
-//     name: String,
-// }
-//
-// #[derive(serde::Deserialize, Debug, Default)]
-// struct SearchBody {
-//     tags: Vec<String>,
-// }
-//
-// #[derive(serde::Deserialize, Debug, Default)]
-// struct Pagination {
-//     page_size: Option<u64>,
-//     page_index: Option<u64>,
-// }
-//
-// struct File {
-//     original_filename: String,
-//     extension: Option<String>,
-//     content_type: String,
-//     data: Vec<u8>,
-//     size: usize,
-//     hash: String,
-// }
-//
-// impl File {
-//     pub async fn try_from(mut value: Multipart) -> Result<Self, ApiError> {
-//         let file = value.next_field()
-//             .await
-//             .map_err(|x| ApiError::unprocessable_entity([("file", format!("multipart error: {}", x.to_string()))]))?
-//             .ok_or(ApiError::unprocessable_entity([("file", "missing file")]))?;
-//
-//         let original_filename = file.file_name()
-//             .ok_or(ApiError::unprocessable_entity([("file", "filename is empty")]))?
-//             .to_string();
-//         let extension = File::get_extension(original_filename.as_str());
-//
-//         let content_type = file.content_type().unwrap_or("application/octet-stream").to_string();
-//         let data = file.bytes()
-//             .await
-//             .map_err(|x| ApiError::unprocessable_entity([("file", format!("multipart error: {}", x.to_string()))]))?
-//             .to_vec();
-//         let size = data.len();
-//         let hash = MurMurHasher::hash_bytes(data.as_slice());
-//
-//         Ok(Self {
-//             original_filename,
-//             extension,
-//             content_type,
-//             data,
-//             size,
-//             hash,
-//         })
-//     }
-//
-//     fn get_extension(filename: &str) -> Option<String> {
-//         std::path::Path::new(filename)
-//             .extension()
-//             .and_then(OsStr::to_str)
-//             .map(|x| format!(".{x}"))
-//     }
-// }
-//
-// async fn create_media(
+#[derive(serde::Deserialize, Debug)]
+struct ImportMediaRequest {
+    filename: String,
+}
+
+#[derive(serde::Deserialize, Debug, Default)]
+struct TagBody {
+    name: String,
+}
+
+#[derive(serde::Deserialize, Debug, Default)]
+struct SearchBody {
+    tags: Vec<String>,
+}
+
+#[derive(serde::Deserialize, Debug, Default)]
+struct Pagination {
+    page_size: Option<u64>,
+    page_index: Option<u64>,
+}
+
+async fn create_media(
+    ctx: Extension<ApiContext>,
+    Json(req): Json<ImportMediaRequest>,
+) -> Result<Json<Media>> {
+    let filepath = std::path::Path::new(req.filename.as_str()).absolutize_from(&ctx.cfg.workdir)
+        .map_err(|_| ApiError::unprocessable_entity([("filename", "invalid path")]))?;
+    let relative_path = filepath.relative_to(&ctx.cfg.workdir)
+        .map_err(|_| ApiError::unprocessable_entity([("filename", "invalid path")]))?;
+
+    if relative_path.starts_with("..") { return Err(ApiError::unprocessable_entity([("filename", "workdir violation")])); }
+    if !filepath.exists() { return Err(ApiError::unprocessable_entity([("filename", "file does not exist")])); }
+    if filepath.is_dir() { return Err(ApiError::unprocessable_entity([("filename", "file is a directory")])); }
+
+    let media = Media::from_file(&filepath, &relative_path)?;
+    db::DbRepo::insert_media(&ctx, &media).await?;
+
+    Ok(Json(media))
+}
+
+// async fn upload_media(
 //     ctx: Extension<ApiContext>,
 //     files: Multipart,
 // ) -> Result<Json<MediaWithTags>> {

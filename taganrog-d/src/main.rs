@@ -1,5 +1,3 @@
-use clap::Parser;
-use path_absolutize::Absolutize;
 use tokio_rusqlite::Connection;
 use tracing::info;
 use taganrog_d::config::Config;
@@ -12,16 +10,10 @@ async fn main() -> anyhow::Result<()> {
         .with_max_level(tracing::Level::INFO)
         .init();
 
-    let mut config: Config = Config::parse();
-    let workdir = std::path::Path::new(&config.workdir).absolutize_from(std::env::current_dir()?)?;
-    if !workdir.exists() {
-        std::fs::create_dir_all(&workdir)?;
-    }
-    config.workdir = workdir.to_str().unwrap().to_string();
+    let config: Config = Config::parse().expect("failed to parse config");
     info!("{:?}", &config);
 
-    let db_path = std::path::Path::new(&config.workdir).join("taganrog.db");
-    let db_conn = Connection::open(db_path).await.expect("failed to open db connection");
+    let db_conn = Connection::open(&config.db_path).await.expect("failed to open db connection");
 
     let ctx = ApiContext::new(config, db_conn);
     db::migrate(ctx.clone()).await?;

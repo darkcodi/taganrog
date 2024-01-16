@@ -7,7 +7,7 @@ use tower_http::cors::{Any, CorsLayer};
 use tower_http::trace::TraceLayer;
 use tracing::info;
 pub use error::{ApiError};
-use crate::config::Config;
+use crate::config::{Config, PlainConfig};
 use crate::http::controllers::{media, ping, tags};
 
 mod error;

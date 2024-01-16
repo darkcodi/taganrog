@@ -1,7 +1,6 @@
 use axum::extract::{Extension, Path};
 use axum::routing::{get, post};
 use axum::{Json, Router};
-use crate::db::DbResult;
 
 use crate::http::{ApiContext, ApiError, Result};
 
