@@ -10,6 +10,89 @@ pub mod id;
 pub struct DbRepo;
 
 impl DbRepo {
+    pub async fn get_all_media_with_tags(ctx: &ApiContext, page_size: u64, page_index: u64) -> anyhow::Result<Vec<entities::MediaWithTags>> {
+        let sql = "SELECT m.id, m.filename, m.relative_path, m.imported_at, m.content_type, m.hash, m.size, m.was_uploaded, t.id, t.name, t.created_at \
+        FROM media m \
+        LEFT JOIN media_tags mt ON m.id = mt.media_id \
+        LEFT JOIN tags t ON mt.tag_id = t.id \
+        WHERE m.id IN (SELECT id FROM media ORDER BY imported_at DESC LIMIT ? OFFSET ?) \
+        ORDER BY m.imported_at DESC";
+        info!("Executing SQL: {}", sql);
+
+        let media_vec = ctx.db.call(move |conn| {
+            let mut stmt = conn.prepare(sql)?;
+            let mut rows = stmt.query(params![page_size, page_index * page_size])?;
+
+            let mut media_vec = Vec::new();
+            let mut current_media_id: Option<String> = None;
+            let mut current_media: Option<Media> = None;
+            let mut current_tags: Vec<Tag> = Vec::new();
+
+            while let Some(row) = rows.next()? {
+                let media_id: String = row.get(0)?;
+                let filename: String = row.get(1)?;
+                let relative_path: String = row.get(2)?;
+                let imported_at: i64 = row.get(3)?;
+                let content_type: String = row.get(4)?;
+                let hash: String = row.get(5)?;
+                let size: i64 = row.get(6)?;
+                let was_uploaded: bool = row.get(7)?;
+                let tag_id: Option<String> = row.get(8)?;
+                let tag_name: Option<String> = row.get(9)?;
+                let tag_created_at: Option<i64> = row.get(10)?;
+
+                if current_media_id.is_none() || current_media_id.as_ref().unwrap() != &media_id {
+                    if current_media.is_some() {
+                        let media = current_media.unwrap();
+                        let media_with_tags = entities::MediaWithTags {
+                            media,
+                            tags: current_tags,
+                        };
+                        media_vec.push(media_with_tags);
+                    }
+
+                    current_media_id = Some(media_id.clone());
+                    current_media = Some(Media {
+                        id: MediaId::from_str(media_id.as_str()).unwrap(),
+                        filename,
+                        relative_path,
+                        imported_at: chrono::DateTime::from_utc(chrono::NaiveDateTime::from_timestamp(imported_at, 0), chrono::Utc),
+                        content_type,
+                        hash,
+                        size,
+                        was_uploaded,
+                    });
+                    current_tags = Vec::new();
+                }
+
+                if tag_id.is_some() {
+                    let tag_id = tag_id.unwrap();
+                    let tag_name = tag_name.unwrap();
+                    let tag_created_at = tag_created_at.unwrap();
+                    let tag = Tag {
+                        id: entities::TagId::from_str(tag_id.as_str()).unwrap(),
+                        name: tag_name,
+                        created_at: chrono::DateTime::from_utc(chrono::NaiveDateTime::from_timestamp(tag_created_at, 0), chrono::Utc),
+                    };
+                    current_tags.push(tag);
+                }
+            }
+
+            if current_media.is_some() {
+                let media = current_media.unwrap();
+                let media_with_tags = entities::MediaWithTags {
+                    media,
+                    tags: current_tags,
+                };
+                media_vec.push(media_with_tags);
+            }
+
+            Ok(media_vec)
+        }).await?;
+
+        Ok(media_vec)
+    }
+
     pub async fn get_media_by_hash(ctx: &ApiContext, hash: String) -> anyhow::Result<Option<Media>> {
         let sql = "SELECT id, filename, relative_path, imported_at, content_type, hash, size, was_uploaded FROM media WHERE hash = ?";
         info!("Executing SQL: {}", sql);

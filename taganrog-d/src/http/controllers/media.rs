@@ -7,7 +7,7 @@ use path_absolutize::Absolutize;
 use relative_path::PathExt;
 use tracing::warn;
 use crate::db;
-use crate::db::entities::Media;
+use crate::db::entities::{Media, MediaWithTags};
 use crate::http::error::{ApiError};
 use crate::http::{ApiContext, Result};
 use crate::utils::hash_utils::MurMurHasher;
@@ -16,8 +16,7 @@ const MAX_UPLOAD_SIZE_IN_BYTES: usize = 52_428_800; // 50 MB
 
 pub fn router() -> Router {
     Router::new()
-        .route("/api/media", post(create_media))
-        // .route("/api/media", get(get_all_media).post(create_media))
+        .route("/api/media", get(get_all_media).post(create_media))
         // .route("/api/media/:media_id", get(get_media).delete(delete_media))
         // .route("/api/media/:media_id/add-tag", post(add_tag_to_media))
         // .route("/api/media/:media_id/remove-tag", post(delete_tag_from_media))
@@ -97,19 +96,19 @@ async fn create_media(
 //     let media = Media::create(&media, &ctx.db).await?;
 //     Ok(Json(media))
 // }
-//
-//
-// async fn get_all_media(
-//     ctx: Extension<ApiContext>,
-//     Query(pagination): Query<Pagination>,
-// ) -> Result<Json<Vec<MediaWithTags>>> {
-//     let page_size = pagination.page_size.unwrap_or(10).clamp(1, 50);
-//     let page_index = pagination.page_index.unwrap_or(0);
-//     let media_vec: Vec<MediaWithTags> = Media::get_all(page_size, page_index, &ctx.db).await?;
-//
-//     Ok(Json(media_vec))
-// }
-//
+
+
+async fn get_all_media(
+    ctx: Extension<ApiContext>,
+    Query(pagination): Query<Pagination>,
+) -> Result<Json<Vec<MediaWithTags>>> {
+    let page_size = pagination.page_size.unwrap_or(10).clamp(1, 50);
+    let page_index = pagination.page_index.unwrap_or(0);
+    let media_vec: Vec<MediaWithTags> = db::DbRepo::get_all_media_with_tags(&ctx, page_size, page_index).await?;
+
+    Ok(Json(media_vec))
+}
+
 // async fn get_media(
 //     ctx: Extension<ApiContext>,
 //     Path(media_id): Path<String>,
