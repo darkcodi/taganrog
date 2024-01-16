@@ -45,7 +45,7 @@ pub async fn serve(ctx: ApiContext) -> anyhow::Result<()> {
                 .layer(TraceLayer::new_for_http()),
     );
 
-    let addr = "[::]:3000".parse()?;
+    let addr = "[::]:1698".parse()?;
     info!("listening on {}", &addr);
     axum::Server::bind(&addr)
         .serve(app.into_make_service())
