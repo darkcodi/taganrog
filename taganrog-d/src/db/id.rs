@@ -6,7 +6,7 @@ use nanoid::nanoid;
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
 use serde::de::Error;
 
-const ID_LENGTH: usize = 6;
+const ID_LENGTH: usize = 8;
 const DELIMETER: char = ':';
 const ALPHABET: [char; 62] = [
     '0', '1', '2', '3', '4', '5', '6', '7', '8', '9', // 0-9
