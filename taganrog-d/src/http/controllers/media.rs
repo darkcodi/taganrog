@@ -1,17 +1,12 @@
-use std::ffi::OsStr;
 use std::str::FromStr;
-use axum::extract::{DefaultBodyLimit, Extension, Multipart, Path, Query};
+use axum::extract::{Extension, Path};
 use axum::routing::{get, post};
 use axum::{Json, Router};
-use chrono::{DateTime, Utc};
 use path_absolutize::Absolutize;
 use relative_path::PathExt;
-use tracing::warn;
-use crate::db;
 use crate::db::entities::{Media, MediaId, MediaWithTags};
 use crate::http::error::{ApiError};
 use crate::http::{ApiContext, Result};
-use crate::utils::hash_utils::MurMurHasher;
 
 const MAX_UPLOAD_SIZE_IN_BYTES: usize = 52_428_800; // 50 MB
 
@@ -40,12 +35,6 @@ struct SearchBody {
     tags: Vec<String>,
 }
 
-#[derive(serde::Deserialize, Debug, Default)]
-struct Pagination {
-    page_size: Option<u64>,
-    page_index: Option<u64>,
-}
-
 async fn create_media(
     ctx: Extension<ApiContext>,
     Json(req): Json<ImportMediaRequest>,
@@ -60,12 +49,12 @@ async fn create_media(
     if filepath.is_dir() { return Err(ApiError::unprocessable_entity([("filename", "file is a directory")])); }
 
     let media = Media::from_file(&filepath, &relative_path)?;
-    let existing_media = db::DbRepo::get_media_by_hash(&ctx, media.hash.clone()).await?;
+    let existing_media = ctx.db.get_media_by_hash(media.hash.clone())?;
     if existing_media.is_some() {
         return Err(ApiError::conflict(existing_media.unwrap()));
     }
 
-    db::DbRepo::insert_media(&ctx, &media).await?;
+    ctx.db.insert_media(&media)?;
     Ok(Json(media))
 }
 
@@ -96,15 +85,10 @@ async fn create_media(
 //     Ok(Json(media))
 // }
 
-
 async fn get_all_media(
     ctx: Extension<ApiContext>,
-    Query(pagination): Query<Pagination>,
-) -> Result<Json<Vec<MediaWithTags>>> {
-    let page_size = pagination.page_size.unwrap_or(10).clamp(1, 50);
-    let page_index = pagination.page_index.unwrap_or(0);
-    let media_vec: Vec<MediaWithTags> = db::DbRepo::get_all_media_with_tags(&ctx, page_size, page_index).await?;
-
+) -> Result<Json<Vec<Media>>> {
+    let media_vec: Vec<Media> = ctx.db.get_all_media()?;
     Ok(Json(media_vec))
 }
 
@@ -114,13 +98,18 @@ async fn get_media(
 ) -> Result<Json<MediaWithTags>> {
     let media_id = MediaId::from_str(&media_id)
         .map_err(|_| ApiError::unprocessable_entity([("media_id", "invalid id")]))?;
-    let maybe_media = db::DbRepo::get_media_by_id(&ctx, media_id).await?;
+    let maybe_media = ctx.db.get_media_by_id(media_id)?;
     if maybe_media.is_none() {
         return Err(ApiError::NotFound);
     }
 
     let media = maybe_media.unwrap();
-    Ok(Json(media))
+    let tags = ctx.db.get_media_tags(&media)?;
+    let media_with_tags = MediaWithTags {
+        media,
+        tags,
+    };
+    Ok(Json(media_with_tags))
 }
 
 async fn delete_media(
@@ -129,14 +118,19 @@ async fn delete_media(
 ) -> Result<Json<MediaWithTags>> {
     let media_id = MediaId::from_str(&media_id)
         .map_err(|_| ApiError::unprocessable_entity([("media_id", "invalid id")]))?;
-    let maybe_media = db::DbRepo::get_media_by_id(&ctx, media_id.clone()).await?;
+    let maybe_media = ctx.db.get_media_by_id(media_id.clone())?;
     if maybe_media.is_none() {
         return Err(ApiError::NotFound);
     }
 
     let media = maybe_media.unwrap();
-    db::DbRepo::delete_media(&ctx, media_id).await?;
-    Ok(Json(media))
+    let tags = ctx.db.get_media_tags(&media)?;
+    ctx.db.delete_media(&media)?;
+    let media_with_tags = MediaWithTags {
+        media,
+        tags,
+    };
+    Ok(Json(media_with_tags))
 }
 
 // async fn add_tag_to_media(

@@ -1,13 +1,13 @@
 use anyhow::Context;
 use axum::{Extension, Router};
 use std::sync::Arc;
-use tokio_rusqlite::Connection;
 use tower::ServiceBuilder;
 use tower_http::cors::{Any, CorsLayer};
 use tower_http::trace::TraceLayer;
 use tracing::info;
 pub use error::{ApiError};
-use crate::config::{Config, PlainConfig};
+use crate::config::Config;
+use crate::db::DbRepo;
 use crate::http::controllers::{media, ping, tags};
 
 mod error;
@@ -21,14 +21,14 @@ pub type Result<T, E = ApiError> = std::result::Result<T, E>;
 #[derive(Clone)]
 pub struct ApiContext {
     pub cfg: Arc<Config>,
-    pub db: Connection,
+    pub db: DbRepo,
 }
 
 impl ApiContext {
-    pub fn new(config: Config, db_conn: Connection) -> Self {
+    pub fn new(config: Config, db: DbRepo) -> Self {
         Self {
             cfg: Arc::new(config),
-            db: db_conn,
+            db,
         }
     }
 }

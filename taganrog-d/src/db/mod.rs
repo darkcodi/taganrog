@@ -1,297 +1,292 @@
 use std::str::FromStr;
-use rusqlite::params;
-use tracing::info;
-use crate::db::entities::{Media, MediaId, MediaWithTags, Tag};
-use crate::http::ApiContext;
+use jammdb::DB;
+use crate::db::entities::{Media, MediaId, Tag, TagId};
 
 pub mod entities;
 pub mod id;
 
-pub struct DbRepo;
-
-impl DbRepo {
-    pub async fn get_all_media_with_tags(ctx: &ApiContext, page_size: u64, page_index: u64) -> anyhow::Result<Vec<entities::MediaWithTags>> {
-        let sql = "SELECT m.id, m.filename, m.relative_path, m.imported_at, m.content_type, m.hash, m.size, m.was_uploaded, t.id, t.name, t.created_at \
-        FROM media m \
-        LEFT JOIN media_tags mt ON m.id = mt.media_id \
-        LEFT JOIN tags t ON mt.tag_id = t.id \
-        WHERE m.id IN (SELECT id FROM media ORDER BY imported_at DESC LIMIT ? OFFSET ?) \
-        ORDER BY m.imported_at DESC";
-        info!("Executing SQL: {}", sql);
-
-        let media_vec = ctx.db.call(move |conn| {
-            let mut stmt = conn.prepare(sql)?;
-            let mut rows = stmt.query(params![page_size, page_index * page_size])?;
-
-            let mut media_vec = Vec::new();
-            let mut current_media_id: Option<String> = None;
-            let mut current_media: Option<Media> = None;
-            let mut current_tags: Vec<Tag> = Vec::new();
-
-            while let Some(row) = rows.next()? {
-                let media_id: String = row.get(0)?;
-                let filename: String = row.get(1)?;
-                let relative_path: String = row.get(2)?;
-                let imported_at: i64 = row.get(3)?;
-                let content_type: String = row.get(4)?;
-                let hash: String = row.get(5)?;
-                let size: i64 = row.get(6)?;
-                let was_uploaded: bool = row.get(7)?;
-                let tag_id: Option<String> = row.get(8)?;
-                let tag_name: Option<String> = row.get(9)?;
-                let tag_created_at: Option<i64> = row.get(10)?;
-
-                if current_media_id.is_none() || current_media_id.as_ref().unwrap() != &media_id {
-                    if current_media.is_some() {
-                        let media = current_media.unwrap();
-                        let media_with_tags = entities::MediaWithTags {
-                            media,
-                            tags: current_tags,
-                        };
-                        media_vec.push(media_with_tags);
-                    }
-
-                    current_media_id = Some(media_id.clone());
-                    current_media = Some(Media {
-                        id: MediaId::from_str(media_id.as_str()).unwrap(),
-                        filename,
-                        relative_path,
-                        imported_at: chrono::DateTime::from_utc(chrono::NaiveDateTime::from_timestamp(imported_at, 0), chrono::Utc),
-                        content_type,
-                        hash,
-                        size,
-                        was_uploaded,
-                    });
-                    current_tags = Vec::new();
-                }
-
-                if tag_id.is_some() {
-                    let tag_id = tag_id.unwrap();
-                    let tag_name = tag_name.unwrap();
-                    let tag_created_at = tag_created_at.unwrap();
-                    let tag = Tag {
-                        id: entities::TagId::from_str(tag_id.as_str()).unwrap(),
-                        name: tag_name,
-                        created_at: chrono::DateTime::from_utc(chrono::NaiveDateTime::from_timestamp(tag_created_at, 0), chrono::Utc),
-                    };
-                    current_tags.push(tag);
-                }
-            }
-
-            if current_media.is_some() {
-                let media = current_media.unwrap();
-                let media_with_tags = entities::MediaWithTags {
-                    media,
-                    tags: current_tags,
-                };
-                media_vec.push(media_with_tags);
-            }
-
-            Ok(media_vec)
-        }).await?;
-
-        Ok(media_vec)
-    }
-
-    pub async fn get_media_by_id(ctx: &ApiContext, id: MediaId) -> anyhow::Result<Option<MediaWithTags>> {
-        let sql = "SELECT m.id, m.filename, m.relative_path, m.imported_at, m.content_type, m.hash, m.size, m.was_uploaded, t.id, t.name, t.created_at \
-        FROM media m \
-        LEFT JOIN media_tags mt ON m.id = mt.media_id \
-        LEFT JOIN tags t ON mt.tag_id = t.id \
-        WHERE m.id = ? \
-        ORDER BY m.imported_at DESC";
-        info!("Executing SQL: {}", sql);
-
-        let media = ctx.db.call(move |conn| {
-            let mut stmt = conn.prepare(sql)?;
-            let mut rows = stmt.query(params![id.to_string()])?;
-
-            let mut current_media: Option<Media> = None;
-            let mut current_tags: Vec<Tag> = Vec::new();
-
-            while let Some(row) = rows.next()? {
-                let media_id: String = row.get(0)?;
-                let filename: String = row.get(1)?;
-                let relative_path: String = row.get(2)?;
-                let imported_at: i64 = row.get(3)?;
-                let content_type: String = row.get(4)?;
-                let hash: String = row.get(5)?;
-                let size: i64 = row.get(6)?;
-                let was_uploaded: bool = row.get(7)?;
-                let tag_id: Option<String> = row.get(8)?;
-                let tag_name: Option<String> = row.get(9)?;
-                let tag_created_at: Option<i64> = row.get(10)?;
-
-                if current_media.is_none() {
-                    current_media = Some(Media {
-                        id: MediaId::from_str(media_id.as_str()).unwrap(),
-                        filename,
-                        relative_path,
-                        imported_at: chrono::DateTime::from_utc(chrono::NaiveDateTime::from_timestamp(imported_at, 0), chrono::Utc),
-                        content_type,
-                        hash,
-                        size,
-                        was_uploaded,
-                    });
-                }
-
-                if tag_id.is_some() {
-                    let tag_id = tag_id.unwrap();
-                    let tag_name = tag_name.unwrap();
-                    let tag_created_at = tag_created_at.unwrap();
-                    let tag = Tag {
-                        id: entities::TagId::from_str(tag_id.as_str()).unwrap(),
-                        name: tag_name,
-                        created_at: chrono::DateTime::from_utc(chrono::NaiveDateTime::from_timestamp(tag_created_at, 0), chrono::Utc),
-                    };
-                    current_tags.push(tag);
-                }
-            }
-
-            if current_media.is_some() {
-                let media = current_media.unwrap();
-                let media_with_tags = entities::MediaWithTags {
-                    media,
-                    tags: current_tags,
-                };
-                return Ok(Some(media_with_tags));
-            }
-
-            Ok(None)
-        }).await?;
-
-        Ok(media)
-    }
-
-    pub async fn get_media_by_hash(ctx: &ApiContext, hash: String) -> anyhow::Result<Option<Media>> {
-        let sql = "SELECT id, filename, relative_path, imported_at, content_type, hash, size, was_uploaded FROM media WHERE hash = ?";
-        info!("Executing SQL: {}", sql);
-
-        let media = ctx.db.call(move |conn| {
-            let mut stmt = conn.prepare(sql)?;
-            let mut rows = stmt.query(params![hash])?;
-
-            let row = rows.next()?;
-            if row.is_none() {
-                return Ok(None);
-            }
-
-            let row = row.unwrap();
-            let id: String = row.get(0)?;
-            let filename: String = row.get(1)?;
-            let relative_path: String = row.get(2)?;
-            let imported_at: i64 = row.get(3)?;
-            let content_type: String = row.get(4)?;
-            let hash: String = row.get(5)?;
-            let size: i64 = row.get(6)?;
-            let was_uploaded: bool = row.get(7)?;
-
-            let media = Media {
-                id: MediaId::from_str(id.as_str()).unwrap(),
-                filename,
-                relative_path,
-                imported_at: chrono::DateTime::from_utc(chrono::NaiveDateTime::from_timestamp(imported_at, 0), chrono::Utc),
-                content_type,
-                hash,
-                size,
-                was_uploaded,
-            };
-
-            Ok(Some(media))
-        }).await?;
-
-        Ok(media)
-    }
-
-    pub async fn insert_media(ctx: &ApiContext, media: &Media) -> anyhow::Result<()> {
-        let sql = "INSERT INTO media (id, filename, relative_path, imported_at, content_type, hash, size, was_uploaded) VALUES (?, ?, ?, ?, ?, ?, ?, ?)";
-        let id = media.id.to_string();
-        let filename = media.filename.clone();
-        let relative_path = media.relative_path.clone();
-        let imported_at = media.imported_at.timestamp();
-        let content_type = media.content_type.clone();
-        let hash = media.hash.clone();
-        let size = media.size;
-        let was_uploaded = media.was_uploaded;
-        info!("Executing SQL: {}", sql);
-
-        ctx.db.call(move |conn| {
-            conn.execute(sql, params![
-                id,
-                filename,
-                relative_path,
-                imported_at,
-                content_type,
-                hash,
-                size,
-                was_uploaded
-            ])?;
-
-            Ok(())
-        }).await?;
-
-        Ok(())
-    }
-
-    pub async fn delete_media(ctx: &ApiContext, id: MediaId) -> anyhow::Result<()> {
-        let sql = "DELETE FROM media WHERE id = ?";
-        info!("Executing SQL: {}", sql);
-
-        ctx.db.call(move |conn| {
-            conn.execute(sql, params![id.to_string()])?;
-
-            Ok(())
-        }).await?;
-
-        Ok(())
-    }
+#[derive(Clone)]
+pub struct DbRepo {
+    db: DB,
 }
 
-pub async fn migrate(ctx: ApiContext) -> anyhow::Result<()> {
-    info!("Starting DB migration...");
+pub enum InsertResult<T> {
+    Inserted(T),
+    AlreadyExists(T),
+}
 
-    ctx.db.call(|conn| {
-        conn.execute(
-            "CREATE TABLE IF NOT EXISTS tags (
-            id TEXT PRIMARY KEY,
-            name TEXT NOT NULL,
-            created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
-        )",
-            [],
-        )?;
+impl DbRepo {
+    pub fn new(db: DB) -> Self {
+        Self {
+            db,
+        }
+    }
 
-        conn.execute(
-            "CREATE TABLE IF NOT EXISTS media (
-            id TEXT PRIMARY KEY,
-            filename TEXT NOT NULL,
-            relative_path TEXT NOT NULL,
-            imported_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-            content_type TEXT NOT NULL,
-            hash TEXT NOT NULL,
-            size INTEGER NOT NULL,
-            was_uploaded BOOLEAN NOT NULL DEFAULT FALSE
-        )",
-            [],
-        )?;
+    pub fn get_media_by_id(&self, id: MediaId) -> anyhow::Result<Option<Media>> {
+        let tx = self.db.tx(false)?;
+        let media_bucket_result = tx.get_bucket("media");
+        if let Err(jammdb::Error::BucketMissing) = media_bucket_result {
+            return Ok(None);
+        }
+        let media_bucket = media_bucket_result?;
+        let maybe_media_bytes = media_bucket.get(id.to_string());
+        if maybe_media_bytes.is_none() {
+            return Ok(None);
+        }
 
-        conn.execute(
-            "CREATE TABLE IF NOT EXISTS media_tags (
-            media_id TEXT NOT NULL,
-            tag_id TEXT NOT NULL,
-            created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-            PRIMARY KEY (media_id, tag_id)
-        )",
-            [],
-        )?;
+        let media_bytes = maybe_media_bytes.unwrap().kv().value().to_owned();
+        let media = rmp_serde::from_slice(&media_bytes).unwrap();
+        Ok(Some(media))
+    }
 
-        conn.execute(
-            "CREATE UNIQUE INDEX IF NOT EXISTS ix_media_hash ON media (hash)",
-            [],
-        )?;
+    pub fn get_media_by_hash(&self, hash: String) -> anyhow::Result<Option<Media>> {
+        let tx = self.db.tx(false)?;
+        let hash_bucket_result = tx.get_bucket("media_hash");
+        if let Err(jammdb::Error::BucketMissing) = hash_bucket_result {
+            return Ok(None);
+        }
+        let hash_bucket = hash_bucket_result?;
+        let maybe_media_id = hash_bucket.get(hash);
+        if maybe_media_id.is_none() {
+            return Ok(None);
+        }
 
+        let media_id: String = std::str::from_utf8(maybe_media_id.unwrap().kv().value())?.to_owned();
+        let media_id = MediaId::from_str(&media_id)?;
+        self.get_media_by_id(media_id)
+    }
+
+    pub fn get_tag_by_id(&self, id: TagId) -> anyhow::Result<Option<Tag>> {
+        let tx = self.db.tx(false)?;
+        let tag_bucket_result = tx.get_bucket("tag");
+        if let Err(jammdb::Error::BucketMissing) = tag_bucket_result {
+            return Ok(None);
+        }
+        let tag_bucket = tag_bucket_result?;
+        let maybe_tag_bytes = tag_bucket.get(id.to_string());
+        if maybe_tag_bytes.is_none() {
+            return Ok(None);
+        }
+
+        let tag_bytes = maybe_tag_bytes.unwrap().kv().value().to_owned();
+        let tag = rmp_serde::from_slice(&tag_bytes).unwrap();
+        Ok(Some(tag))
+    }
+
+    pub fn get_tag_by_name(&self, name: String) -> anyhow::Result<Option<Tag>> {
+        let tx = self.db.tx(false)?;
+        let tag_name_bucket_result = tx.get_bucket("tag_name");
+        if let Err(jammdb::Error::BucketMissing) = tag_name_bucket_result {
+            return Ok(None);
+        }
+        let tag_name_bucket = tag_name_bucket_result?;
+        let maybe_tag_id = tag_name_bucket.get(name);
+        if maybe_tag_id.is_none() {
+            return Ok(None);
+        }
+
+        let tag_id: String = std::str::from_utf8(maybe_tag_id.unwrap().kv().value())?.to_owned();
+        let tag_id = TagId::from_str(&tag_id)?;
+        self.get_tag_by_id(tag_id)
+    }
+
+    pub fn get_all_media(&self) -> anyhow::Result<Vec<Media>> {
+        let tx = self.db.tx(false)?;
+        let media_bucket_result = tx.get_bucket("media");
+        if let Err(jammdb::Error::BucketMissing) = media_bucket_result {
+            return Ok(Vec::new());
+        }
+        let media_bucket = media_bucket_result?;
+        let mut media = Vec::new();
+        for kv in media_bucket.kv_pairs() {
+            let media_bytes = kv.value();
+            let media_obj = rmp_serde::from_slice(media_bytes).unwrap();
+            media.push(media_obj);
+        }
+        Ok(media)
+    }
+
+    pub fn get_media_tags(&self, media: &Media) -> anyhow::Result<Vec<Tag>> {
+        let tx = self.db.tx(false)?;
+        let media_id = media.id.to_string();
+        let media_tags_bucket_result = tx.get_bucket("media_tags");
+        if let Err(jammdb::Error::BucketMissing) = media_tags_bucket_result {
+            return Ok(Vec::new());
+        }
+        let media_tags_bucket = media_tags_bucket_result?;
+        let maybe_tags_bytes = media_tags_bucket.get(&media_id);
+        if maybe_tags_bytes.is_none() {
+            return Ok(Vec::new());
+        }
+
+        let tags_bytes = maybe_tags_bytes.unwrap().kv().value().to_owned();
+        let tags: Vec<String> = rmp_serde::from_slice(&tags_bytes).unwrap();
+        let mut tags_vec = Vec::new();
+        for tag_id in tags {
+            let tag = self.get_tag_by_id(TagId::from_str(&tag_id)?)?;
+            if tag.is_none() {
+                continue;
+            }
+            tags_vec.push(tag.unwrap());
+        }
+        Ok(tags_vec)
+    }
+
+    pub fn insert_media(&self, media: &Media) -> anyhow::Result<InsertResult<Media>> {
+        let tx = self.db.tx(true)?;
+
+        let media_id = media.id.to_string();
+        let media_hash = media.hash.clone();
+        let hash_bucket = tx.get_or_create_bucket("media_hash")?;
+        let maybe_existing_media = hash_bucket.get(&media_hash);
+        if maybe_existing_media.is_some() {
+            let existing_media = rmp_serde::from_slice(maybe_existing_media.unwrap().kv().value()).unwrap();
+            return Ok(InsertResult::AlreadyExists(existing_media));
+        }
+
+        let media_bucket = tx.get_or_create_bucket("media")?;
+        let media_bytes = rmp_serde::to_vec(media).unwrap();
+        media_bucket.put(media_id.clone(), media_bytes)?;
+        hash_bucket.put(media_hash, media_id)?;
+
+        tx.commit()?;
+        Ok(InsertResult::Inserted(media.clone()))
+    }
+
+    pub fn insert_tag(&self, tag: &Tag) -> anyhow::Result<InsertResult<Tag>> {
+        let tx = self.db.tx(true)?;
+
+        let tag_id = tag.id.to_string();
+        let tag_name = tag.name.clone();
+        let tag_name_bucket = tx.get_or_create_bucket("tag_name")?;
+        let maybe_existing_tag = tag_name_bucket.get(&tag_name);
+        if maybe_existing_tag.is_some() {
+            let existing_tag = rmp_serde::from_slice(maybe_existing_tag.unwrap().kv().value()).unwrap();
+            return Ok(InsertResult::AlreadyExists(existing_tag));
+        }
+
+        let tag_bucket = tx.get_or_create_bucket("tag")?;
+        let tag_bytes = rmp_serde::to_vec(tag).unwrap();
+        tag_bucket.put(tag_id.clone(), tag_bytes)?;
+        tag_name_bucket.put(tag_name, tag_id)?;
+
+        tx.commit()?;
+        Ok(InsertResult::Inserted(tag.clone()))
+    }
+
+    pub fn add_tag_to_media(&self, media: &Media, tag: &Tag) -> anyhow::Result<()> {
+        let tx = self.db.tx(true)?;
+
+        let media_id = media.id.to_string();
+        let tag_id = tag.id.to_string();
+        let media_tags_bucket = tx.get_or_create_bucket("media_tags")?;
+        let maybe_existing_tags = media_tags_bucket.get(&media_id);
+        let mut tags: Vec<String> = if maybe_existing_tags.is_some() {
+            let existing_tags = rmp_serde::from_slice(maybe_existing_tags.unwrap().kv().value()).unwrap();
+            existing_tags
+        } else {
+            Vec::new()
+        };
+        if !tags.contains(&tag_id) {
+            tags.push(tag_id.clone());
+        }
+        let tags_bytes = rmp_serde::to_vec(&tags).unwrap();
+        media_tags_bucket.put(media_id.clone(), tags_bytes)?;
+
+        let tag_media_bucket = tx.get_or_create_bucket("tag_media")?;
+        let maybe_existing_media = tag_media_bucket.get(&tag_id);
+        let mut media_ids: Vec<String> = if maybe_existing_media.is_some() {
+            let existing_media = rmp_serde::from_slice(maybe_existing_media.unwrap().kv().value()).unwrap();
+            existing_media
+        } else {
+            Vec::new()
+        };
+        if !media_ids.contains(&media_id) {
+            media_ids.push(media_id.clone());
+        }
+        let media_ids_bytes = rmp_serde::to_vec(&media_ids).unwrap();
+        tag_media_bucket.put(tag_id, media_ids_bytes)?;
+
+        tx.commit()?;
         Ok(())
-    }).await?;
+    }
 
-    info!("DB Migrated!");
-    Ok(())
+    pub fn remove_tag_from_media(&self, media: &Media, tag: &Tag) -> anyhow::Result<()> {
+        let tx = self.db.tx(true)?;
+
+        let media_id = media.id.to_string();
+        let tag_id = tag.id.to_string();
+        let media_tags_bucket = tx.get_or_create_bucket("media_tags")?;
+        let maybe_existing_tags = media_tags_bucket.get(&media_id);
+        let mut tags: Vec<String> = if maybe_existing_tags.is_some() {
+            let existing_tags = rmp_serde::from_slice(maybe_existing_tags.unwrap().kv().value()).unwrap();
+            existing_tags
+        } else {
+            Vec::new()
+        };
+        if tags.contains(&tag_id) {
+            tags.retain(|x| x != &tag_id);
+        }
+        let tags_bytes = rmp_serde::to_vec(&tags).unwrap();
+        media_tags_bucket.put(media_id.clone(), tags_bytes)?;
+
+        let tag_media_bucket = tx.get_or_create_bucket("tag_media")?;
+        let maybe_existing_media = tag_media_bucket.get(&tag_id);
+        let mut media_ids: Vec<String> = if maybe_existing_media.is_some() {
+            let existing_media = rmp_serde::from_slice(maybe_existing_media.unwrap().kv().value()).unwrap();
+            existing_media
+        } else {
+            Vec::new()
+        };
+        if media_ids.contains(&media_id) {
+            media_ids.retain(|x| x != &media_id);
+        }
+        let media_ids_bytes = rmp_serde::to_vec(&media_ids).unwrap();
+        tag_media_bucket.put(tag_id, media_ids_bytes)?;
+
+        tx.commit()?;
+        Ok(())
+    }
+
+    pub fn delete_media(&self, media: &Media) -> anyhow::Result<()> {
+        let media_id = media.id.to_string();
+        let media_hash = media.hash.clone();
+        let media_tags = self.get_media_tags(media)?;
+
+        let tx = self.db.tx(true)?;
+
+        let tag_media_bucket = tx.get_or_create_bucket("tag_media")?;
+        for tag in media_tags {
+            let tag_id = tag.id.to_string();
+            let maybe_existing_media = tag_media_bucket.get(&tag_id);
+            let mut media_ids: Vec<String> = if maybe_existing_media.is_some() {
+                let existing_media = rmp_serde::from_slice(maybe_existing_media.unwrap().kv().value()).unwrap();
+                existing_media
+            } else {
+                Vec::new()
+            };
+            if media_ids.contains(&media_id) {
+                media_ids.retain(|x| x != &media_id);
+            }
+            let media_ids_bytes = rmp_serde::to_vec(&media_ids).unwrap();
+            tag_media_bucket.put(tag_id, media_ids_bytes)?;
+        }
+        let media_tags_bucket = tx.get_or_create_bucket("media_tags")?;
+        if media_tags_bucket.get(&media_id).is_some() {
+            media_tags_bucket.delete(&media_id)?;
+        }
+
+        let hash_bucket = tx.get_or_create_bucket("media_hash")?;
+        if hash_bucket.get(&media_hash).is_some() {
+            hash_bucket.delete(&media_hash)?;
+        }
+
+        let media_bucket = tx.get_or_create_bucket("media")?;
+        if media_bucket.get(&media_id).is_some() {
+            media_bucket.delete(&media_id)?;
+        }
+
+        tx.commit()?;
+        Ok(())
+    }
 }

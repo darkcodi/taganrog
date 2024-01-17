@@ -1,4 +1,4 @@
-use tokio_rusqlite::Connection;
+use jammdb::DB;
 use tracing::info;
 use taganrog_d::config::Config;
 use taganrog_d::{db, http};
@@ -13,10 +13,10 @@ async fn main() -> anyhow::Result<()> {
     let config: Config = Config::parse().expect("failed to parse config");
     info!("{:?}", &config);
 
-    let db_conn = Connection::open(&config.db_path).await.expect("failed to open db connection");
+    let db = DB::open(&config.db_path).expect("failed to open db connection");
+    let db_repo = db::DbRepo::new(db);
 
-    let ctx = ApiContext::new(config, db_conn);
-    db::migrate(ctx.clone()).await?;
+    let ctx = ApiContext::new(config, db_repo);
     http::serve(ctx).await?;
 
     Ok(())
