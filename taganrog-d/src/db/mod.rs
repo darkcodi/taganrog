@@ -111,6 +111,21 @@ impl DbRepo {
         }
     }
 
+    pub fn get_or_insert_tag_by_name(&self, name: String) -> DbResult<Inserted<Tag>> {
+        let maybe_tag = self.get_tag_by_name(name.clone())?;
+        if let Some(tag) = maybe_tag {
+            return Ok(Inserted::AlreadyExists(tag));
+        }
+
+        let tag = Tag {
+            id: TagId::new(),
+            name,
+            created_at: chrono::Utc::now(),
+            media: Vec::new(),
+        };
+        self.insert_tag(&tag)
+    }
+
     pub fn get_all_media(&self) -> DbResult<Vec<Media>> {
         let tx = self.db.tx(false)?;
         match tx.get_bucket("media") {
@@ -167,6 +182,10 @@ impl DbRepo {
     }
 
     pub fn add_tag_to_media(&self, mut media: Media, mut tag: Tag) -> DbResult<Media> {
+        if media.tags.contains(&tag.id) {
+            return Ok(media);
+        }
+
         let media_id = media.id.clone();
         let tag_id = tag.id.clone();
 
@@ -187,7 +206,11 @@ impl DbRepo {
         Ok(media)
     }
 
-    pub fn remove_tag_from_media(&self, mut media: Media, mut tag: Tag) -> DbResult<Media> {
+    pub fn delete_tag_from_media(&self, mut media: Media, mut tag: Tag) -> DbResult<Media> {
+        if !media.tags.contains(&tag.id) {
+            return Ok(media);
+        }
+
         let media_id = media.id.clone();
         let tag_id = tag.id.clone();
 

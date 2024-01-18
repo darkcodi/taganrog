@@ -15,8 +15,8 @@ pub fn router() -> Router {
     Router::new()
         .route("/api/media", get(get_all_media).post(create_media))
         .route("/api/media/:media_id", get(get_media).delete(delete_media))
-        // .route("/api/media/:media_id/add-tag", post(add_tag_to_media))
-        // .route("/api/media/:media_id/remove-tag", post(delete_tag_from_media))
+        .route("/api/media/:media_id/add-tag", post(add_tag_to_media))
+        .route("/api/media/:media_id/remove-tag", post(delete_tag_from_media))
         // .route("/api/media/search", post(search_media))
         .route("/api/media/upload", post(upload_media))
         .layer(DefaultBodyLimit::max(MAX_UPLOAD_SIZE_IN_BYTES))
@@ -29,7 +29,7 @@ struct ImportMediaRequest {
 
 #[derive(serde::Deserialize, Debug, Default)]
 struct TagBody {
-    name: String,
+    tag: String,
 }
 
 #[derive(serde::Deserialize, Debug, Default)]
@@ -139,46 +139,47 @@ async fn delete_media(
     Ok(Json(media))
 }
 
-// async fn add_tag_to_media(
-//     ctx: Extension<ApiContext>,
-//     Path(media_id): Path<String>,
-//     Json(req): Json<TagBody>,
-// ) -> Result<Json<MediaWithTags>> {
-//     let media_id = MediaId::from_str(&media_id)?;
-//     let maybe_media = Media::get_by_id(&media_id, &ctx.db).await?;
-//     if maybe_media.is_none() {
-//         return Err(ApiError::NotFound);
-//     }
-//
-//     let mut media = maybe_media.unwrap();
-//     if !media.tags.contains(&req.name) {
-//         let tag = Tag::ensure_exists(&req.name, &ctx.db).await?.safe_unwrap();
-//         Media::add_tag(&media_id, &tag.id, &ctx.db).await?;
-//         media.tags.push(tag.name);
-//     }
-//     Ok(Json(media))
-// }
-//
-// async fn delete_tag_from_media(
-//     ctx: Extension<ApiContext>,
-//     Path(media_id): Path<String>,
-//     Json(req): Json<TagBody>,
-// ) -> Result<Json<MediaWithTags>> {
-//     let media_id = MediaId::from_str(&media_id)?;
-//     let maybe_media = Media::get_by_id(&media_id, &ctx.db).await?;
-//     if maybe_media.is_none() {
-//         return Err(ApiError::NotFound);
-//     }
-//
-//     let mut media = maybe_media.unwrap();
-//     if media.tags.contains(&req.name) {
-//         Media::remove_tag(&media_id, &req.name, &ctx.db).await?;
-//         let pos = media.tags.iter().position(|x| x == &req.name).unwrap();
-//         media.tags.remove(pos);
-//     }
-//     Ok(Json(media))
-// }
-//
+async fn add_tag_to_media(
+    ctx: Extension<ApiContext>,
+    Path(media_id): Path<String>,
+    Json(req): Json<TagBody>,
+) -> Result<Json<Media>> {
+    let media_id = MediaId::from_str(&media_id)
+        .map_err(|_| ApiError::unprocessable_entity([("media_id", "invalid id")]))?;
+    let maybe_media = ctx.db.get_media_by_id(media_id.clone())?;
+    if maybe_media.is_none() {
+        return Err(ApiError::NotFound);
+    }
+
+    let media = maybe_media.unwrap();
+    let tag = ctx.db.get_or_insert_tag_by_name(req.tag.clone())?.unwrap();
+    let media = ctx.db.add_tag_to_media(media, tag)?;
+    Ok(Json(media))
+}
+
+async fn delete_tag_from_media(
+    ctx: Extension<ApiContext>,
+    Path(media_id): Path<String>,
+    Json(req): Json<TagBody>,
+) -> Result<Json<Media>> {
+    let media_id = MediaId::from_str(&media_id)
+        .map_err(|_| ApiError::unprocessable_entity([("media_id", "invalid id")]))?;
+    let maybe_media = ctx.db.get_media_by_id(media_id.clone())?;
+    if maybe_media.is_none() {
+        return Err(ApiError::NotFound);
+    }
+
+    let maybe_tag = ctx.db.get_tag_by_name(req.tag.clone())?;
+    if maybe_tag.is_none() {
+        return Err(ApiError::NotFound);
+    }
+
+    let media = maybe_media.unwrap();
+    let tag = maybe_tag.unwrap();
+    let media = ctx.db.delete_tag_from_media(media, tag)?;
+    Ok(Json(media))
+}
+
 // async fn search_media(
 //     ctx: Extension<ApiContext>,
 //     Json(req): Json<SearchBody>,
