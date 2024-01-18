@@ -4,7 +4,7 @@ use axum::routing::{get, post};
 use axum::{Json, Router};
 use path_absolutize::Absolutize;
 use relative_path::PathExt;
-use crate::db::entities::{Media, MediaId, MediaWithTags};
+use crate::db::entities::{Media, MediaId};
 use crate::http::error::{ApiError};
 use crate::http::{ApiContext, Result};
 use crate::utils::hash_utils::MurMurHasher;
@@ -111,7 +111,7 @@ async fn get_all_media(
 async fn get_media(
     ctx: Extension<ApiContext>,
     Path(media_id): Path<String>,
-) -> Result<Json<MediaWithTags>> {
+) -> Result<Json<Media>> {
     let media_id = MediaId::from_str(&media_id)
         .map_err(|_| ApiError::unprocessable_entity([("media_id", "invalid id")]))?;
     let maybe_media = ctx.db.get_media_by_id(media_id)?;
@@ -120,18 +120,13 @@ async fn get_media(
     }
 
     let media = maybe_media.unwrap();
-    let tags = ctx.db.get_media_tags(&media)?;
-    let media_with_tags = MediaWithTags {
-        media,
-        tags,
-    };
-    Ok(Json(media_with_tags))
+    Ok(Json(media))
 }
 
 async fn delete_media(
     ctx: Extension<ApiContext>,
     Path(media_id): Path<String>,
-) -> Result<Json<MediaWithTags>> {
+) -> Result<Json<Media>> {
     let media_id = MediaId::from_str(&media_id)
         .map_err(|_| ApiError::unprocessable_entity([("media_id", "invalid id")]))?;
     let maybe_media = ctx.db.get_media_by_id(media_id.clone())?;
@@ -140,13 +135,8 @@ async fn delete_media(
     }
 
     let media = maybe_media.unwrap();
-    let tags = ctx.db.get_media_tags(&media)?;
     ctx.db.delete_media(&media)?;
-    let media_with_tags = MediaWithTags {
-        media,
-        tags,
-    };
-    Ok(Json(media_with_tags))
+    Ok(Json(media))
 }
 
 // async fn add_tag_to_media(

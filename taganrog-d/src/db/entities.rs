@@ -16,6 +16,7 @@ pub struct Media {
     pub hash: String,
     pub size: i64,
     pub was_uploaded: bool,
+    pub tags: Vec<TagId>,
 }
 
 #[derive(serde::Serialize, serde::Deserialize, Clone, Debug, PartialEq, Eq)]
@@ -23,18 +24,7 @@ pub struct Tag {
     pub id: TagId,
     pub name: String,
     pub created_at: DateTime<Utc>,
-}
-
-#[derive(serde::Serialize, serde::Deserialize, Clone, Debug, PartialEq, Eq)]
-pub struct TagWithCount {
-    pub tag: Tag,
-    pub count: i64,
-}
-
-#[derive(serde::Serialize, serde::Deserialize, Clone, Debug, PartialEq, Eq)]
-pub struct MediaWithTags {
-    pub media: Media,
-    pub tags: Vec<Tag>,
+    pub media: Vec<MediaId>,
 }
 
 impl Media {
@@ -58,6 +48,7 @@ impl Media {
             hash,
             size,
             was_uploaded: false,
+            tags: vec![],
         })
     }
 }

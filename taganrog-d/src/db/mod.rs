@@ -106,32 +106,6 @@ impl DbRepo {
         Ok(media)
     }
 
-    pub fn get_media_tags(&self, media: &Media) -> anyhow::Result<Vec<Tag>> {
-        let tx = self.db.tx(false)?;
-        let media_id = media.id.to_string();
-        let media_tags_bucket_result = tx.get_bucket("media_tags");
-        if let Err(jammdb::Error::BucketMissing) = media_tags_bucket_result {
-            return Ok(Vec::new());
-        }
-        let media_tags_bucket = media_tags_bucket_result?;
-        let maybe_tags_bytes = media_tags_bucket.get(&media_id);
-        if maybe_tags_bytes.is_none() {
-            return Ok(Vec::new());
-        }
-
-        let tags_bytes = maybe_tags_bytes.unwrap().kv().value().to_owned();
-        let tags: Vec<String> = rmp_serde::from_slice(&tags_bytes).unwrap();
-        let mut tags_vec = Vec::new();
-        for tag_id in tags {
-            let tag = self.get_tag_by_id(TagId::from_str(&tag_id)?)?;
-            if tag.is_none() {
-                continue;
-            }
-            tags_vec.push(tag.unwrap());
-        }
-        Ok(tags_vec)
-    }
-
     pub fn insert_media(&self, media: &Media) -> anyhow::Result<InsertResult<Media>> {
         let tx = self.db.tx(true)?;
 
@@ -174,116 +148,77 @@ impl DbRepo {
         Ok(InsertResult::Inserted(tag.clone()))
     }
 
-    pub fn add_tag_to_media(&self, media: &Media, tag: &Tag) -> anyhow::Result<()> {
+    pub fn add_tag_to_media(&self, media_id: MediaId, tag_id: TagId) -> anyhow::Result<Media> {
+        let maybe_media = self.get_media_by_id(media_id.clone())?;
+        if maybe_media.is_none() {
+            return Err(anyhow::anyhow!("media not found"));
+        }
+        let mut media = maybe_media.unwrap();
+
+        let maybe_tag = self.get_tag_by_id(tag_id.clone())?;
+        if maybe_tag.is_none() {
+            return Err(anyhow::anyhow!("tag not found"));
+        }
+        let mut tag = maybe_tag.unwrap();
+
+        media.tags.push(tag_id.clone());
+        tag.media.push(media_id.clone());
+
         let tx = self.db.tx(true)?;
 
-        let media_id = media.id.to_string();
-        let tag_id = tag.id.to_string();
-        let media_tags_bucket = tx.get_or_create_bucket("media_tags")?;
-        let maybe_existing_tags = media_tags_bucket.get(&media_id);
-        let mut tags: Vec<String> = if maybe_existing_tags.is_some() {
-            let existing_tags = rmp_serde::from_slice(maybe_existing_tags.unwrap().kv().value()).unwrap();
-            existing_tags
-        } else {
-            Vec::new()
-        };
-        if !tags.contains(&tag_id) {
-            tags.push(tag_id.clone());
-        }
-        let tags_bytes = rmp_serde::to_vec(&tags).unwrap();
-        media_tags_bucket.put(media_id.clone(), tags_bytes)?;
+        let media_bucket = tx.get_or_create_bucket("media")?;
+        let media_bytes = rmp_serde::to_vec(&media).unwrap();
+        media_bucket.put(media_id.to_string(), media_bytes)?;
 
-        let tag_media_bucket = tx.get_or_create_bucket("tag_media")?;
-        let maybe_existing_media = tag_media_bucket.get(&tag_id);
-        let mut media_ids: Vec<String> = if maybe_existing_media.is_some() {
-            let existing_media = rmp_serde::from_slice(maybe_existing_media.unwrap().kv().value()).unwrap();
-            existing_media
-        } else {
-            Vec::new()
-        };
-        if !media_ids.contains(&media_id) {
-            media_ids.push(media_id.clone());
-        }
-        let media_ids_bytes = rmp_serde::to_vec(&media_ids).unwrap();
-        tag_media_bucket.put(tag_id, media_ids_bytes)?;
+        let tag_bucket = tx.get_or_create_bucket("tag")?;
+        let tag_bytes = rmp_serde::to_vec(&tag).unwrap();
+        tag_bucket.put(tag_id.to_string(), tag_bytes)?;
 
         tx.commit()?;
-        Ok(())
+        Ok(media)
     }
 
-    pub fn remove_tag_from_media(&self, media: &Media, tag: &Tag) -> anyhow::Result<()> {
+    pub fn remove_tag_from_media(&self, media_id: MediaId, tag_id: TagId) -> anyhow::Result<Media> {
+        let maybe_media = self.get_media_by_id(media_id.clone())?;
+        if maybe_media.is_none() {
+            return Err(anyhow::anyhow!("media not found"));
+        }
+        let mut media = maybe_media.unwrap();
+
+        let maybe_tag = self.get_tag_by_id(tag_id.clone())?;
+        if maybe_tag.is_none() {
+            return Err(anyhow::anyhow!("tag not found"));
+        }
+        let mut tag = maybe_tag.unwrap();
+
+        media.tags.retain(|x| x != &tag_id);
+        tag.media.retain(|x| x != &media_id);
+
         let tx = self.db.tx(true)?;
 
-        let media_id = media.id.to_string();
-        let tag_id = tag.id.to_string();
-        let media_tags_bucket = tx.get_or_create_bucket("media_tags")?;
-        let maybe_existing_tags = media_tags_bucket.get(&media_id);
-        let mut tags: Vec<String> = if maybe_existing_tags.is_some() {
-            let existing_tags = rmp_serde::from_slice(maybe_existing_tags.unwrap().kv().value()).unwrap();
-            existing_tags
-        } else {
-            Vec::new()
-        };
-        if tags.contains(&tag_id) {
-            tags.retain(|x| x != &tag_id);
-        }
-        let tags_bytes = rmp_serde::to_vec(&tags).unwrap();
-        media_tags_bucket.put(media_id.clone(), tags_bytes)?;
+        let media_bucket = tx.get_or_create_bucket("media")?;
+        let media_bytes = rmp_serde::to_vec(&media).unwrap();
+        media_bucket.put(media_id.to_string(), media_bytes)?;
 
-        let tag_media_bucket = tx.get_or_create_bucket("tag_media")?;
-        let maybe_existing_media = tag_media_bucket.get(&tag_id);
-        let mut media_ids: Vec<String> = if maybe_existing_media.is_some() {
-            let existing_media = rmp_serde::from_slice(maybe_existing_media.unwrap().kv().value()).unwrap();
-            existing_media
-        } else {
-            Vec::new()
-        };
-        if media_ids.contains(&media_id) {
-            media_ids.retain(|x| x != &media_id);
-        }
-        let media_ids_bytes = rmp_serde::to_vec(&media_ids).unwrap();
-        tag_media_bucket.put(tag_id, media_ids_bytes)?;
+        let tag_bucket = tx.get_or_create_bucket("tag")?;
+        let tag_bytes = rmp_serde::to_vec(&tag).unwrap();
+        tag_bucket.put(tag_id.to_string(), tag_bytes)?;
 
         tx.commit()?;
-        Ok(())
+        Ok(media)
     }
 
     pub fn delete_media(&self, media: &Media) -> anyhow::Result<()> {
-        let media_id = media.id.to_string();
-        let media_hash = media.hash.clone();
-        let media_tags = self.get_media_tags(media)?;
-
         let tx = self.db.tx(true)?;
 
-        let tag_media_bucket = tx.get_or_create_bucket("tag_media")?;
-        for tag in media_tags {
-            let tag_id = tag.id.to_string();
-            let maybe_existing_media = tag_media_bucket.get(&tag_id);
-            let mut media_ids: Vec<String> = if maybe_existing_media.is_some() {
-                let existing_media = rmp_serde::from_slice(maybe_existing_media.unwrap().kv().value()).unwrap();
-                existing_media
-            } else {
-                Vec::new()
-            };
-            if media_ids.contains(&media_id) {
-                media_ids.retain(|x| x != &media_id);
-            }
-            let media_ids_bytes = rmp_serde::to_vec(&media_ids).unwrap();
-            tag_media_bucket.put(tag_id, media_ids_bytes)?;
-        }
-        let media_tags_bucket = tx.get_or_create_bucket("media_tags")?;
-        if media_tags_bucket.get(&media_id).is_some() {
-            media_tags_bucket.delete(&media_id)?;
-        }
-
         let hash_bucket = tx.get_or_create_bucket("media_hash")?;
-        if hash_bucket.get(&media_hash).is_some() {
-            hash_bucket.delete(&media_hash)?;
+        if hash_bucket.get(media.hash.clone()).is_some() {
+            hash_bucket.delete(media.hash.clone())?;
         }
 
         let media_bucket = tx.get_or_create_bucket("media")?;
-        if media_bucket.get(&media_id).is_some() {
-            media_bucket.delete(&media_id)?;
+        if media_bucket.get(media.id.to_string()).is_some() {
+            media_bucket.delete(media.id.to_string())?;
         }
 
         tx.commit()?;
