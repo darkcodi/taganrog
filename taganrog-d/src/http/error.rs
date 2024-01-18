@@ -28,8 +28,11 @@ pub enum ApiError {
         errors: HashMap<Cow<'static, str>, Vec<Cow<'static, str>>>,
     },
 
-    // #[error("an error occurred with the database: {0}")]
-    // DbErr(#[from] SurrealDbError),
+    #[error("db error: {0}")]
+    DbErr(#[from] jammdb::Error),
+
+    #[error("io error: {0}")]
+    IoErr(#[from] std::io::Error),
 
     #[error("an internal server error occurred: {0}")]
     Anyhow(#[from] anyhow::Error),
@@ -65,8 +68,7 @@ impl ApiError {
             Self::NotFound => StatusCode::NOT_FOUND,
             Self::Conflict { .. } => StatusCode::CONFLICT,
             Self::UnprocessableEntity { .. } => StatusCode::UNPROCESSABLE_ENTITY,
-            // Self::DbErr(_) | Self::Anyhow(_) => StatusCode::INTERNAL_SERVER_ERROR,
-            Self::Anyhow(_) => StatusCode::INTERNAL_SERVER_ERROR,
+            Self::DbErr(_) | Self::IoErr(_) | Self::Anyhow(_) => StatusCode::INTERNAL_SERVER_ERROR,
         }
     }
 }
@@ -100,9 +102,13 @@ impl IntoResponse for ApiError {
                     .into_response();
             }
 
-            // Self::DbErr(ref e) => {
-            //     error!("Database error: {:?}", e);
-            // }
+            Self::DbErr(ref e) => {
+                error!("Database error: {:?}", e);
+            }
+
+            Self::IoErr(ref e) => {
+                error!("IO error: {:?}", e);
+            }
 
             Self::Anyhow(ref e) => {
                 error!("Generic error: {:?}", e);

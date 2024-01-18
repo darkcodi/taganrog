@@ -1,5 +1,5 @@
 use std::str::FromStr;
-use axum::extract::{Extension, Path};
+use axum::extract::{DefaultBodyLimit, Extension, Multipart, Path};
 use axum::routing::{get, post};
 use axum::{Json, Router};
 use path_absolutize::Absolutize;
@@ -7,6 +7,7 @@ use relative_path::PathExt;
 use crate::db::entities::{Media, MediaId, MediaWithTags};
 use crate::http::error::{ApiError};
 use crate::http::{ApiContext, Result};
+use crate::utils::hash_utils::MurMurHasher;
 
 const MAX_UPLOAD_SIZE_IN_BYTES: usize = 52_428_800; // 50 MB
 
@@ -17,7 +18,8 @@ pub fn router() -> Router {
         // .route("/api/media/:media_id/add-tag", post(add_tag_to_media))
         // .route("/api/media/:media_id/remove-tag", post(delete_tag_from_media))
         // .route("/api/media/search", post(search_media))
-        // .layer(DefaultBodyLimit::max(MAX_UPLOAD_SIZE_IN_BYTES))
+        .route("/api/media/upload", post(upload_media))
+        .layer(DefaultBodyLimit::max(MAX_UPLOAD_SIZE_IN_BYTES))
 }
 
 #[derive(serde::Deserialize, Debug)]
@@ -58,32 +60,46 @@ async fn create_media(
     Ok(Json(media))
 }
 
-// async fn upload_media(
-//     ctx: Extension<ApiContext>,
-//     files: Multipart,
-// ) -> Result<Json<MediaWithTags>> {
-//
-//     let file = File::try_from(files).await?;
-//     let existing_media = Media::get_by_hash(&file.hash, &ctx.db).await?;
-//     if existing_media.is_some() {
-//         return Err(ApiError::conflict(existing_media.unwrap()));
-//     }
-//
-//     let id = MediaId::new();
-//     let created_at = DateTime::from_naive_utc_and_offset(Utc::now().naive_utc(), Utc);
-//
-//     let media = Media {
-//         id: id,
-//         original_filename: file.original_filename.clone(),
-//         content_type: file.content_type,
-//         created_at,
-//         hash: file.hash,
-//         size: file.size as i64,
-//         location: file.original_filename,
-//     };
-//     let media = Media::create(&media, &ctx.db).await?;
-//     Ok(Json(media))
-// }
+async fn upload_media(
+    ctx: Extension<ApiContext>,
+    mut files: Multipart,
+) -> Result<Json<Media>> {
+    let file = files.next_field().await
+        .map_err(|x| ApiError::unprocessable_entity([("file", format!("multipart error: {}", x.to_string()))]))?
+        .ok_or(ApiError::unprocessable_entity([("file", "missing file")]))?;
+
+    let original_filename = file.file_name()
+        .ok_or(ApiError::unprocessable_entity([("file", "filename is empty")]))?
+        .to_string();
+    if original_filename.chars().any(|x| !x.is_ascii_alphanumeric() && x != '.' && x != '-' && x != '_') {
+        return Err(ApiError::unprocessable_entity([("file", "filename contains invalid characters")]));
+    }
+
+    let data = file.bytes().await
+        .map_err(|x| ApiError::unprocessable_entity([("file", format!("multipart error: {}", x.to_string()))]))?
+        .to_vec();
+    let hash = MurMurHasher::hash_bytes(data.as_slice());
+    let existing_media = ctx.db.get_media_by_hash(hash)?;
+    if existing_media.is_some() {
+        return Err(ApiError::conflict(existing_media.unwrap()));
+    }
+
+    let mut filename = original_filename.clone();
+    let mut suffix = 0;
+    while ctx.cfg.workdir.join(filename.clone()).exists() {
+        suffix += 1;
+        filename = format!("dup{}-{}", suffix, original_filename);
+    }
+    let filepath = ctx.cfg.workdir.join(filename.clone());
+    let relative_path = filepath.relative_to(&ctx.cfg.workdir)
+        .map_err(|_| ApiError::unprocessable_entity([("filename", "invalid path 2")]))?;
+
+    std::fs::write(&filepath, data)?;
+    let mut media = Media::from_file(&filepath, &relative_path)?;
+    media.was_uploaded = true;
+    ctx.db.insert_media(&media)?;
+    Ok(Json(media))
+}
 
 async fn get_all_media(
     ctx: Extension<ApiContext>,
