@@ -5,6 +5,7 @@ use axum::Json;
 use std::borrow::Cow;
 use std::collections::HashMap;
 use tracing::error;
+use crate::db::DbError;
 use crate::http::{APPLICATION_JSON, CONTENT_TYPE_HEADER};
 
 #[derive(thiserror::Error, Debug)]
@@ -29,7 +30,7 @@ pub enum ApiError {
     },
 
     #[error("db error: {0}")]
-    DbErr(#[from] jammdb::Error),
+    DbErr(#[from] DbError),
 
     #[error("io error: {0}")]
     IoErr(#[from] std::io::Error),

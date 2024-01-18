@@ -20,17 +20,27 @@ pub struct Id<const T: &'static str> {
     entity_id: heapless::String<ID_LENGTH>,
 }
 
+#[derive(thiserror::Error, Debug)]
+pub enum IdError {
+    #[error("invalid fixed-string length for id")]
+    InvalidLength,
+    #[error("id contains characters that are not in alphabet")]
+    InvalidAlphabet,
+    #[error("failed to parse id string")]
+    StringParseError,
+}
+
 impl<const T: &'static str> Id<T> {
     pub fn new() -> Self {
         Default::default()
     }
 
-    pub fn from_fixed_str(s: heapless::String<ID_LENGTH>) -> Result<Self, anyhow::Error> {
+    pub fn from_fixed_str(s: heapless::String<ID_LENGTH>) -> Result<Self, IdError> {
         if s.len() != ID_LENGTH {
-            return Err(anyhow!("invalid fixed-string length for id"));
+            return Err(IdError::InvalidLength);
         }
         if s.chars().any(|c| !ALPHABET.contains(&c)) {
-            return Err(anyhow!("id contains characters that are not in alphabet"));
+            return Err(IdError::InvalidAlphabet);
         }
 
         Ok(Self {
@@ -56,7 +66,7 @@ impl<const T: &'static str> Default for Id<T> {
 }
 
 impl<const T: &'static str> FromStr for Id<T> {
-    type Err = anyhow::Error;
+    type Err = IdError;
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         let mut str = s;
@@ -69,10 +79,10 @@ impl<const T: &'static str> FromStr for Id<T> {
             }
         }
         if str.len() != ID_LENGTH {
-            return Err(anyhow!("invalid str len for id"))
+            return Err(IdError::InvalidLength)
         }
         let fixed_str = heapless::String::<ID_LENGTH>::from_str(str)
-            .map_err(|_| anyhow!("failed to convert to fixed str"))?;
+            .map_err(|_| IdError::StringParseError)?;
         Id::<T>::from_fixed_str(fixed_str)
     }
 }
