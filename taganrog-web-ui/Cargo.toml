@@ -2,7 +2,16 @@
 name = "taganrog-web-ui"
 version = "0.1.0"
 edition = "2021"
-
-# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+publish = false
+authors = [
+    "Ivan Yaremenchuk <trooper982@gmail.com>"
+]
 
 [dependencies]
+askama = "0.12.1"
+axum = { version = "0.7", features = ["multipart", "tower-log"] }
+tokio = { version = "1.35", features = ["full"] }
+tower = "0.4"
+tower-http = { version = "0.5", features = ["trace", "cors"] }
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter"] }
