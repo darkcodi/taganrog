@@ -5,7 +5,7 @@ use taganrog_d::{db, http};
 use taganrog_d::http::ApiContext;
 
 #[tokio::main]
-async fn main() -> anyhow::Result<()> {
+async fn main() {
     tracing_subscriber::fmt()
         .with_max_level(tracing::Level::INFO)
         .init();
@@ -17,7 +17,5 @@ async fn main() -> anyhow::Result<()> {
     let db_repo = db::DbRepo::new(db);
 
     let ctx = ApiContext::new(config, db_repo);
-    http::serve(ctx).await?;
-
-    Ok(())
+    http::serve(ctx).await;
 }

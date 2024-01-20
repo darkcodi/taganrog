@@ -8,32 +8,32 @@ authors = [
 ]
 
 [dependencies]
-amplify = "3.14.1"
-amplify_derive = "2.11.3"
-anyhow = { version = "1.0.69", features = ["std"] }
-async-trait = "0.1.64"
-axum = { version = "0.6.4", features = ["multipart", "tower-log"] }
-chrono = { version = "0.4.23", features = ["serde"] }
-clap = { version = "4.1.4", features = ["derive", "env"] }
-fastmurmur3 = "0.1.2"
-futures = "0.3.26"
-heapless = { version = "0.7.16", features = ["serde"] }
-http-auth-basic = "0.3.3"
-jammdb = "0.11.0"
-infer = { version = "0.3", default-features = false }
-itertools = "0.10.5"
-nanoid = "0.4.0"
-path-absolutize = "3.1.1"
-rand = "0.8.5"
-relative-path = "1.9.2"
-rmp-serde = "1.1.2"
-serde = { version = "1.0.152", features = ["derive"] }
-serde_json = "1.0.92"
-time = "0.3.17"
-thiserror = "1.0.38"
-tokio = { version = "1.25.0", features = ["full"] }
-tower = "0.4.13"
-tower-http = { version = "0.3.5", features = ["trace", "cors"] }
-tracing = "0.1.37"
-tracing-subscriber = { version = "0.3.16", features = ["env-filter"] }
-uuid = { version = "1.2.2", features = ["serde", "v4", "fast-rng"] }
+amplify = "4.5"
+amplify_derive = "4.0"
+anyhow = { version = "1.0", features = ["std"] }
+async-trait = "0.1"
+axum = { version = "0.7", features = ["multipart", "tower-log"] }
+chrono = { version = "0.4", features = ["serde"] }
+clap = { version = "4.4", features = ["derive", "env"] }
+fastmurmur3 = "0.2"
+futures = "0.3"
+heapless = { version = "0.8", features = ["serde"] }
+http-auth-basic = "0.3"
+jammdb = "0.11"
+infer = { version = "0.15", default-features = false }
+itertools = "0.12"
+nanoid = "0.4"
+path-absolutize = "3.1"
+rand = "0.8"
+relative-path = "1.9"
+rmp-serde = "1.1"
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+time = "0.3"
+thiserror = "1.0"
+tokio = { version = "1.35", features = ["full"] }
+tower = "0.4"
+tower-http = { version = "0.5", features = ["trace", "cors"] }
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter"] }
+uuid = { version = "1.7", features = ["serde", "v4", "fast-rng"] }

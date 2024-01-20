@@ -1,4 +1,3 @@
-use anyhow::Context;
 use axum::{Extension, Router};
 use std::sync::Arc;
 use tower::ServiceBuilder;
@@ -33,7 +32,7 @@ impl ApiContext {
     }
 }
 
-pub async fn serve(ctx: ApiContext) -> anyhow::Result<()> {
+pub async fn serve(ctx: ApiContext) {
     let app = api_router()
         .layer(CorsLayer::new()
             .allow_methods(Any)
@@ -45,12 +44,10 @@ pub async fn serve(ctx: ApiContext) -> anyhow::Result<()> {
                 .layer(TraceLayer::new_for_http()),
     );
 
-    let addr = "[::]:1698".parse()?;
+    let addr = "[::]:1698";
+    let listener = tokio::net::TcpListener::bind(addr).await.expect("failed to bind to address");
     info!("listening on {}", &addr);
-    axum::Server::bind(&addr)
-        .serve(app.into_make_service())
-        .await
-        .context("error running HTTP server")
+    axum::serve(listener, app).await.expect("error running HTTP server");
 }
 
 fn api_router() -> Router {
