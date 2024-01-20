@@ -8,6 +8,7 @@ authors = [
 ]
 
 [dependencies]
+anyhow = { version = "1.0", features = ["std"] }
 askama = "0.12.1"
 axum = { version = "0.7", features = ["multipart", "tower-log"] }
 tokio = { version = "1.35", features = ["full"] }

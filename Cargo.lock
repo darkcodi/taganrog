@@ -1542,6 +1542,7 @@ dependencies = [
 name = "taganrog-web-ui"
 version = "0.1.0"
 dependencies = [
+ "anyhow",
  "askama",
  "axum",
  "tokio",
