@@ -1,7 +1,10 @@
+mod api_client;
+
+use api_client::ApiClient;
 use axum::{routing::get, Router};
-use axum::extract::Query;
+use axum::extract::{Query, State};
 use axum::response::IntoResponse;
-use axum_macros::FromRef;
+use axum_macros::{debug_handler, FromRef};
 use axum_template::engine::Engine;
 use axum_template::{Key, RenderHtml};
 use minijinja::Environment;
@@ -11,7 +14,7 @@ use serde::{Deserialize, Serialize};
 
 const INDEX_TEMPLATE: &str = include_str!("../templates/index.html");
 const SEARCH_TEMPLATE: &str = include_str!("../templates/search.html");
-const SUGGESTIONS_TEMPLATE: &str = include_str!("../templates/suggestions.html");
+const TAG_SEARCH_TEMPLATE: &str = include_str!("../templates/tag_search.html");
 
 #[tokio::main]
 async fn main() {
@@ -23,15 +26,16 @@ async fn main() {
     let mut jinja = Environment::new();
     jinja.add_template("/", INDEX_TEMPLATE).unwrap();
     jinja.add_template("/search", SEARCH_TEMPLATE).unwrap();
-    jinja.add_template("/suggestions", SUGGESTIONS_TEMPLATE).unwrap();
+    jinja.add_template("/tags/search", TAG_SEARCH_TEMPLATE).unwrap();
 
     info!("initializing router...");
     let router = Router::new()
         .route("/", get(index))
         .route("/search", get(search))
-        .route("/suggestions", get(suggestions))
+        .route("/tags/search", get(tag_search))
         .with_state(AppState {
             engine: Engine::from(jinja),
+            api_client: ApiClient::new(),
         });;
 
     let addr = "[::]:1775";
@@ -45,6 +49,7 @@ type AppEngine = Engine<Environment<'static>>;
 #[derive(Clone, FromRef)]
 struct AppState {
     engine: AppEngine,
+    api_client: ApiClient,
 }
 
 #[derive(Debug, Serialize)]
@@ -80,17 +85,20 @@ async fn search(
 }
 
 #[derive(Debug, Serialize)]
-pub struct SuggestionsPageContext {
+pub struct TagSearchPageContext {
     suggestions: Vec<String>,
 }
 
-async fn suggestions(
-    engine: AppEngine,
+async fn tag_search(
+    State(engine): State<AppEngine>,
+    State(api_client): State<ApiClient>,
     Key(key): Key,
     Query(query): Query<SearchQuery>,
 ) -> impl IntoResponse {
-    let ctx = SuggestionsPageContext {
-        suggestions: if query.q.trim().is_empty() { vec![] } else { vec![format!("{}-1", query.q), format!("{}-2", query.q)] },
-    };
+    let suggestions = api_client.search_tags(&query.q).await.unwrap_or(vec![])
+        .into_iter()
+        .map(|tag| tag.name)
+        .collect::<Vec<_>>();
+    let ctx = TagSearchPageContext { suggestions, };
     RenderHtml(key, engine, ctx)
 }

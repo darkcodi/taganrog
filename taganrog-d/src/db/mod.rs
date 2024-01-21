@@ -111,7 +111,7 @@ impl DbRepo {
         }
     }
 
-    pub fn search_tag_by_name(&self, name: String) -> DbResult<Vec<Tag>> {
+    pub fn search_tag_by_name(&self, name: String) -> DbResult<Vec<(Tag, usize)>> {
         let tx = self.db.tx(false)?;
         match tx.get_bucket("tag") {
             Ok(tag_bucket) => {
@@ -121,11 +121,12 @@ impl DbRepo {
                     let tag: Tag = rmp_serde::from_slice(tag_bytes)?;
                     let distance = levenshtein::levenshtein(&tag.name, &name);
                     if distance <= 1 {
-                        tags.push((distance, tag));
+                        tags.push((tag, distance));
+                    } else if tag.name.contains(&name) {
+                        tags.push((tag, 2));
                     }
                 }
-                tags.sort_by(|(d1, _), (d2, _)| d1.cmp(d2));
-                let tags = tags.into_iter().map(|(_, t)| t).collect();
+                tags.sort_by(|(_, d1), (_, d2)| d1.cmp(d2));
                 Ok(tags)
             },
             Err(jammdb::Error::BucketMissing) => Ok(Vec::new()),

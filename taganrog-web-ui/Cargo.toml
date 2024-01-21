@@ -8,14 +8,18 @@ authors = [
 ]
 
 [dependencies]
+taganrog-d = { path = "../taganrog-d" }
 anyhow = { version = "1.0", features = ["std"] }
 axum = { version = "0.7", features = ["multipart", "tower-log", "macros"] }
 axum-macros = "0.4"
 axum-template = { version = "2.1", features = ["minijinja"] }
+clap = { version = "4.4", features = ["derive", "env"] }
 minijinja = "1.0"
+reqwest = { version = "0.11", features = ["json"] }
 tokio = { version = "1.35", features = ["full"] }
 tower = "0.4"
 tower-http = { version = "0.5", features = ["trace", "cors"] }
 tracing = "0.1"
 tracing-subscriber = { version = "0.3", features = ["env-filter"] }
 serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
