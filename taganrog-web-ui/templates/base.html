@@ -1,0 +1,23 @@
+<!doctype html>
+<html lang="en">
+<head>
+    <!-- tailwind css in js -->
+    <script src="https://cdn.twind.style" crossorigin></script>
+    <script src="https://cdn.twind.style/ext,line-clamp,forms,typography" crossorigin></script>
+    <script>
+        twind.install({
+            hash: false
+        })
+    </script>
+    <!-- Allow any inheriting page to set its own title -->
+    <title>{% block title %}{{ title }}{% endblock %}</title>
+    <!-- Allow any inheriting page to extend head with additional assets -->
+    {% block head %}{% endblock %}
+</head>
+<body>
+<div id="content">
+    <!-- Inheriting pages will have their content rendered here, similar to app root in React, Angular, etc. -->
+    {% block content %}{% endblock %}
+</div>
+</body>
+</html>

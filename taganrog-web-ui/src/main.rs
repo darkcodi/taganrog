@@ -49,8 +49,7 @@ impl<T> IntoResponse for HtmlTemplate<T>
             Err(err) => (
                 StatusCode::INTERNAL_SERVER_ERROR,
                 format!("Failed to render template. Error: {}", err),
-            )
-                .into_response(),
+            ).into_response(),
         }
     }
 }
