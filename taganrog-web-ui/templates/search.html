@@ -17,20 +17,20 @@
 </head>
 <body>
 <header class="flex items-center justify-between bg-white px-4 py-4 sm:px-6 lg:px-8">
-    <div class="flex items-center space-x-4">
-        <button class="border-none focus:outline-none">
+    <form action="/" method="get" class="flex items-center space-x-4">
+        <button type="submit" class="border-none focus:outline-none">
             <h1 class="flex items-center text-3xl font-bold tracking-tighter sm:text-4xl md:text-5xl"><span class="text-6xl font-extrabold text-red-500"> Tag </span><span class="ml-2 text-5xl"> anrog </span></h1>
         </button>
-    </div>
-    <div class="mx-auto flex w-full max-w-xl items-center">
+    </form>
+    <form action="/search" method="get" class="mx-auto flex w-full max-w-xl items-center">
         <div class="flex-1 rounded-md shadow-sm">
             <div>
                 <label class="sr-only" for="search"> Search </label>
-                <input class="relative block w-full appearance-none rounded-md border border-gray-300 px-3 py-2 text-gray-900 placeholder-gray-500 focus:z-10 focus:border-indigo-500 focus:outline-none focus:ring-indigo-500 sm:text-sm" id="search" placeholder="Search ..." required="" type="text" name="search" value="{{ query }}" />
+                <input class="relative block w-full appearance-none rounded-md border border-gray-300 px-3 py-2 text-gray-900 placeholder-gray-500 focus:z-10 focus:border-indigo-500 focus:outline-none focus:ring-indigo-500 sm:text-sm" id="search" placeholder="Search ..." required="" type="text" name="q" value="{{ query }}" />
             </div>
         </div>
-        <button class="ring-offset-background focus-visible:ring-ring hover:bg-primary/90 ml-2 inline-flex h-10 items-center justify-center rounded-md bg-black px-4 py-2 text-sm font-medium text-white transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50">Search</button>
-    </div>
+        <button type="submit" class="!bg-black ring-offset-background focus-visible:ring-ring hover:bg-primary/90 ml-2 inline-flex h-10 items-center justify-center rounded-md px-4 py-2 text-sm font-medium text-white transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50">Search</button>
+    </form>
     <button class="border-none focus:outline-none">
         <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="h-6 w-6">
             <path stroke-linecap="round" color="#EF4444" stroke-linejoin="round" d="M3 16.5v2.25A2.25 2.25 0 0 0 5.25 21h13.5A2.25 2.25 0 0 0 21 18.75V16.5m-13.5-9L12 3m0 0 4.5 4.5M12 3v13.5" />
