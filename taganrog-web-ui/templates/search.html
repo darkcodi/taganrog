@@ -1,0 +1,58 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Taganrog</title>
+    <!-- htmx -->
+    <script src="https://unpkg.com/htmx.org@1.9.10"></script>
+    <!-- tailwind css in js -->
+    <script src="https://cdn.twind.style" crossorigin></script>
+    <script src="https://cdn.twind.style/ext,line-clamp,forms,typography" crossorigin></script>
+    <script>
+        twind.install({
+            hash: false
+        })
+    </script>
+</head>
+<body>
+<header class="flex items-center justify-between bg-white px-4 py-4 sm:px-6 lg:px-8">
+    <div class="flex items-center space-x-4">
+        <button class="border-none focus:outline-none">
+            <h1 class="flex items-center text-3xl font-bold tracking-tighter sm:text-4xl md:text-5xl"><span class="text-6xl font-extrabold text-red-500"> Tag </span><span class="ml-2 text-5xl"> anrog </span></h1>
+        </button>
+    </div>
+    <div class="mx-auto flex w-full max-w-xl items-center">
+        <div class="flex-1 rounded-md shadow-sm">
+            <div>
+                <label class="sr-only" for="search"> Search </label>
+                <input class="relative block w-full appearance-none rounded-md border border-gray-300 px-3 py-2 text-gray-900 placeholder-gray-500 focus:z-10 focus:border-indigo-500 focus:outline-none focus:ring-indigo-500 sm:text-sm" id="search" placeholder="Search ..." required="" type="text" name="search" value="{{ query }}" />
+            </div>
+        </div>
+        <button class="ring-offset-background focus-visible:ring-ring hover:bg-primary/90 ml-2 inline-flex h-10 items-center justify-center rounded-md bg-black px-4 py-2 text-sm font-medium text-white transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50">Search</button>
+    </div>
+    <button class="border-none focus:outline-none">
+        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="h-6 w-6">
+            <path stroke-linecap="round" color="#EF4444" stroke-linejoin="round" d="M3 16.5v2.25A2.25 2.25 0 0 0 5.25 21h13.5A2.25 2.25 0 0 0 21 18.75V16.5m-13.5-9L12 3m0 0 4.5 4.5M12 3v13.5" />
+        </svg>
+    </button>
+</header>
+<main class="flex h-screen flex-col items-center justify-center bg-white px-4 sm:px-6 lg:px-8">
+    <div class="mt-6 grid w-full max-w-7xl grid-cols-6 gap-4">
+        <div class="rounded-md p-4 shadow-sm">
+            <img src="https://generated.vusercontent.net/placeholder.svg" alt="Search Result 1" class="h-32 w-full rounded-md object-cover" width="100" height="100" style="aspect-ratio: 100 / 100; object-fit: cover;">
+            <h2 class="mt-2 text-xl font-bold">Filename 1</h2>
+            <p class="text-gray-600"><span class="rounded bg-blue-200 px-2">#Tag1</span>, <span class="rounded bg-green-200 px-2">#Tag2</span>, <span class="rounded bg-yellow-200 px-2">#Tag3</span></p>
+        </div>
+        <div class="rounded-md p-4 shadow-sm">
+            <img src="https://generated.vusercontent.net/placeholder.svg" alt="Search Result 1" class="h-32 w-full rounded-md object-cover" width="100" height="100" style="aspect-ratio: 100 / 100; object-fit: cover;">
+            <h2 class="mt-2 text-xl font-bold">Filename 1</h2>
+            <p class="text-gray-600"><span class="rounded bg-blue-200 px-2">#Tag1</span>, <span class="rounded bg-green-200 px-2">#Tag2</span>, <span class="rounded bg-yellow-200 px-2">#Tag3</span></p>
+        </div>
+    </div>
+</main>
+<footer class="fixed bottom-0 flex h-20 w-full items-center justify-center bg-white">
+    <div class="text-center"><p class="text-gray-600">For those, who love tags</p></div>
+</footer>
+</body>
+</html>
