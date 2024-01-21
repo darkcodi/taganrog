@@ -5,8 +5,8 @@ use axum::{Json, Router};
 use path_absolutize::Absolutize;
 use relative_path::PathExt;
 use crate::db::entities::{Media, MediaId};
-use crate::http::error::{ApiError};
-use crate::http::{ApiContext, Result};
+use crate::api::error::{ApiError};
+use crate::api::{ApiContext, Result};
 use crate::utils::hash_utils::MurMurHasher;
 
 const MAX_UPLOAD_SIZE_IN_BYTES: usize = 52_428_800; // 50 MB

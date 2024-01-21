@@ -6,7 +6,7 @@ use std::borrow::Cow;
 use std::collections::HashMap;
 use tracing::error;
 use crate::db::DbError;
-use crate::http::{APPLICATION_JSON, CONTENT_TYPE_HEADER};
+use crate::api::{APPLICATION_JSON, CONTENT_TYPE_HEADER};
 
 #[derive(thiserror::Error, Debug)]
 pub enum ApiError {

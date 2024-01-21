@@ -1,8 +1,8 @@
 use jammdb::DB;
 use tracing::info;
-use taganrog_d::config::Config;
-use taganrog_d::{db, http};
-use taganrog_d::http::ApiContext;
+use taganrog::api::ApiContext;
+use taganrog::config::Config;
+use taganrog::{api, db};
 
 #[tokio::main]
 async fn main() {
@@ -17,5 +17,5 @@ async fn main() {
     let db_repo = db::DbRepo::new(db);
 
     let ctx = ApiContext::new(config, db_repo);
-    http::serve(ctx).await;
+    api::serve(ctx).await;
 }

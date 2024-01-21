@@ -2,7 +2,8 @@
 #![feature(const_trait_impl)]
 #![feature(try_trait_v2)]
 
-pub mod http;
+pub mod api;
 pub mod config;
 pub mod db;
 pub mod utils;
+pub mod web_ui;

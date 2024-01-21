@@ -7,7 +7,7 @@ use tracing::info;
 pub use error::{ApiError};
 use crate::config::Config;
 use crate::db::DbRepo;
-use crate::http::controllers::{media, ping, tags};
+use crate::api::controllers::{media, ping, tags};
 
 mod error;
 mod controllers;

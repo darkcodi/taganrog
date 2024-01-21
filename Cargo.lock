@@ -1736,11 +1736,7 @@ dependencies = [
 ]
 
 [[package]]
-name = "taganrog-cli"
-version = "0.1.0"
-
-[[package]]
-name = "taganrog-d"
+name = "taganrog"
 version = "0.1.0"
 dependencies = [
  "amplify",
@@ -1748,6 +1744,8 @@ dependencies = [
  "anyhow",
  "async-trait",
  "axum",
+ "axum-macros",
+ "axum-template",
  "chrono",
  "clap",
  "fastmurmur3",
@@ -1758,10 +1756,12 @@ dependencies = [
  "itertools",
  "jammdb",
  "levenshtein",
+ "minijinja",
  "nanoid",
  "path-absolutize",
  "rand",
  "relative-path",
+ "reqwest",
  "rmp-serde",
  "serde",
  "serde_json",
@@ -1773,27 +1773,6 @@ dependencies = [
  "tracing",
  "tracing-subscriber",
  "uuid",
-]
-
-[[package]]
-name = "taganrog-web-ui"
-version = "0.1.0"
-dependencies = [
- "anyhow",
- "axum",
- "axum-macros",
- "axum-template",
- "clap",
- "minijinja",
- "reqwest",
- "serde",
- "serde_json",
- "taganrog-d",
- "tokio",
- "tower",
- "tower-http",
- "tracing",
- "tracing-subscriber",
 ]
 
 [[package]]

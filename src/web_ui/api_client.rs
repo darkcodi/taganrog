@@ -3,7 +3,7 @@ use axum_macros::FromRef;
 use clap::Parser;
 use reqwest::Client;
 use serde_json::json;
-use taganrog_d::db::entities::Tag;
+use crate::db::entities::Tag;
 
 #[derive(Parser, Debug)]
 pub struct ApiConfig {

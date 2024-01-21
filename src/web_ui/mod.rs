@@ -4,7 +4,7 @@ use api_client::ApiClient;
 use axum::{routing::get, Router};
 use axum::extract::{Query, State};
 use axum::response::IntoResponse;
-use axum_macros::{debug_handler, FromRef};
+use axum_macros::FromRef;
 use axum_template::engine::Engine;
 use axum_template::{Key, RenderHtml};
 use minijinja::Environment;
@@ -12,11 +12,10 @@ use tracing::info;
 use tracing_subscriber::util::SubscriberInitExt;
 use serde::{Deserialize, Serialize};
 
-const INDEX_TEMPLATE: &str = include_str!("../templates/index.html");
-const SEARCH_TEMPLATE: &str = include_str!("../templates/search.html");
-const TAG_SEARCH_TEMPLATE: &str = include_str!("../templates/tag_search.html");
+const INDEX_TEMPLATE: &str = include_str!("templates/index.html");
+const SEARCH_TEMPLATE: &str = include_str!("templates/search.html");
+const TAG_SEARCH_TEMPLATE: &str = include_str!("templates/tag_search.html");
 
-#[tokio::main]
 async fn main() {
     tracing_subscriber::fmt()
         .with_max_level(tracing::Level::INFO)

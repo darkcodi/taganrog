@@ -5,7 +5,7 @@ use axum::{Json, Router};
 use crate::db::entities::{Tag, TagId};
 use crate::db::Inserted;
 
-use crate::http::{ApiContext, ApiError, Result};
+use crate::api::{ApiContext, ApiError, Result};
 
 pub fn router() -> Router {
     Router::new()
