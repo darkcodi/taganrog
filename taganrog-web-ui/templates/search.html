@@ -18,7 +18,7 @@
 <body>
 <header class="flex items-center justify-between bg-white px-4 py-4 sm:px-6 lg:px-8">
     <form action="/" method="get" class="flex items-center space-x-4">
-        <button type="submit" class="border-none focus:outline-none">
+        <button tabindex="-1" type="submit" class="border-none focus:outline-none">
             <h1 class="flex items-center text-3xl font-bold tracking-tighter sm:text-4xl md:text-5xl"><span class="text-6xl font-extrabold text-red-500"> Tag </span><span class="ml-2 text-5xl"> anrog </span></h1>
         </button>
     </form>
@@ -26,7 +26,7 @@
         <div class="flex-1 rounded-md shadow-sm">
             <div>
                 <label class="sr-only" for="search"> Search </label>
-                <input class="relative block w-full appearance-none rounded-md border border-gray-300 px-3 py-2 text-gray-900 placeholder-gray-500 focus:z-10 focus:border-indigo-500 focus:outline-none focus:ring-indigo-500 sm:text-sm" id="search" placeholder="Search ..." required="" type="text" name="q" value="{{ query }}" />
+                <input class="relative block w-full appearance-none rounded-md border border-gray-300 px-3 py-2 text-gray-900 placeholder-gray-500 focus:z-10 focus:border-indigo-500 focus:outline-none focus:ring-indigo-500 sm:text-sm" id="search" placeholder="Search ..." type="text" name="q" value="{{ query }}" />
             </div>
         </div>
         <button type="submit" class="!bg-black ring-offset-background focus-visible:ring-ring hover:bg-primary/90 ml-2 inline-flex h-10 items-center justify-center rounded-md px-4 py-2 text-sm font-medium text-white transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50">Search</button>
