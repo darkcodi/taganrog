@@ -6,7 +6,10 @@ use path_absolutize::Absolutize;
 use tower::ServiceBuilder;
 use tower_http::cors::{Any, CorsLayer};
 use tower_http::trace::TraceLayer;
-use tracing::info;
+use tracing::{info, Level};
+use tracing_subscriber::filter;
+use tracing_subscriber::layer::SubscriberExt;
+use tracing_subscriber::util::SubscriberInitExt;
 pub use error::{ApiError};
 use crate::db::DbRepo;
 use crate::api::controllers::{media, ping, tags};
@@ -20,8 +23,15 @@ pub const APPLICATION_JSON: &str = "application/json";
 pub type Result<T, E = ApiError> = std::result::Result<T, E>;
 
 pub async fn serve(workdir: &str) {
-    tracing_subscriber::fmt()
-        .with_max_level(tracing::Level::INFO)
+    let tracing_layer = tracing_subscriber::fmt::layer();
+    let filter = filter::Targets::new()
+        // .with_target("tower_http::trace::on_request", Level::DEBUG)
+        .with_target("tower_http::trace::on_response", Level::DEBUG)
+        .with_target("tower_http::trace::make_span", Level::DEBUG)
+        .with_default(Level::INFO);
+    tracing_subscriber::registry()
+        .with(tracing_layer)
+        .with(filter)
         .init();
 
     let workdir = get_or_create_workdir_path(workdir).expect("failed to get or create workdir path");
