@@ -15,7 +15,7 @@ async fn main() {
         .init();
 
     info!("initializing router...");
-    let router = Router::new().route("/", get(hello));
+    let router = Router::new().route("/", get(index));
 
     let addr = "[::]:1775";
     let listener = tokio::net::TcpListener::bind(addr).await.expect("failed to bind to address");
@@ -23,14 +23,14 @@ async fn main() {
     axum::serve(listener, router).await.expect("error running HTTP server");
 }
 
-async fn hello() -> impl IntoResponse {
-    let template = HelloTemplate {};
+async fn index() -> impl IntoResponse {
+    let template = IndexTemplate {};
     HtmlTemplate(template)
 }
 
 #[derive(Template)]
-#[template(path = "hello.html")]
-struct HelloTemplate;
+#[template(path = "index.html")]
+struct IndexTemplate;
 
 /// A wrapper type that we'll use to encapsulate HTML parsed by askama into valid HTML for axum to serve.
 struct HtmlTemplate<T>(T);

@@ -1,0 +1,20 @@
+{% extends "base.html" %}
+
+{% block title %}Taganrog{% endblock %}
+
+{% block content %}
+<main class="flex h-screen flex-col items-center justify-center bg-white px-4 sm:px-6 lg:px-8">
+    <div class="flex items-center justify-center">
+        <h1 class="text-4xl font-bold tracking-tighter sm:text-5xl md:text-6xl"><span class="text-7xl font-extrabold text-red-500"> Tag </span><span class="text-6xl"> anrog </span></h1>
+    </div>
+    <div class="mt-6 w-full max-w-md space-y-8">
+        <div class="-space-y-px rounded-md shadow-sm">
+            <div><label class="sr-only" for="search"> Search </label><input class="relative block w-full appearance-none rounded-md border border-gray-300 px-3 py-2 text-gray-900 placeholder-gray-500 focus:z-10 focus:border-indigo-500 focus:outline-none focus:ring-indigo-500 sm:text-sm" id="search" placeholder="Search ..." required="" type="text" name="search" /></div>
+        </div>
+        <div class="flex items-center justify-center"><button class="ring-offset-background focus-visible:ring-ring border-input bg-background hover:bg-accent hover:text-accent-foreground mr-2 inline-flex h-10 items-center justify-center rounded-md border px-4 py-2 text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50">Search</button><button class="ring-offset-background focus-visible:ring-ring hover:bg-primary/90 inline-flex h-10 items-center justify-center rounded-md bg-gray-900 px-4 py-2 text-sm font-medium text-white transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50">I'm Feeling Lucky</button></div>
+    </div>
+</main>
+<footer class="fixed bottom-0 flex h-20 w-full items-center justify-center bg-white">
+    <div class="text-center"><p class="text-gray-600">For those, who love tags</p></div>
+</footer>
+{% endblock %}
