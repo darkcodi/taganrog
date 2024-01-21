@@ -1,12 +1,14 @@
-use askama::Template;
-use axum::{
-    http::StatusCode,
-    response::{Html, IntoResponse, Response},
-    routing::get,
-    Router,
-};
+use axum::{routing::get, Router};
+use axum::response::IntoResponse;
+use axum_macros::FromRef;
+use axum_template::engine::Engine;
+use axum_template::{Key, RenderHtml};
+use minijinja::Environment;
 use tracing::info;
 use tracing_subscriber::util::SubscriberInitExt;
+use serde::Serialize;
+
+const INDEX_TEMPLATE: &str = include_str!("../templates/index.html");
 
 #[tokio::main]
 async fn main() {
@@ -15,7 +17,16 @@ async fn main() {
         .init();
 
     info!("initializing router...");
-    let router = Router::new().route("/", get(index));
+    let mut jinja = Environment::new();
+    jinja
+        .add_template("/", INDEX_TEMPLATE)
+        .unwrap();
+
+    let router = Router::new()
+        .route("/", get(index))
+        .with_state(AppState {
+            engine: Engine::from(jinja),
+        });;
 
     let addr = "[::]:1775";
     let listener = tokio::net::TcpListener::bind(addr).await.expect("failed to bind to address");
@@ -23,33 +34,20 @@ async fn main() {
     axum::serve(listener, router).await.expect("error running HTTP server");
 }
 
-async fn index() -> impl IntoResponse {
-    let template = IndexTemplate {};
-    HtmlTemplate(template)
+type AppEngine = Engine<Environment<'static>>;
+
+#[derive(Clone, FromRef)]
+struct AppState {
+    engine: AppEngine,
 }
 
-#[derive(Template)]
-#[template(path = "index.html")]
-struct IndexTemplate;
+#[derive(Debug, Serialize)]
+pub struct IndexPageContext;
 
-/// A wrapper type that we'll use to encapsulate HTML parsed by askama into valid HTML for axum to serve.
-struct HtmlTemplate<T>(T);
-
-/// Allows us to convert Askama HTML templates into valid HTML for axum to serve in the response.
-impl<T> IntoResponse for HtmlTemplate<T>
-    where
-        T: Template,
-{
-    fn into_response(self) -> Response {
-        // Attempt to render the template with askama
-        match self.0.render() {
-            // If we're able to successfully parse and aggregate the template, serve it
-            Ok(html) => Html(html).into_response(),
-            // If we're not, return an error or some bit of fallback HTML
-            Err(err) => (
-                StatusCode::INTERNAL_SERVER_ERROR,
-                format!("Failed to render template. Error: {}", err),
-            ).into_response(),
-        }
-    }
+async fn index(
+    engine: AppEngine,
+    Key(key): Key,
+) -> impl IntoResponse {
+    let ctx = IndexPageContext;
+    RenderHtml(key, engine, ctx)
 }
