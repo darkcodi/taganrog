@@ -3,6 +3,10 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <!--    if query is empty - redirect to index-->
+    {% if query == '' %}
+        <meta http-equiv="refresh" content="0; url=/" />
+    {% endif %}
     <title>Taganrog</title>
     <!-- htmx -->
     <script src="https://unpkg.com/htmx.org@1.9.10"></script>
