@@ -1,21 +1,84 @@
-use jammdb::DB;
-use tracing::info;
-use taganrog::api::ApiContext;
-use taganrog::config::Config;
-use taganrog::{api, db};
+use clap::{Arg, Command};
+use taganrog::api;
 
 #[tokio::main]
 async fn main() {
-    tracing_subscriber::fmt()
-        .with_max_level(tracing::Level::INFO)
-        .init();
+    let app = Command::new("tgk")
+        .version("0.1")
+        .author("Ivan Yaremenchuk")
+        .about("Taganrog All-In-One binary: CLI, daemon (API), Web UI")
+        .arg(Arg::new("workdir")
+            .required(false)
+            .help("Set the tag working directory (where the database is stored)")
+            .long("workdir")
+            .short('w')
+            .global(true)
+            .env("TAG_WORKDIR")
+            .default_value("."))
+        .subcommand_required(true)
+        .subcommand(
+            Command::new("serve")
+                .about("Serve commands (api, web-ui) using the axum framework")
+                .subcommand(Command::new("web-ui")
+                    .about("Serve the web UI")
+                    .arg(Arg::new("api-url")
+                        .required(false)
+                        .help("Specify the API URL")
+                        .long("api-url")
+                        .env("API_URL")))
+                .subcommand(Command::new("api").about("Serve the API")),
+        )
+        .subcommand(
+            Command::new("add")
+                .about("Add a file to the database")
+                .arg(Arg::new("filepath").required(true).help("Path of the file to add")),
+        )
+        .subcommand(
+            Command::new("remove")
+                .about("Remove a file from the database")
+                .arg(Arg::new("filepath").required(true).help("Path of the file to remove")),
+        )
+        .subcommand(
+            Command::new("tag")
+                .about("Tag a file. It also adds the file to the database if it's not there yet.")
+                .arg(Arg::new("filepath").required(true).help("Path of the file to tag"))
+                .arg(Arg::new("tag").required(true).help("Tag(s) to add").num_args(1..).value_delimiter(',')),
+        )
+        .subcommand(
+            Command::new("untag")
+                .about("Untag a file")
+                .arg(Arg::new("filepath").required(true).help("Path of the file to untag"))
+                .arg(Arg::new("tag").required(true).help("Tag(s) to remove").num_args(1..).value_delimiter(',')),
+        );
 
-    let config: Config = Config::parse().expect("failed to parse config");
-    info!("{:?}", &config);
-
-    let db = DB::open(&config.db_path).expect("failed to open db connection");
-    let db_repo = db::DbRepo::new(db);
-
-    let ctx = ApiContext::new(config, db_repo);
-    api::serve(ctx).await;
+    let matches = app.get_matches();
+    match matches.subcommand() {
+        Some(("serve", serve_matches)) => {
+            match serve_matches.subcommand() {
+                Some(("web-ui", web_ui_matches)) => {
+                },
+                Some(("api", _)) => {
+                    let workdir: &String = matches.get_one("workdir").unwrap();
+                    api::serve(workdir).await
+                },
+                _ => unreachable!(),
+            }
+        },
+        Some(("add", add_matches)) => {
+        },
+        Some(("remove", remove_matches)) => {
+        },
+        Some(("tag", tag_matches)) => {
+            // let filepath: &String = tag_matches.get_one("filepath").unwrap();
+            // let tags: Vec<&String> = tag_matches.get_many("tag").unwrap().collect();
+            // println!("filepath: {}", filepath);
+            // println!("tags: {:?}", tags);
+        },
+        Some(("untag", untag_matches)) => {
+        },
+        _ => {
+            eprintln!("Invalid subcommand");
+            std::process::exit(1);
+        }
+    }
 }
