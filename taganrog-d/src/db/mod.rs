@@ -111,6 +111,28 @@ impl DbRepo {
         }
     }
 
+    pub fn search_tag_by_name(&self, name: String) -> DbResult<Vec<Tag>> {
+        let tx = self.db.tx(false)?;
+        match tx.get_bucket("tag") {
+            Ok(tag_bucket) => {
+                let mut tags = Vec::new();
+                for kv in tag_bucket.kv_pairs() {
+                    let tag_bytes = kv.value();
+                    let tag: Tag = rmp_serde::from_slice(tag_bytes)?;
+                    let distance = levenshtein::levenshtein(&tag.name, &name);
+                    if distance <= 1 {
+                        tags.push((distance, tag));
+                    }
+                }
+                tags.sort_by(|(d1, _), (d2, _)| d1.cmp(d2));
+                let tags = tags.into_iter().map(|(_, t)| t).collect();
+                Ok(tags)
+            },
+            Err(jammdb::Error::BucketMissing) => Ok(Vec::new()),
+            Err(e) => Err(e.into()),
+        }
+    }
+
     pub fn get_or_insert_tag_by_name(&self, name: String) -> DbResult<Inserted<Tag>> {
         let maybe_tag = self.get_tag_by_name(name.clone())?;
         if let Some(tag) = maybe_tag {
@@ -124,6 +146,23 @@ impl DbRepo {
             media: Vec::new(),
         };
         self.insert_tag(&tag)
+    }
+
+    pub fn get_all_tags(&self) -> DbResult<Vec<Tag>> {
+        let tx = self.db.tx(false)?;
+        match tx.get_bucket("tag") {
+            Ok(tag_bucket) => {
+                let mut tags = Vec::new();
+                for kv in tag_bucket.kv_pairs() {
+                    let tag_bytes = kv.value();
+                    let tag: Tag = rmp_serde::from_slice(tag_bytes)?;
+                    tags.push(tag);
+                }
+                Ok(tags)
+            },
+            Err(jammdb::Error::BucketMissing) => Ok(Vec::new()),
+            Err(e) => Err(e.into()),
+        }
     }
 
     pub fn get_all_media(&self) -> DbResult<Vec<Media>> {
@@ -242,6 +281,53 @@ impl DbRepo {
         let media_bucket = tx.get_or_create_bucket("media")?;
         if media_bucket.get(media.id.to_string()).is_some() {
             media_bucket.delete(media.id.to_string())?;
+        }
+
+        let tag_bucket = tx.get_or_create_bucket("tag")?;
+        for tag_id in media.tags.iter() {
+            let maybe_tag_data = tag_bucket.get(tag_id.to_string());
+            match maybe_tag_data {
+                None => continue,
+                Some(data) => {
+                    let tag_bytes = data.kv().value().to_owned();
+                    let mut tag: Tag = rmp_serde::from_slice(&tag_bytes)?;
+                    tag.media.retain(|id| id !=  &media.id);
+                    let tag_bytes = rmp_serde::to_vec(&tag)?;
+                    tag_bucket.put(tag.id.to_string(), tag_bytes)?;
+                },
+            }
+        }
+
+        tx.commit()?;
+        Ok(())
+    }
+
+    pub fn delete_tag(&self, tag: &Tag) -> DbResult<()> {
+        let tx = self.db.tx(true)?;
+
+        let tag_name_bucket = tx.get_or_create_bucket("tag_name")?;
+        if tag_name_bucket.get(tag.name.clone()).is_some() {
+            tag_name_bucket.delete(tag.name.clone())?;
+        }
+
+        let tag_bucket = tx.get_or_create_bucket("tag")?;
+        if tag_bucket.get(tag.id.to_string()).is_some() {
+            tag_bucket.delete(tag.id.to_string())?;
+        }
+
+        let media_bucket = tx.get_or_create_bucket("media")?;
+        for media_id in tag.media.iter() {
+            let maybe_media_data = media_bucket.get(media_id.to_string());
+            match maybe_media_data {
+                None => continue,
+                Some(data) => {
+                    let media_bytes = data.kv().value().to_owned();
+                    let mut media: Media = rmp_serde::from_slice(&media_bytes)?;
+                    media.tags.retain(|id| id != &tag.id);
+                    let media_bytes = rmp_serde::to_vec(&media)?;
+                    media_bucket.put(media.id.to_string(), media_bytes)?;
+                },
+            }
         }
 
         tx.commit()?;
