@@ -1,14 +1,12 @@
 use std::sync::Arc;
 use axum_macros::FromRef;
-use clap::Parser;
 use reqwest::Client;
 use serde_json::json;
 use crate::db::entities::Tag;
 
-#[derive(Parser, Debug)]
-pub struct ApiConfig {
-    #[arg(env = "API_URL", default_value = "http://localhost:1698", help = "URL of the taganrog-d API")]
-    pub api_url: String,
+#[derive(Debug)]
+struct ApiConfig {
+    api_url: String,
 }
 
 #[derive(Clone, Debug, FromRef)]
@@ -18,10 +16,10 @@ pub struct ApiClient {
 }
 
 impl ApiClient {
-    pub fn new() -> Self {
+    pub fn new(api_url: String) -> Self {
         Self {
             client: Client::new(),
-            config: Arc::new(ApiConfig::parse()),
+            config: Arc::new(ApiConfig { api_url }),
         }
     }
 

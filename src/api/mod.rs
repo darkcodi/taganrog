@@ -16,6 +16,7 @@ use crate::api::controllers::{media, ping, tags};
 
 mod error;
 mod controllers;
+pub mod client;
 
 pub const CONTENT_TYPE_HEADER: &str = "content-type";
 pub const APPLICATION_JSON: &str = "application/json";

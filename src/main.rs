@@ -1,5 +1,5 @@
 use clap::{Arg, Command};
-use taganrog::api;
+use taganrog::{api, web_ui};
 
 #[tokio::main]
 async fn main() {
@@ -7,6 +7,14 @@ async fn main() {
         .version("0.1")
         .author("Ivan Yaremenchuk")
         .about("Taganrog All-In-One binary: CLI, daemon (API), Web UI")
+        .arg(Arg::new("api-url")
+            .required(false)
+            .help("Specify the API URL")
+            .long("api-url")
+            .short('a')
+            .global(true)
+            .env("API_URL")
+            .default_value("http://localhost:1698"))
         .arg(Arg::new("workdir")
             .required(false)
             .help("Set the tag working directory (where the database is stored)")
@@ -19,13 +27,7 @@ async fn main() {
         .subcommand(
             Command::new("serve")
                 .about("Serve commands (api, web-ui) using the axum framework")
-                .subcommand(Command::new("web-ui")
-                    .about("Serve the web UI")
-                    .arg(Arg::new("api-url")
-                        .required(false)
-                        .help("Specify the API URL")
-                        .long("api-url")
-                        .env("API_URL")))
+                .subcommand(Command::new("web-ui").about("Serve the web UI"))
                 .subcommand(Command::new("api").about("Serve the API")),
         )
         .subcommand(
@@ -55,7 +57,9 @@ async fn main() {
     match matches.subcommand() {
         Some(("serve", serve_matches)) => {
             match serve_matches.subcommand() {
-                Some(("web-ui", web_ui_matches)) => {
+                Some(("web-ui", _)) => {
+                    let api_url: &String = matches.get_one("api-url").unwrap();
+                    web_ui::serve(api_url).await
                 },
                 Some(("api", _)) => {
                     let workdir: &String = matches.get_one("workdir").unwrap();
