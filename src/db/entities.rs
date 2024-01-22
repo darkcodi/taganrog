@@ -1,3 +1,4 @@
+use std::str::FromStr;
 use chrono::{DateTime, Utc};
 use relative_path::RelativePath;
 use crate::db::hash::MurMurHasher;
@@ -5,6 +6,10 @@ use crate::db::id::Id;
 
 pub type MediaId = Id<"media">;
 pub type TagId = Id<"tag">;
+
+impl TagId {
+    pub fn untagged() -> Self { Self::from_str("tag:untagged").unwrap() }
+}
 
 #[derive(serde::Serialize, serde::Deserialize, Clone, Debug, PartialEq, Eq)]
 pub struct Media {
@@ -48,7 +53,18 @@ impl Media {
             hash,
             size,
             was_uploaded: false,
-            tags: vec![],
+            tags: vec![TagId::untagged()],
         })
+    }
+}
+
+impl Tag {
+    pub fn untagged() -> Self {
+        Self {
+            id: TagId::untagged(),
+            name: "untagged".to_string(),
+            created_at: DateTime::from_utc(chrono::NaiveDateTime::from_timestamp(0, 0), Utc),
+            media: vec![],
+        }
     }
 }

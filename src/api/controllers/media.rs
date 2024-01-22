@@ -4,7 +4,7 @@ use axum::routing::{get, post};
 use axum::{Json, Router};
 use path_absolutize::Absolutize;
 use relative_path::PathExt;
-use crate::db::entities::{Media, MediaId};
+use crate::db::entities::{Media, MediaId, Tag, TagId};
 use crate::api::error::{ApiError};
 use crate::api::{ApiContext, Result};
 use crate::db::hash::MurMurHasher;
@@ -29,7 +29,7 @@ struct AddMediaRequest {
 
 #[derive(serde::Deserialize, Debug, Default)]
 struct TagBody {
-    tag: String,
+    tag_name: String,
 }
 
 #[derive(serde::Deserialize, Debug, Default)]
@@ -57,6 +57,8 @@ async fn add_media(
     }
 
     ctx.db.insert_media(&media)?;
+    let tag = ctx.db.get_untagged_tag()?;
+    let media = ctx.db.add_tag_to_media(media, tag)?;
     Ok(Json(media))
 }
 
@@ -98,6 +100,8 @@ async fn upload_media(
     let mut media = Media::from_file(&filepath, &relative_path)?;
     media.was_uploaded = true;
     ctx.db.insert_media(&media)?;
+    let tag = ctx.db.get_untagged_tag()?;
+    let media = ctx.db.add_tag_to_media(media, tag)?;
     Ok(Json(media))
 }
 
@@ -151,9 +155,17 @@ async fn add_tag_to_media(
         return Err(ApiError::NotFound);
     }
 
+    if req.tag_name == Tag::untagged().name {
+        return Err(ApiError::unprocessable_entity([("tag", "cannot add untagged tag")]));
+    }
+
     let media = maybe_media.unwrap();
-    let tag = ctx.db.get_or_insert_tag_by_name(req.tag.clone())?.unwrap();
-    let media = ctx.db.add_tag_to_media(media, tag)?;
+    let tag = ctx.db.get_or_insert_tag_by_name(req.tag_name.clone())?.unwrap();
+    let mut media = ctx.db.add_tag_to_media(media, tag)?;
+    if media.tags.iter().any(|x| x == &TagId::untagged()) {
+        let tag = ctx.db.get_untagged_tag()?;
+        media = ctx.db.delete_tag_from_media(media, tag)?;
+    }
     Ok(Json(media))
 }
 
@@ -169,14 +181,22 @@ async fn delete_tag_from_media(
         return Err(ApiError::NotFound);
     }
 
-    let maybe_tag = ctx.db.get_tag_by_name(req.tag.clone())?;
+    if req.tag_name == Tag::untagged().name {
+        return Err(ApiError::unprocessable_entity([("tag", "cannot remove untagged tag")]));
+    }
+
+    let maybe_tag = ctx.db.get_tag_by_name(req.tag_name.clone())?;
     if maybe_tag.is_none() {
         return Err(ApiError::NotFound);
     }
 
-    let media = maybe_media.unwrap();
     let tag = maybe_tag.unwrap();
-    let media = ctx.db.delete_tag_from_media(media, tag)?;
+    let media = maybe_media.unwrap();
+    let mut media = ctx.db.delete_tag_from_media(media, tag)?;
+    if media.tags.len() == 0 {
+        let tag = ctx.db.get_untagged_tag()?;
+        media = ctx.db.add_tag_to_media(media, tag)?;
+    }
     Ok(Json(media))
 }
 

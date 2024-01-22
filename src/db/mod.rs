@@ -135,17 +135,26 @@ impl DbRepo {
         }
     }
 
+    pub fn get_untagged_tag(&self) -> DbResult<Tag> {
+        let tag = self.get_or_insert_tag_by_name(Tag::untagged().name.to_string())?;
+        Ok(tag.unwrap())
+    }
+
     pub fn get_or_insert_tag_by_name(&self, name: String) -> DbResult<Inserted<Tag>> {
         let maybe_tag = self.get_tag_by_name(name.clone())?;
         if let Some(tag) = maybe_tag {
             return Ok(Inserted::AlreadyExists(tag));
         }
 
-        let tag = Tag {
-            id: TagId::new(),
-            name,
-            created_at: chrono::Utc::now(),
-            media: Vec::new(),
+        let tag = if name == "untagged" {
+            Tag::untagged()
+        } else {
+            Tag {
+                id: TagId::new(),
+                name,
+                created_at: chrono::Utc::now(),
+                media: Vec::new(),
+            }
         };
         self.insert_tag(&tag)
     }
@@ -255,8 +264,8 @@ impl DbRepo {
         let media_id = media.id.clone();
         let tag_id = tag.id.clone();
 
-        media.tags.push(tag_id.clone());
-        tag.media.push(media_id.clone());
+        media.tags.retain(|id| id != &tag_id);
+        tag.media.retain(|id| id != &media_id);
 
         let tx = self.db.tx(true)?;
 
