@@ -11,6 +11,7 @@ pub fn router() -> Router {
     Router::new()
         .route("/api/tags", get(get_all_tags).post(create_tag))
         .route("/api/tags/:tag_id", get(get_tag).delete(delete_tag))
+        .route("/api/tags/:tag_id/rename", post(rename_tag))
         .route("/api/tags/search", post(search_tags))
 }
 
@@ -40,6 +41,32 @@ async fn create_tag(
         Inserted::New(tag) => Ok(Json(tag)),
         Inserted::AlreadyExists(tag) => Err(ApiError::conflict(tag)),
     }
+}
+
+async fn rename_tag(
+    ctx: Extension<ApiContext>,
+    Path(tag_id): Path<String>,
+    Json(req): Json<CreateTag>,
+) -> Result<Json<Tag>> {
+    let tag_id = TagId::from_str(tag_id.as_str())
+        .map_err(|_| ApiError::unprocessable_entity([("tag_id", "invalid id")]))?;
+    let tag = ctx.db.get_tag_by_id(tag_id)?;
+    if tag.is_none() {
+        return Err(ApiError::NotFound);
+    }
+    if req.name.is_empty() {
+        return Err(ApiError::unprocessable_entity([("name", "name cannot be empty")]));
+    }
+    if req.name == Tag::untagged().name {
+        return Err(ApiError::unprocessable_entity([("name", "cannot rename to untagged")]));
+    }
+    let existing_tag = ctx.db.get_tag_by_name(req.name.clone())?;
+    if existing_tag.is_some() {
+        return Err(ApiError::conflict(existing_tag.unwrap()));
+    }
+    let tag = tag.unwrap();
+    let tag = ctx.db.rename_tag(tag, req.name)?;
+    Ok(Json(tag))
 }
 
 async fn get_tag(

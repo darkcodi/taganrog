@@ -325,6 +325,29 @@ impl DbRepo {
         Ok(())
     }
 
+    pub fn rename_tag(&self, mut tag: Tag, new_name: String) -> DbResult<Tag> {
+        if tag.name == new_name {
+            return Ok(tag);
+        }
+
+        let tag_id = tag.id.clone();
+        tag.name = new_name.clone();
+
+        let tx = self.db.tx(true)?;
+        let tag_name_bucket = tx.get_or_create_bucket("tag_name")?;
+        if tag_name_bucket.get(tag.name.clone()).is_some() {
+            tag_name_bucket.delete(tag.name.clone())?;
+        }
+        tag_name_bucket.put(tag.name.clone(), tag_id.to_string())?;
+
+        let tag_bucket = tx.get_or_create_bucket("tag")?;
+        let tag_bytes = rmp_serde::to_vec(&tag)?;
+        tag_bucket.put(tag_id.to_string(), tag_bytes)?;
+
+        tx.commit()?;
+        Ok(tag)
+    }
+
     pub fn delete_tag(&self, tag: &Tag) -> DbResult<()> {
         let tx = self.db.tx(true)?;
 
