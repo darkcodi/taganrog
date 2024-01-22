@@ -23,17 +23,15 @@ impl ApiClient {
         }
     }
 
-    pub async fn add_media(&self, filepath: &str) -> anyhow::Result<Media> {
+    pub async fn add_media(&self, filepath: &str) -> anyhow::Result<reqwest::Response> {
         let url: String = format!("{}/api/media", self.config.api_url);
         let res = self.client.post(&url).json(&json!({ "filename": filepath })).send().await?;
-        let media: Media = res.json().await?;
-        Ok(media)
+        Ok(res)
     }
 
-    pub async fn search_tags(&self, query: &str) -> anyhow::Result<Vec<Tag>> {
+    pub async fn search_tags(&self, query: &str) -> anyhow::Result<reqwest::Response> {
         let url: String = format!("{}/api/tags/search", self.config.api_url);
         let res = self.client.post(&url).json(&json!({ "q": query })).send().await?;
-        let tags: Vec<Tag> = res.json().await?;
-        Ok(tags)
+        Ok(res)
     }
 }

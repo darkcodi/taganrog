@@ -12,6 +12,7 @@ use tower_http::trace::TraceLayer;
 use tracing_subscriber::filter;
 use tracing_subscriber::layer::SubscriberExt;
 use crate::api::client::ApiClient;
+use crate::db::entities::Tag;
 
 const INDEX_TEMPLATE: &str = include_str!("templates/index.html");
 const SEARCH_TEMPLATE: &str = include_str!("templates/search.html");
@@ -103,10 +104,9 @@ async fn tag_search(
     Key(key): Key,
     Query(query): Query<SearchQuery>,
 ) -> impl IntoResponse {
-    let suggestions = api_client.search_tags(&query.q).await.unwrap_or(vec![])
-        .into_iter()
-        .map(|tag| tag.name)
-        .collect::<Vec<_>>();
-    let ctx = TagSearchPageContext { suggestions, };
+    let api_response = api_client.search_tags(&query.q).await.unwrap();
+    let tags: Vec<Tag> = api_response.json().await.unwrap();
+    let tag_names = tags.iter().map(|tag| tag.name.clone()).collect::<Vec<_>>();
+    let ctx = TagSearchPageContext { suggestions: tag_names, };
     RenderHtml(key, engine, ctx)
 }
