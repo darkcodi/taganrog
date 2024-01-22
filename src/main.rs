@@ -1,5 +1,5 @@
 use clap::{Arg, Command};
-use taganrog::{api, web_ui};
+use taganrog::{api, cli, web_ui};
 
 #[tokio::main]
 async fn main() {
@@ -69,6 +69,9 @@ async fn main() {
             }
         },
         Some(("add", add_matches)) => {
+            let api_url: &String = matches.get_one("api-url").unwrap();
+            let filepath: &String = add_matches.get_one("filepath").unwrap();
+            cli::add_media(api_url, filepath).await
         },
         Some(("remove", remove_matches)) => {
         },
