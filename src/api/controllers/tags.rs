@@ -21,7 +21,7 @@ struct CreateTag {
 
 #[derive(serde::Deserialize, Debug)]
 struct TagSearch {
-    q: String,
+    tag_name: String,
 }
 
 async fn get_all_tags(
@@ -75,11 +75,11 @@ async fn search_tags(
     ctx: Extension<ApiContext>,
     Json(req): Json<TagSearch>,
 ) -> Result<Json<Vec<Tag>>> {
-    if req.q.is_empty() {
+    if req.tag_name.is_empty() {
         return Ok(Json(vec![]));
     }
-    let mut tags = ctx.db.search_tag_by_name(req.q.clone())?;
-    if req.q.len() <= 2 {
+    let mut tags = ctx.db.search_tag_by_tag_name(req.tag_name.clone())?;
+    if req.tag_name.len() <= 2 {
         tags = tags.into_iter().filter(|(_, distance)| *distance <= 2).collect();
     }
     let tags = tags.into_iter().take(10).map(|(tag, _)| tag).collect();

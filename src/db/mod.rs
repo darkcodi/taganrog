@@ -112,7 +112,7 @@ impl DbRepo {
         }
     }
 
-    pub fn search_tag_by_name(&self, name: String) -> DbResult<Vec<(Tag, usize)>> {
+    pub fn search_tag_by_tag_name(&self, name: String) -> DbResult<Vec<(Tag, usize)>> {
         let tx = self.db.tx(false)?;
         match tx.get_bucket("tag") {
             Ok(tag_bucket) => {
@@ -133,6 +133,18 @@ impl DbRepo {
             Err(jammdb::Error::BucketMissing) => Ok(Vec::new()),
             Err(e) => Err(e.into()),
         }
+    }
+
+    pub fn get_media_by_tag(&self, tag: Tag) -> DbResult<Vec<Media>> {
+        let media_ids = tag.media;
+        let mut media = Vec::new();
+        for media_id in media_ids {
+            let maybe_media = self.get_media_by_id(media_id)?;
+            if let Some(media_item) = maybe_media {
+                media.push(media_item);
+            }
+        }
+        Ok(media)
     }
 
     pub fn get_untagged_tag(&self) -> DbResult<Tag> {

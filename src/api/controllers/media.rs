@@ -17,6 +17,7 @@ pub fn router() -> Router {
         .route("/api/media/:media_id", get(get_media).delete(delete_media))
         .route("/api/media/:media_id/add-tag", post(add_tag_to_media))
         .route("/api/media/:media_id/remove-tag", post(delete_tag_from_media))
+        .route("/api/media/search", post(search_media))
         .route("/api/media/upload", post(upload_media))
         .layer(DefaultBodyLimit::max(MAX_UPLOAD_SIZE_IN_BYTES))
 }
@@ -29,11 +30,6 @@ struct AddMediaRequest {
 #[derive(serde::Deserialize, Debug, Default)]
 struct TagBody {
     tag_name: String,
-}
-
-#[derive(serde::Deserialize, Debug, Default)]
-struct SearchBody {
-    tags: Vec<String>,
 }
 
 async fn add_media(
@@ -205,5 +201,19 @@ async fn delete_tag_from_media(
         media = ctx.db.add_tag_to_media(media, tag)?;
     }
     let mapped_media = ctx.db.map_media(media)?;
+    Ok(Json(mapped_media))
+}
+
+async fn search_media(
+    ctx: Extension<ApiContext>,
+    Json(req): Json<TagBody>,
+) -> Result<Json<Vec<MappedMedia>>> {
+    let maybe_tag = ctx.db.get_tag_by_name(req.tag_name.clone())?;
+    if maybe_tag.is_none() {
+        return Ok(Json(vec![]));
+    }
+    let tag = maybe_tag.unwrap();
+    let media_vec: Vec<Media> = ctx.db.get_media_by_tag(tag)?;
+    let mapped_media = ctx.db.map_many_media(media_vec)?;
     Ok(Json(mapped_media))
 }

@@ -12,7 +12,7 @@ use tower_http::trace::TraceLayer;
 use tracing_subscriber::filter;
 use tracing_subscriber::layer::SubscriberExt;
 use crate::api::client::ApiClient;
-use crate::db::entities::Tag;
+use crate::db::entities::{MappedMedia, Tag};
 
 const INDEX_TEMPLATE: &str = include_str!("templates/index.html");
 const SEARCH_TEMPLATE: &str = include_str!("templates/search.html");
@@ -39,7 +39,7 @@ pub async fn serve(api_url: &str) {
     info!("initializing router...");
     let router = Router::new()
         .route("/", get(index))
-        .route("/search", get(search))
+        .route("/search", get(media_search))
         .route("/tags/search", get(tag_search))
         .with_state(AppState {
             engine: Engine::from(jinja),
@@ -65,7 +65,7 @@ struct AppState {
 pub struct IndexPageContext;
 
 async fn index(
-    engine: AppEngine,
+    State(engine): State<AppEngine>,
     Key(key): Key,
 ) -> impl IntoResponse {
     let ctx = IndexPageContext;
@@ -80,22 +80,27 @@ struct SearchQuery {
 #[derive(Debug, Serialize)]
 pub struct SearchPageContext {
     query: String,
+    media_vec: Vec<MappedMedia>,
 }
 
-async fn search(
-    engine: AppEngine,
+async fn media_search(
+    State(engine): State<AppEngine>,
+    State(api_client): State<ApiClient>,
     Key(key): Key,
     Query(query): Query<SearchQuery>,
 ) -> impl IntoResponse {
+    let api_response = api_client.search_media(&query.q).await.unwrap();
+    let media_vec: Vec<MappedMedia> = api_response.json().await.unwrap();
     let ctx = SearchPageContext {
         query: query.q,
+        media_vec,
     };
     RenderHtml(key, engine, ctx)
 }
 
 #[derive(Debug, Serialize)]
 pub struct TagSearchPageContext {
-    suggestions: Vec<String>,
+    suggestions: Vec<Tag>,
 }
 
 async fn tag_search(
@@ -106,7 +111,6 @@ async fn tag_search(
 ) -> impl IntoResponse {
     let api_response = api_client.search_tags(&query.q).await.unwrap();
     let tags: Vec<Tag> = api_response.json().await.unwrap();
-    let tag_names = tags.iter().map(|tag| tag.name.clone()).collect::<Vec<_>>();
-    let ctx = TagSearchPageContext { suggestions: tag_names, };
+    let ctx = TagSearchPageContext { suggestions: tags, };
     RenderHtml(key, engine, ctx)
 }

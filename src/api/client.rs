@@ -2,7 +2,6 @@ use std::sync::Arc;
 use axum_macros::FromRef;
 use reqwest::Client;
 use serde_json::json;
-use crate::db::entities::{Media, Tag};
 
 #[derive(Debug)]
 struct ApiConfig {
@@ -31,7 +30,13 @@ impl ApiClient {
 
     pub async fn search_tags(&self, query: &str) -> anyhow::Result<reqwest::Response> {
         let url: String = format!("{}/api/tags/search", self.config.api_url);
-        let res = self.client.post(&url).json(&json!({ "q": query })).send().await?;
+        let res = self.client.post(&url).json(&json!({ "tag_name": query })).send().await?;
+        Ok(res)
+    }
+
+    pub async fn search_media(&self, query: &str) -> anyhow::Result<reqwest::Response> {
+        let url: String = format!("{}/api/media/search", self.config.api_url);
+        let res = self.client.post(&url).json(&json!({ "tag_name": query })).send().await?;
         Ok(res)
     }
 }
