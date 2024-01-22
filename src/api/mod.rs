@@ -59,6 +59,7 @@ pub async fn serve(workdir: &str) {
 }
 
 fn get_or_create_workdir_path(workdir: &str) -> anyhow::Result<PathBuf> {
+    info!("workdir: {}", workdir);
     let workdir = std::path::Path::new(workdir).absolutize_from(std::env::current_dir()?)?;
     if !workdir.exists() {
         std::fs::create_dir_all(&workdir)?;
@@ -71,6 +72,7 @@ fn get_or_create_workdir_path(workdir: &str) -> anyhow::Result<PathBuf> {
 }
 
 fn get_or_create_db_path(workdir: &PathBuf) -> anyhow::Result<PathBuf> {
+    info!("db_path: {}", workdir.display());
     let db_path = workdir.join("taganrog.db");
     if db_path.exists() && !db_path.is_file() {
         anyhow::bail!("db_path is not a file");
