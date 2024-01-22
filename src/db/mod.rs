@@ -4,6 +4,7 @@ use crate::db::entities::{Media, MediaId, Tag, TagId};
 
 pub mod entities;
 pub mod id;
+pub mod hash;
 
 pub enum Inserted<T> {
     New(T),

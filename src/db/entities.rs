@@ -1,7 +1,7 @@
 use chrono::{DateTime, Utc};
 use relative_path::RelativePath;
+use crate::db::hash::MurMurHasher;
 use crate::db::id::Id;
-use crate::utils::hash_utils::MurMurHasher;
 
 pub type MediaId = Id<"media">;
 pub type TagId = Id<"tag">;

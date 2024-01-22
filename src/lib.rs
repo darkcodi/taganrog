@@ -4,5 +4,4 @@
 
 pub mod api;
 pub mod db;
-pub mod utils;
 pub mod web_ui;
