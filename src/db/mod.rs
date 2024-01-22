@@ -1,6 +1,6 @@
 use std::str::FromStr;
 use jammdb::DB;
-use crate::db::entities::{Media, MediaId, Tag, TagId};
+use crate::db::entities::{MappedMedia, Media, MediaId, Tag, TagId};
 
 pub mod entities;
 pub mod id;
@@ -343,5 +343,32 @@ impl DbRepo {
 
         tx.commit()?;
         Ok(())
+    }
+
+    pub fn map_media(&self, media: Media) -> DbResult<MappedMedia> {
+        let mut many_media = self.map_many_media(vec![media])?;
+        let media = many_media.pop().unwrap();
+        Ok(media)
+    }
+
+    pub fn map_many_media(&self, media: Vec<Media>) -> DbResult<Vec<MappedMedia>> {
+        let tags = self.get_all_tags()?;
+        let mut mapped_media = vec![];
+        for media in media {
+            let tags = tags.iter().filter(|tag| media.tags.contains(&tag.id)).map(|tag| tag.name.clone()).collect::<Vec<_>>();
+            let mapped_media_item = MappedMedia {
+                id: media.id,
+                filename: media.filename,
+                relative_path: media.relative_path,
+                imported_at: media.imported_at,
+                content_type: media.content_type,
+                hash: media.hash,
+                size: media.size,
+                was_uploaded: media.was_uploaded,
+                tags,
+            };
+            mapped_media.push(mapped_media_item);
+        }
+        Ok(mapped_media)
     }
 }

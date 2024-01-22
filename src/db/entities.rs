@@ -24,6 +24,20 @@ pub struct Media {
     pub tags: Vec<TagId>,
 }
 
+// Same as Media, but with tags as strings instead of ids
+#[derive(serde::Serialize, serde::Deserialize, Clone, Debug, PartialEq, Eq)]
+pub struct MappedMedia {
+    pub id: MediaId,
+    pub filename: String,
+    pub relative_path: String,
+    pub imported_at: DateTime<Utc>,
+    pub content_type: String,
+    pub hash: String,
+    pub size: i64,
+    pub was_uploaded: bool,
+    pub tags: Vec<String>,
+}
+
 #[derive(serde::Serialize, serde::Deserialize, Clone, Debug, PartialEq, Eq)]
 pub struct Tag {
     pub id: TagId,
