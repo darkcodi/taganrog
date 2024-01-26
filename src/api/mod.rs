@@ -2,7 +2,7 @@ use std::path::PathBuf;
 use axum::Extension;
 use std::sync::Arc;
 use path_absolutize::Absolutize;
-use surrealdb::engine::local::{Db, RocksDb};
+use surrealdb::engine::local::{Db, Mem};
 use surrealdb::Surreal;
 use tower::ServiceBuilder;
 use tower_http::cors::{Any, CorsLayer};
@@ -40,7 +40,9 @@ pub async fn serve(workdir: &str) {
     let config: ApiConfig = ApiConfig { workdir };
     info!("{:?}", &config);
 
-    let db = Surreal::new::<RocksDb>(db_path).await.expect("failed to open db connection");
+    let db = Surreal::new::<Mem>(()).await.expect("failed to open db connection");
+    db.use_ns("taganrog").await.expect("failed to use namespace");
+    db.use_db("taganrog").await.expect("failed to use database");
 
     let ctx = ApiContext {
         cfg: Arc::new(config),
