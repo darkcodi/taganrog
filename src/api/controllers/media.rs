@@ -1,13 +1,15 @@
+use std::ffi::OsStr;
 use std::str::FromStr;
-use axum::extract::{DefaultBodyLimit, Extension, Multipart, Path};
+use axum::extract::{DefaultBodyLimit, Extension, Multipart, Path, Query};
 use axum::routing::{get, post};
 use axum::{Json, Router};
 use path_absolutize::Absolutize;
 use relative_path::PathExt;
-use crate::db::entities::{MappedMedia, Media, MediaId, Tag, TagId};
 use crate::api::error::{ApiError};
 use crate::api::{ApiContext, Result};
-use crate::db::hash::MurMurHasher;
+use crate::db::entities::media::{Media, MediaId};
+use crate::db::entities::tag::Tag;
+use crate::utils::hash_utils::MurMurHasher;
 
 const MAX_UPLOAD_SIZE_IN_BYTES: usize = 52_428_800; // 50 MB
 
@@ -29,13 +31,71 @@ struct AddMediaRequest {
 
 #[derive(serde::Deserialize, Debug, Default)]
 struct TagBody {
-    tag_name: String,
+    name: String,
+}
+
+#[derive(serde::Deserialize, Debug, Default)]
+struct SearchBody {
+    tags: Vec<String>,
+}
+
+#[derive(serde::Deserialize, Debug, Default)]
+struct Pagination {
+    page_size: Option<u64>,
+    page_index: Option<u64>,
+}
+
+struct File {
+    filename: String,
+    extension: Option<String>,
+    content_type: String,
+    data: Vec<u8>,
+    size: usize,
+    hash: String,
+}
+
+impl File {
+    pub async fn try_from(mut value: Multipart) -> std::result::Result<Self, ApiError> {
+        let file = value.next_field()
+            .await
+            .map_err(|x| ApiError::unprocessable_entity([("file", format!("multipart error: {}", x.to_string()))]))?
+            .ok_or(ApiError::unprocessable_entity([("file", "missing file")]))?;
+
+        let filename = file.file_name()
+            .ok_or(ApiError::unprocessable_entity([("file", "filename is empty")]))?
+            .to_string();
+        let extension = File::get_extension(filename.as_str());
+
+        let content_type = file.content_type().unwrap_or("application/octet-stream").to_string();
+        let data = file.bytes()
+            .await
+            .map_err(|x| ApiError::unprocessable_entity([("file", format!("multipart error: {}", x.to_string()))]))?
+            .to_vec();
+        let size = data.len();
+        let hash = MurMurHasher::hash_bytes(data.as_slice());
+
+        Ok(Self {
+            filename,
+            extension,
+            content_type,
+            data,
+            size,
+            hash,
+        })
+    }
+
+    fn get_extension(filename: &str) -> Option<String> {
+        std::path::Path::new(filename)
+            .extension()
+            .and_then(OsStr::to_str)
+            .map(|x| format!(".{x}"))
+    }
 }
 
 async fn add_media(
     ctx: Extension<ApiContext>,
     Json(req): Json<AddMediaRequest>,
-) -> Result<Json<MappedMedia>> {
+) -> Result<Json<Media>> {
     let filepath = std::path::Path::new(req.filename.as_str()).absolutize_from(&ctx.cfg.workdir)
         .map_err(|_| ApiError::unprocessable_entity([("filename", "invalid path 1")]))?;
     let relative_path = filepath.relative_to(&ctx.cfg.workdir)
@@ -46,31 +106,22 @@ async fn add_media(
     if filepath.is_dir() { return Err(ApiError::unprocessable_entity([("filename", "file is a directory")])); }
 
     let media = Media::from_file(&filepath, &relative_path)?;
-    let existing_media = ctx.db.get_media_by_hash(media.hash.clone())?;
-    if existing_media.is_some() {
-        let mapped_media = ctx.db.map_media(existing_media.unwrap())?;
-        return Err(ApiError::conflict(mapped_media));
-    }
-
-    ctx.db.insert_media(&media)?;
-    let tag = ctx.db.get_untagged_tag()?;
-    let media = ctx.db.add_tag_to_media(media, tag)?;
-    let mapped_media = ctx.db.map_media(media)?;
-    Ok(Json(mapped_media))
+    let media = Media::create(&media, &ctx.db).await?;
+    Ok(Json(media))
 }
 
 async fn upload_media(
     ctx: Extension<ApiContext>,
     mut files: Multipart,
-) -> Result<Json<MappedMedia>> {
+) -> Result<Json<Media>> {
     let file = files.next_field().await
         .map_err(|x| ApiError::unprocessable_entity([("file", format!("multipart error: {}", x.to_string()))]))?
         .ok_or(ApiError::unprocessable_entity([("file", "missing file")]))?;
 
-    let original_filename = file.file_name()
+    let filename = file.file_name()
         .ok_or(ApiError::unprocessable_entity([("file", "filename is empty")]))?
         .to_string();
-    if original_filename.chars().any(|x| !x.is_ascii_alphanumeric() && x != '.' && x != '-' && x != '_') {
+    if filename.chars().any(|x| !x.is_ascii_alphanumeric() && x != '.' && x != '-' && x != '_') {
         return Err(ApiError::unprocessable_entity([("file", "filename contains invalid characters")]));
     }
 
@@ -78,17 +129,16 @@ async fn upload_media(
         .map_err(|x| ApiError::unprocessable_entity([("file", format!("multipart error: {}", x.to_string()))]))?
         .to_vec();
     let hash = MurMurHasher::hash_bytes(data.as_slice());
-    let existing_media = ctx.db.get_media_by_hash(hash)?;
+    let existing_media = Media::get_by_hash(&hash, &ctx.db).await?;
     if existing_media.is_some() {
-        let mapped_media = ctx.db.map_media(existing_media.unwrap())?;
-        return Err(ApiError::conflict(mapped_media));
+        return Err(ApiError::conflict(existing_media));
     }
 
-    let mut filename = original_filename.clone();
+    let mut filename = filename.clone();
     let mut suffix = 0;
     while ctx.cfg.workdir.join(filename.clone()).exists() {
         suffix += 1;
-        filename = format!("dup{}-{}", suffix, original_filename);
+        filename = format!("dup{}-{}", suffix, filename);
     }
     let filepath = ctx.cfg.workdir.join(filename.clone());
     let relative_path = filepath.relative_to(&ctx.cfg.workdir)
@@ -97,123 +147,104 @@ async fn upload_media(
     std::fs::write(&filepath, data)?;
     let mut media = Media::from_file(&filepath, &relative_path)?;
     media.was_uploaded = true;
-    ctx.db.insert_media(&media)?;
-    let tag = ctx.db.get_untagged_tag()?;
-    let media = ctx.db.add_tag_to_media(media, tag)?;
-    let mapped_media = ctx.db.map_media(media)?;
-    Ok(Json(mapped_media))
+    let media = Media::create(&media, &ctx.db).await?;
+    Ok(Json(media))
 }
 
 async fn get_all_media(
     ctx: Extension<ApiContext>,
-) -> Result<Json<Vec<MappedMedia>>> {
-    let media_vec: Vec<Media> = ctx.db.get_all_media()?;
-    let mapped_media = ctx.db.map_many_media(media_vec)?;
-    Ok(Json(mapped_media))
+    Query(pagination): Query<Pagination>,
+) -> Result<Json<Vec<Media>>> {
+    let page_size = pagination.page_size.unwrap_or(10).clamp(1, 50);
+    let page_index = pagination.page_index.unwrap_or(0);
+    let media_vec: Vec<Media> = Media::get_all(page_size, page_index, &ctx.db).await?;
+
+    Ok(Json(media_vec))
 }
 
 async fn get_media(
     ctx: Extension<ApiContext>,
     Path(media_id): Path<String>,
-) -> Result<Json<MappedMedia>> {
-    let media_id = MediaId::from_str(&media_id)
-        .map_err(|_| ApiError::unprocessable_entity([("media_id", "invalid id")]))?;
-    let maybe_media = ctx.db.get_media_by_id(media_id)?;
+) -> Result<Json<Media>> {
+    let media_id = MediaId::from_str(&media_id)?;
+    let maybe_media = Media::get_by_id(&media_id, &ctx.db).await?;
     if maybe_media.is_none() {
         return Err(ApiError::NotFound);
     }
 
     let media = maybe_media.unwrap();
-    let mapped_media = ctx.db.map_media(media)?;
-    Ok(Json(mapped_media))
+    Ok(Json(media))
 }
 
 async fn delete_media(
     ctx: Extension<ApiContext>,
     Path(media_id): Path<String>,
-) -> Result<Json<MappedMedia>> {
-    let media_id = MediaId::from_str(&media_id)
-        .map_err(|_| ApiError::unprocessable_entity([("media_id", "invalid id")]))?;
-    let maybe_media = ctx.db.get_media_by_id(media_id.clone())?;
+) -> Result<Json<Media>> {
+    let media_id = MediaId::from_str(&media_id)?;
+    let maybe_media = Media::delete_by_id(&media_id, &ctx.db).await?;
     if maybe_media.is_none() {
         return Err(ApiError::NotFound);
     }
 
     let media = maybe_media.unwrap();
-    ctx.db.delete_media(&media)?;
-    let mapped_media = ctx.db.map_media(media)?;
-    Ok(Json(mapped_media))
+
+    Ok(Json(media))
 }
 
 async fn add_tag_to_media(
     ctx: Extension<ApiContext>,
     Path(media_id): Path<String>,
     Json(req): Json<TagBody>,
-) -> Result<Json<MappedMedia>> {
-    let media_id = MediaId::from_str(&media_id)
-        .map_err(|_| ApiError::unprocessable_entity([("media_id", "invalid id")]))?;
-    let maybe_media = ctx.db.get_media_by_id(media_id.clone())?;
+) -> Result<Json<Media>> {
+    let media_id = MediaId::from_str(&media_id)?;
+    let maybe_media = Media::get_by_id(&media_id, &ctx.db).await?;
     if maybe_media.is_none() {
         return Err(ApiError::NotFound);
     }
 
-    if req.tag_name == Tag::untagged().name {
-        return Err(ApiError::unprocessable_entity([("tag", "cannot add untagged tag")]));
+    let mut media = maybe_media.unwrap();
+    if !media.tags.contains(&req.name) {
+        let tag = Tag::ensure_exists(&req.name, &ctx.db).await?.safe_unwrap();
+        Media::add_tag(&media_id, &tag.id, &ctx.db).await?;
+        media.tags.push(tag.name);
     }
-
-    let media = maybe_media.unwrap();
-    let tag = ctx.db.get_or_insert_tag_by_name(req.tag_name.clone())?.unwrap();
-    let mut media = ctx.db.add_tag_to_media(media, tag)?;
-    if media.tags.iter().any(|x| x == &TagId::untagged()) {
-        let tag = ctx.db.get_untagged_tag()?;
-        media = ctx.db.delete_tag_from_media(media, tag)?;
-    }
-    let mapped_media = ctx.db.map_media(media)?;
-    Ok(Json(mapped_media))
+    Ok(Json(media))
 }
 
 async fn delete_tag_from_media(
     ctx: Extension<ApiContext>,
     Path(media_id): Path<String>,
     Json(req): Json<TagBody>,
-) -> Result<Json<MappedMedia>> {
-    let media_id = MediaId::from_str(&media_id)
-        .map_err(|_| ApiError::unprocessable_entity([("media_id", "invalid id")]))?;
-    let maybe_media = ctx.db.get_media_by_id(media_id.clone())?;
+) -> Result<Json<Media>> {
+    let media_id = MediaId::from_str(&media_id)?;
+    let maybe_media = Media::get_by_id(&media_id, &ctx.db).await?;
     if maybe_media.is_none() {
         return Err(ApiError::NotFound);
     }
 
-    if req.tag_name == Tag::untagged().name {
-        return Err(ApiError::unprocessable_entity([("tag", "cannot remove untagged tag")]));
+    let mut media = maybe_media.unwrap();
+    if media.tags.contains(&req.name) {
+        Media::remove_tag(&media_id, &req.name, &ctx.db).await?;
+        let pos = media.tags.iter().position(|x| x == &req.name).unwrap();
+        media.tags.remove(pos);
     }
-
-    let maybe_tag = ctx.db.get_tag_by_name(req.tag_name.clone())?;
-    if maybe_tag.is_none() {
-        return Err(ApiError::NotFound);
-    }
-
-    let tag = maybe_tag.unwrap();
-    let media = maybe_media.unwrap();
-    let mut media = ctx.db.delete_tag_from_media(media, tag)?;
-    if media.tags.len() == 0 {
-        let tag = ctx.db.get_untagged_tag()?;
-        media = ctx.db.add_tag_to_media(media, tag)?;
-    }
-    let mapped_media = ctx.db.map_media(media)?;
-    Ok(Json(mapped_media))
+    Ok(Json(media))
 }
 
 async fn search_media(
     ctx: Extension<ApiContext>,
-    Json(req): Json<TagBody>,
-) -> Result<Json<Vec<MappedMedia>>> {
-    let maybe_tag = ctx.db.get_tag_by_name(req.tag_name.clone())?;
-    if maybe_tag.is_none() {
-        return Ok(Json(vec![]));
+    Json(req): Json<SearchBody>,
+) -> Result<Json<Vec<Media>>> {
+    if req.tags.len() == 1 && req.tags.first().unwrap() == "null" {
+        let media_vec: Vec<Media> = Media::get_untagged(&ctx.db).await?;
+        Ok(Json(media_vec))
     }
-    let tag = maybe_tag.unwrap();
-    let media_vec: Vec<Media> = ctx.db.get_media_by_tag(tag)?;
-    let mapped_media = ctx.db.map_many_media(media_vec)?;
-    Ok(Json(mapped_media))
+    else if req.tags.len() == 1 && req.tags.first().unwrap() == "all" {
+        let media_vec: Vec<Media> = Media::get_all(50, 0, &ctx.db).await?;
+        Ok(Json(media_vec))
+    }
+    else {
+        let media_vec: Vec<Media> = Media::search(&req.tags, &ctx.db).await?;
+        Ok(Json(media_vec))
+    }
 }

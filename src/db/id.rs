@@ -1,7 +1,6 @@
 use std::fmt::{Display, Formatter};
 use std::str::FromStr;
 use std::string::ToString;
-use anyhow::anyhow;
 use nanoid::nanoid;
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
 use serde::de::Error;

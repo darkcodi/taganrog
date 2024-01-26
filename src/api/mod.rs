@@ -1,8 +1,9 @@
 use std::path::PathBuf;
 use axum::Extension;
 use std::sync::Arc;
-use jammdb::DB;
 use path_absolutize::Absolutize;
+use surrealdb::engine::local::{Db, RocksDb};
+use surrealdb::Surreal;
 use tower::ServiceBuilder;
 use tower_http::cors::{Any, CorsLayer};
 use tower_http::trace::TraceLayer;
@@ -11,7 +12,6 @@ use tracing_subscriber::filter;
 use tracing_subscriber::layer::SubscriberExt;
 use tracing_subscriber::util::SubscriberInitExt;
 pub use error::{ApiError};
-use crate::db::DbRepo;
 use crate::api::controllers::{media, ping, tags};
 
 mod error;
@@ -40,10 +40,12 @@ pub async fn serve(workdir: &str) {
     let config: ApiConfig = ApiConfig { workdir };
     info!("{:?}", &config);
 
-    let db = DB::open(&db_path).expect("failed to open db connection");
-    let db_repo = DbRepo::new(db);
+    let db = Surreal::new::<RocksDb>(db_path).await.expect("failed to open db connection");
 
-    let ctx = ApiContext::new(config, db_repo);
+    let ctx = ApiContext {
+        cfg: Arc::new(config),
+        db,
+    };
 
     let app = ping::router()
         .merge(media::router())
@@ -88,14 +90,5 @@ pub struct ApiConfig {
 #[derive(Clone)]
 pub struct ApiContext {
     pub cfg: Arc<ApiConfig>,
-    pub db: DbRepo,
-}
-
-impl ApiContext {
-    pub fn new(config: ApiConfig, db: DbRepo) -> Self {
-        Self {
-            cfg: Arc::new(config),
-            db,
-        }
-    }
+    pub db: Surreal<Db>,
 }

@@ -1,5 +1,5 @@
 use crate::api::client::ApiClient;
-use crate::db::entities::{MappedMedia, Media};
+use crate::db::entities::media::Media;
 
 pub async fn add_media(api_url: &str, filepath: &str) {
     let canonical_filepath_result = std::fs::canonicalize(filepath);
@@ -29,7 +29,7 @@ pub async fn add_media(api_url: &str, filepath: &str) {
         std::process::exit(1);
     }
 
-    let deserialization_result = api_response.json::<MappedMedia>().await;
+    let deserialization_result = api_response.json::<Media>().await;
     if deserialization_result.is_err() {
         eprintln!("Deserialization error: {}", deserialization_result.err().unwrap());
         std::process::exit(1);

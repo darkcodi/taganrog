@@ -12,7 +12,8 @@ use tower_http::trace::TraceLayer;
 use tracing_subscriber::filter;
 use tracing_subscriber::layer::SubscriberExt;
 use crate::api::client::ApiClient;
-use crate::db::entities::{MappedMedia, Tag};
+use crate::db::entities::media::Media;
+use crate::db::entities::tag::Tag;
 
 const INDEX_TEMPLATE: &str = include_str!("templates/index.html");
 const SEARCH_TEMPLATE: &str = include_str!("templates/search.html");
@@ -80,7 +81,7 @@ struct SearchQuery {
 #[derive(Debug, Serialize)]
 pub struct SearchPageContext {
     query: String,
-    media_vec: Vec<MappedMedia>,
+    media_vec: Vec<Media>,
 }
 
 async fn media_search(
@@ -90,7 +91,7 @@ async fn media_search(
     Query(query): Query<SearchQuery>,
 ) -> impl IntoResponse {
     let api_response = api_client.search_media(&query.q).await.unwrap();
-    let media_vec: Vec<MappedMedia> = api_response.json().await.unwrap();
+    let media_vec: Vec<Media> = api_response.json().await.unwrap();
     let ctx = SearchPageContext {
         query: query.q,
         media_vec,
