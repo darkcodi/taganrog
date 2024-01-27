@@ -2,7 +2,7 @@ use chrono::{DateTime, Utc};
 use itertools::Itertools;
 use surrealdb::engine::local::Db;
 use surrealdb::Surreal;
-use crate::db::{DbResult, SurrealDbResult};
+use crate::db::{DbResult, Document, SurrealDbResult};
 use crate::db::id::Id;
 use crate::utils::str_utils::StringExtensions;
 
@@ -27,8 +27,8 @@ impl Tag {
     pub async fn get_all(
         db: &Surreal<Db>,
     ) -> SurrealDbResult<Vec<Tag>> {
-        let result: Vec<Tag> = db.query("SELECT * FROM tag;").await?.take(0)?;
-        Ok(result)
+        let tag_vec: Vec<Document<Tag>> = db.query("SELECT * FROM tag;").await?.take(0)?;
+        Ok(tag_vec.into_iter().map(|x| x.into_inner()).collect())
     }
 
     pub async fn get_by_id(
@@ -36,8 +36,8 @@ impl Tag {
         db: &Surreal<Db>,
     ) -> SurrealDbResult<Option<Tag>> {
         let query = format!("SELECT * FROM tag WHERE id = '{id}';");
-        let maybe_tag: Option<Tag> = db.query(query.as_str()).await?.take(0)?;
-        Ok(maybe_tag)
+        let maybe_tag: Option<Document<Tag>> = db.query(query.as_str()).await?.take(0)?;
+        Ok(maybe_tag.map(|x| x.into_inner()))
     }
 
     pub async fn delete_by_id(
@@ -45,8 +45,8 @@ impl Tag {
         db: &Surreal<Db>,
     ) -> SurrealDbResult<Option<Tag>> {
         let query = format!("DELETE FROM tag WHERE id = '{id}' RETURN BEFORE;");
-        let maybe_tag: Option<Tag> = db.query(query.as_str()).await?.take(0)?;
-        Ok(maybe_tag)
+        let maybe_tag: Option<Document<Tag>> = db.query(query.as_str()).await?.take(0)?;
+        Ok(maybe_tag.map(|x| x.into_inner()))
     }
 
     pub async fn ensure_exists(
@@ -58,8 +58,8 @@ impl Tag {
         let query = format!("LET $tag_name = '{name}';
 CREATE {tag_id} SET name = $tag_name, created_at = time::now();
 SELECT * FROM tag WHERE name = $tag_name;");
-        let result: Option<Tag> = db.query(query.as_str()).await?.take(0)?;
-        Ok(DbResult::New(result.unwrap()))
+        let maybe_tag: Option<Document<Tag>> = db.query(query.as_str()).await?.take(0)?;
+        Ok(DbResult::New(maybe_tag.unwrap().into_inner()))
     }
 
     pub async fn count_media(
@@ -77,8 +77,8 @@ FROM array::flatten((
 ))
 WHERE $input CONTAINSNOT name
 GROUP BY id, name, created_at;");
-        let result: Vec<TagWithCount> = db.query(&query).await?.take(0)?;
-        Ok(result)
+        let tag_vec: Vec<Document<TagWithCount>> = db.query(&query).await?.take(0)?;
+        Ok(tag_vec.into_iter().map(|x| x.into_inner()).collect())
     }
 
     pub async fn migrate(db: &Surreal<Db>) -> SurrealDbResult<()> {

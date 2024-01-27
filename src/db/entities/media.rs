@@ -1,3 +1,4 @@
+use std::str::FromStr;
 use chrono::{DateTime, Utc};
 use itertools::Itertools;
 use relative_path::RelativePath;
@@ -5,7 +6,7 @@ use surrealdb::engine::local::Db;
 use surrealdb::Surreal;
 use crate::db::entities::tag::TagId;
 use crate::db::id::Id;
-use crate::db::SurrealDbResult;
+use crate::db::{Document, SurrealDbResult};
 use crate::utils::hash_utils::MurMurHasher;
 use crate::utils::str_utils::StringExtensions;
 
@@ -21,7 +22,7 @@ pub struct Media {
     pub size: i64,
     pub location: String,
     pub was_uploaded: bool,
-    pub tags: Vec<String>,
+    pub tags: Option<Vec<String>>,
 }
 
 impl Media {
@@ -45,8 +46,46 @@ impl Media {
             size,
             location,
             was_uploaded: false,
-            tags: vec![],
+            tags: None,
         })
+    }
+
+    pub fn contains_tag(&self, tag_name: &str) -> bool {
+        if let Some(tags) = &self.tags {
+            tags.contains(&tag_name.slugify())
+        } else {
+            false
+        }
+    }
+
+    pub fn get_tags(&self) -> Vec<TagId> {
+        if let Some(tags) = &self.tags {
+            tags.iter().map(|x| TagId::from_str(x).unwrap()).collect()
+        } else {
+            vec![]
+        }
+    }
+
+    pub fn get_tags_as_strings(&self) -> Vec<String> {
+        if let Some(tags) = &self.tags {
+            tags.iter().map(|x| x.to_string()).collect()
+        } else {
+            vec![]
+        }
+    }
+
+    pub fn add_tag_str(&mut self, tag_name: &str) {
+        if let Some(tags) = &mut self.tags {
+            tags.push(tag_name.slugify());
+        } else {
+            self.tags = Some(vec![tag_name.slugify()]);
+        }
+    }
+
+    pub fn remove_tag_str(&mut self, tag_name: &str) {
+        if let Some(tags) = &mut self.tags {
+            tags.retain(|x| x != &tag_name.slugify());
+        }
     }
 
     pub async fn get_by_hash(
@@ -54,8 +93,8 @@ impl Media {
         db: &Surreal<Db>,
     ) -> SurrealDbResult<Option<Media>>  {
         let query = format!("SELECT *, ->has->tag.name AS tags FROM media WHERE hash = '{hash}';");
-        let maybe_media: Option<Media> = db.query(query.as_str()).await?.take(0)?;
-        Ok(maybe_media)
+        let maybe_media: Option<Document<Media>> = db.query(query.as_str()).await?.take(0)?;
+        Ok(maybe_media.map(|x| x.into_inner()))
     }
 
     pub async fn create(
@@ -79,8 +118,8 @@ hash = '{hash}',
 size = {size},
 location = '{location}',
 was_uploaded = {was_uploaded};");
-        let maybe_media: Option<Media> = db.query(query.as_str()).await?.take(0)?;
-        Ok(maybe_media.unwrap())
+        let maybe_media: Option<Document<Media>> = db.query(query.as_str()).await?.take(0)?;
+        Ok(maybe_media.unwrap().into_inner())
     }
 
     pub async fn get_all(
@@ -91,8 +130,8 @@ was_uploaded = {was_uploaded};");
         let start = page_size * page_index;
         let limit = page_size;
         let query = format!("SELECT *, ->has->tag.name AS tags FROM media ORDER BY created_at LIMIT {limit} START {start};");
-        let media_vec: Vec<Media> = db.query(query.as_str()).await?.take(0)?;
-        Ok(media_vec)
+        let media_vec: Vec<Document<Media>> = db.query(query.as_str()).await?.take(0)?;
+        Ok(media_vec.into_iter().map(|x| x.into_inner()).collect())
     }
 
     pub async fn get_by_id(
@@ -100,8 +139,8 @@ was_uploaded = {was_uploaded};");
         db: &Surreal<Db>,
     ) -> SurrealDbResult<Option<Media>> {
         let query = format!("SELECT *, ->has->tag.name AS tags FROM media WHERE id = '{id}';");
-        let maybe_media: Option<Media> = db.query(query.as_str()).await?.take(0)?;
-        Ok(maybe_media)
+        let maybe_media: Option<Document<Media>> = db.query(query.as_str()).await?.take(0)?;
+        Ok(maybe_media.map(|x| x.into_inner()))
     }
 
     pub async fn add_tag(
@@ -130,8 +169,8 @@ was_uploaded = {was_uploaded};");
         db: &Surreal<Db>,
     ) -> SurrealDbResult<Option<Media>> {
         let query = format!("DELETE FROM media WHERE id = '{id}' RETURN BEFORE;");
-        let maybe_media: Option<Media> = db.query(query.as_str()).await?.take(0)?;
-        Ok(maybe_media)
+        let maybe_media: Option<Document<Media>> = db.query(query.as_str()).await?.take(0)?;
+        Ok(maybe_media.map(|x| x.into_inner()))
     }
 
     pub async fn migrate(db: &Surreal<Db>) -> SurrealDbResult<()> {
@@ -159,8 +198,8 @@ COMMIT TRANSACTION;";
         let query = format!("SELECT *, ->has->tag.name AS tags
 FROM media
 WHERE ->has->tag.name CONTAINSALL [{tags_arr}];");
-        let media_vec: Vec<Media> = db.query(query.as_str()).await?.take(0)?;
-        Ok(media_vec)
+        let media_vec: Vec<Document<Media>> = db.query(query.as_str()).await?.take(0)?;
+        Ok(media_vec.into_iter().map(|x| x.into_inner()).collect())
     }
 
     pub async fn get_untagged(
@@ -169,7 +208,7 @@ WHERE ->has->tag.name CONTAINSALL [{tags_arr}];");
         let query = "SELECT *, ->has->tag.name AS tags
 FROM media
 WHERE array::len(->has->tag) == 0;";
-        let media_vec: Vec<Media> = db.query(query).await?.take(0)?;
-        Ok(media_vec)
+        let media_vec: Vec<Document<Media>> = db.query(query).await?.take(0)?;
+        Ok(media_vec.into_iter().map(|x| x.into_inner()).collect())
     }
 }

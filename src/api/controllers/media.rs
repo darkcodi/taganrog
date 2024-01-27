@@ -203,10 +203,10 @@ async fn add_tag_to_media(
     }
 
     let mut media = maybe_media.unwrap();
-    if !media.tags.contains(&req.name) {
+    if media.contains_tag(&req.name) {
         let tag = Tag::ensure_exists(&req.name, &ctx.db).await?.safe_unwrap();
         Media::add_tag(&media_id, &tag.id, &ctx.db).await?;
-        media.tags.push(tag.name);
+        media.add_tag_str(&tag.name);
     }
     Ok(Json(media))
 }
@@ -223,10 +223,9 @@ async fn delete_tag_from_media(
     }
 
     let mut media = maybe_media.unwrap();
-    if media.tags.contains(&req.name) {
+    if media.contains_tag(&req.name) {
         Media::remove_tag(&media_id, &req.name, &ctx.db).await?;
-        let pos = media.tags.iter().position(|x| x == &req.name).unwrap();
-        media.tags.remove(pos);
+        media.remove_tag_str(&req.name);
     }
     Ok(Json(media))
 }
