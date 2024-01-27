@@ -4,9 +4,10 @@ use itertools::Itertools;
 use relative_path::RelativePath;
 use surrealdb::engine::local::Db;
 use surrealdb::Surreal;
+use tracing::info;
 use crate::db::entities::tag::TagId;
 use crate::db::id::Id;
-use crate::db::{Document, SurrealDbResult};
+use crate::db::{DbResult, Document, SurrealDbResult};
 use crate::utils::hash_utils::MurMurHasher;
 use crate::utils::str_utils::StringExtensions;
 
@@ -46,7 +47,7 @@ impl Media {
             size,
             location,
             was_uploaded: false,
-            tags: None,
+            tags: Some(vec![]),
         })
     }
 
@@ -100,11 +101,11 @@ impl Media {
     pub async fn create(
         media: &Media,
         db: &Surreal<Db>,
-    ) -> SurrealDbResult<Media> {
-        let media_id = &media.id;
+    ) -> SurrealDbResult<DbResult<Media>> {
+        let media_id = &media.id.to_string();
         let filename = &media.filename;
         let content_type = &media.content_type;
-        let created_at = &media.created_at;
+        let created_at = &media.created_at.format("%Y-%m-%dT%H:%M:%S%.3fZ").to_string(); // ISO-8601
         let hash = &media.hash;
         let location = &media.location;
         let size = &media.size;
@@ -118,8 +119,17 @@ hash = '{hash}',
 size = {size},
 location = '{location}',
 was_uploaded = {was_uploaded};");
-        let maybe_media: Option<Document<Media>> = db.query(query.as_str()).await?.take(0)?;
-        Ok(maybe_media.unwrap().into_inner())
+        let response_result = db.query(query.as_str()).await?.check();
+        if let Err(surrealdb::Error::Db(surrealdb::err::Error::IndexExists { .. })) = response_result {
+            let existing_media = Media::get_by_hash(hash, db).await?.unwrap();
+            return Ok(DbResult::Existing(existing_media));
+        }
+        let maybe_media: Option<Document<Media>> = response_result?.take(0)?;
+        let mut media = maybe_media.unwrap().into_inner();
+        if let None = media.tags {
+            media.tags = Some(vec![]);
+        }
+        Ok(DbResult::New(media))
     }
 
     pub async fn get_all(

@@ -106,7 +106,7 @@ async fn add_media(
     if filepath.is_dir() { return Err(ApiError::unprocessable_entity([("filename", "file is a directory")])); }
 
     let media = Media::from_file(&filepath, &relative_path)?;
-    let media = Media::create(&media, &ctx.db).await?;
+    let media = Media::create(&media, &ctx.db).await?.safe_unwrap();
     Ok(Json(media))
 }
 
@@ -147,7 +147,7 @@ async fn upload_media(
     std::fs::write(&filepath, data)?;
     let mut media = Media::from_file(&filepath, &relative_path)?;
     media.was_uploaded = true;
-    let media = Media::create(&media, &ctx.db).await?;
+    let media = Media::create(&media, &ctx.db).await?.safe_unwrap();
     Ok(Json(media))
 }
 
