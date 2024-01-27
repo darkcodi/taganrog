@@ -58,7 +58,7 @@ impl Tag {
         let query = format!("LET $tag_name = '{name}';
 CREATE {tag_id} SET name = $tag_name, created_at = time::now();
 SELECT * FROM tag WHERE name = $tag_name;");
-        let maybe_tag: Option<Document<Tag>> = db.query(query.as_str()).await?.take(0)?;
+        let maybe_tag: Option<Document<Tag>> = db.query(query.as_str()).await?.take(2)?;
         Ok(DbResult::New(maybe_tag.unwrap().into_inner()))
     }
 

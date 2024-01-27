@@ -203,7 +203,8 @@ async fn add_tag_to_media(
     }
 
     let mut media = maybe_media.unwrap();
-    if media.contains_tag(&req.name) {
+    let contains_tag = media.contains_tag(&req.name);
+    if !contains_tag {
         let tag = Tag::ensure_exists(&req.name, &ctx.db).await?.safe_unwrap();
         Media::add_tag(&media_id, &tag.id, &ctx.db).await?;
         media.add_tag_str(&tag.name);
