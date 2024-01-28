@@ -3,6 +3,7 @@ use itertools::Itertools;
 use surrealdb::engine::local::Db;
 use surrealdb::Surreal;
 use crate::db::{DbResult, Document, SurrealDbResult};
+use crate::db::entities::media::Media;
 use crate::db::id::Id;
 use crate::utils::str_utils::StringExtensions;
 
@@ -70,14 +71,14 @@ SELECT * FROM tag WHERE name = $tag_name;");
         let query = format!("LET $input = [{tags_arr}];
 SELECT id, name, created_at, count(id)
 FROM array::flatten((
-    SELECT ->has->tag AS rel_tags
+    SELECT VALUE ->has->tag.* AS rel_tags
     FROM media
     WHERE ->has->tag.name
     CONTAINSALL $input
 ))
 WHERE $input CONTAINSNOT name
 GROUP BY id, name, created_at;");
-        let tag_vec: Vec<Document<TagWithCount>> = db.query(&query).await?.take(0)?;
+        let tag_vec: Vec<Document<TagWithCount>> = db.query(&query).await?.take(1)?;
         Ok(tag_vec.into_iter().map(|x| x.into_inner()).collect())
     }
 
