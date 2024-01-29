@@ -30,7 +30,8 @@ impl ApiClient {
 
     pub async fn search_tags(&self, query: &str) -> anyhow::Result<reqwest::Response> {
         let url: String = format!("{}/api/tags/search", self.config.api_url);
-        let res = self.client.post(&url).json(&json!({ "tag_name": query })).send().await?;
+        let tags = query.split(" ").map(|x| x.trim()).filter(|x| *x != "").map(|x| x.to_string()).collect::<Vec<String>>();
+        let res = self.client.post(&url).json(&json!({ "tags": tags })).send().await?;
         Ok(res)
     }
 

@@ -11,7 +11,7 @@ pub fn router() -> Router {
     Router::new()
         .route("/api/tags", get(get_all_tags).post(create_tag))
         .route("/api/tags/:tag_id", get(get_tag).delete(delete_tag))
-        .route("/api/tags/count_media", post(count_media))
+        .route("/api/tags/search", post(search_tags))
 }
 
 #[derive(serde::Deserialize, Debug, Default)]
@@ -70,7 +70,7 @@ async fn delete_tag(
     }
 }
 
-async fn count_media(
+async fn search_tags(
     ctx: Extension<ApiContext>,
     Json(req): Json<CountMediaRequest>,
 ) -> Result<Json<Vec<TagWithCount>>> {
