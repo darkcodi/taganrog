@@ -1,7 +1,8 @@
+use futures::StreamExt;
 use serde::de::DeserializeOwned;
 use serde::{Deserialize, Deserializer, Serialize};
 use surrealdb::sql::{Id, Thing};
-use tracing::info;
+use tracing::{error, info};
 use crate::api::ApiContext;
 use crate::db::entities::media::Media;
 use crate::db::entities::tag::Tag;
@@ -27,9 +28,23 @@ impl<T> DbResult<T> {
 }
 
 pub async fn export(ctx: &ApiContext) -> anyhow::Result<()> {
+    let _ = ctx.db_lock.lock().await;
     info!("Starting DB export...");
     let path = ctx.cfg.workdir.join("taganrod.db");
-    ctx.db.export(path).await?;
+    let temp_path = ctx.cfg.workdir.join("taganrod.db.tmp");
+    let mut backup = ctx.db.export(()).await?;
+    while let Some(result) = backup.next().await {
+        match result {
+            Ok(bytes) => {
+                tokio::fs::write(&temp_path, bytes).await?;
+                tokio::fs::rename(&temp_path, &path).await?;
+            }
+            Err(error) => {
+                error!("Error while exporting DB: {:?}", error);
+                return Err(error.into());
+            }
+        }
+    }
     info!("DB Exported!");
     Ok(())
 }

@@ -4,6 +4,7 @@ use std::sync::Arc;
 use path_absolutize::Absolutize;
 use surrealdb::engine::local::{Db, Mem};
 use surrealdb::Surreal;
+use tokio::sync::Mutex;
 use tower::ServiceBuilder;
 use tower_http::cors::{Any, CorsLayer};
 use tower_http::trace::TraceLayer;
@@ -48,6 +49,7 @@ pub async fn serve(workdir: &str) {
     let ctx = ApiContext {
         cfg: Arc::new(config),
         db,
+        db_lock: Arc::new(Mutex::new(())),
     };
     db::migrate(&ctx).await.expect("failed to migrate db");
     db::import(&ctx).await.expect("failed to import db");
@@ -96,4 +98,5 @@ pub struct ApiConfig {
 pub struct ApiContext {
     pub cfg: Arc<ApiConfig>,
     pub db: Surreal<Db>,
+    pub db_lock: Arc<Mutex<()>>,
 }
