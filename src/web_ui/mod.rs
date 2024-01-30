@@ -13,7 +13,7 @@ use tracing_subscriber::filter;
 use tracing_subscriber::layer::SubscriberExt;
 use crate::api::client::ApiClient;
 use crate::db::entities::media::Media;
-use crate::db::entities::tag::Tag;
+use crate::db::entities::tag::{Tag, TagWithCount};
 
 const INDEX_TEMPLATE: &str = include_str!("templates/index.html");
 const SEARCH_TEMPLATE: &str = include_str!("templates/search.html");
@@ -101,7 +101,7 @@ async fn media_search(
 
 #[derive(Debug, Serialize)]
 pub struct TagSearchPageContext {
-    suggestions: Vec<Tag>,
+    suggestions: Vec<TagWithCount>,
 }
 
 async fn tag_search(
@@ -114,7 +114,7 @@ async fn tag_search(
         return RenderHtml(key, engine, TagSearchPageContext { suggestions: vec![] });
     }
     let api_response = api_client.search_tags(&query.q).await.unwrap();
-    let tags: Vec<Tag> = api_response.json().await.unwrap();
+    let tags: Vec<TagWithCount> = api_response.json().await.unwrap();
     let ctx = TagSearchPageContext { suggestions: tags, };
     RenderHtml(key, engine, ctx)
 }

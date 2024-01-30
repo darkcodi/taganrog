@@ -3,7 +3,6 @@ use itertools::Itertools;
 use surrealdb::engine::local::Db;
 use surrealdb::Surreal;
 use crate::db::{DbResult, Document, SurrealDbResult};
-use crate::db::entities::media::Media;
 use crate::db::id::Id;
 use crate::utils::str_utils::StringExtensions;
 
@@ -84,7 +83,9 @@ FROM array::flatten((
 WHERE $head CONTAINSNOT name AND string::startsWith(name, $last)
 GROUP BY id, name, created_at;");
         let tag_vec: Vec<Document<TagWithCount>> = db.query(&query).await?.take(3)?;
-        Ok(tag_vec.into_iter().map(|x| x.into_inner()).collect())
+        let teg_vec = tag_vec.into_iter().map(|x| x.into_inner())
+            .sorted_by_key(|x| x.count).rev().collect();
+        Ok(teg_vec)
     }
 
     pub async fn migrate(db: &Surreal<Db>) -> SurrealDbResult<()> {

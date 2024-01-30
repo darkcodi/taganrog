@@ -3,7 +3,12 @@
 {% else %}
     <ul role="listbox" class="rounded-md border border-gray-300 bg-white shadow-lg">
         {% for suggestion in suggestions %}
-            <li role="option" class="px-4 py-2 hover:bg-gray-300"><a href="/search?q={{ suggestion.name }}" class="text-gray-600">#{{ suggestion.name }}</a></li>
+            <li role="option" class="px-4 py-2 hover:bg-gray-300">
+                <div class="flex flex-row items-center justify-between">
+                    <a href="/search?q={{ suggestion.name }}" class="text-gray-600">#{{ suggestion.name }}</a>
+                    <span class="text-gray-400">({{ suggestion.count }})</span>
+                </div>
+            </li>
         {% endfor %}
     </ul>
 {% endif %}
