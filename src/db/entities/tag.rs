@@ -67,18 +67,23 @@ SELECT * FROM tag WHERE name = $tag_name;");
         tags: &[String],
         db: &Surreal<Db>,
     ) -> SurrealDbResult<Vec<TagWithCount>> {
-        let tags_arr = tags.iter().map(|x| format!("'{}'", x.slugify())).join(", ");
-        let query = format!("LET $input = [{tags_arr}];
+        let head = tags.iter().take(tags.len() - 1).map(|x| format!("'{}'", x.slugify())).join(",");
+        let last = tags.last().unwrap().slugify();
+        let query = format!("LET $head = [{head}];
+LET $last = '{last}';
+
+LET $last_tags = SELECT VALUE name FROM tag WHERE name @1@ $last;
+
 SELECT id, name, created_at, count(id)
 FROM array::flatten((
     SELECT VALUE ->has->tag.* AS rel_tags
     FROM media
-    WHERE ->has->tag.name
-    CONTAINSALL $input
+    WHERE ->has->tag.name CONTAINSALL $head
+    AND (->has->tag.name CONTAINSANY $last_tags OR string::len($last) == 0)
 ))
-WHERE $input CONTAINSNOT name
+WHERE $head CONTAINSNOT name AND string::startsWith(name, $last)
 GROUP BY id, name, created_at;");
-        let tag_vec: Vec<Document<TagWithCount>> = db.query(&query).await?.take(1)?;
+        let tag_vec: Vec<Document<TagWithCount>> = db.query(&query).await?.take(3)?;
         Ok(tag_vec.into_iter().map(|x| x.into_inner()).collect())
     }
 
@@ -88,6 +93,8 @@ DEFINE TABLE tag SCHEMAFULL;
 DEFINE FIELD name ON tag TYPE string ASSERT $value != NONE VALUE $value;
 DEFINE INDEX tag_name ON TABLE tag COLUMNS name UNIQUE;
 DEFINE FIELD created_at ON tag TYPE datetime VALUE $value OR time::now();
+DEFINE ANALYZER autocomplete TOKENIZERS class FILTERS lowercase,ascii,edgengram(1,15);
+DEFINE INDEX ix_name_search ON TABLE tag COLUMNS name SEARCH ANALYZER autocomplete BM25;
 COMMIT TRANSACTION;";
         db.query(query).await?;
         Ok(())
