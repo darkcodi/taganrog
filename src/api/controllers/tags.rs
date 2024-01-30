@@ -4,6 +4,7 @@ use axum::routing::{get, post};
 use axum::{Json, Router};
 
 use crate::api::{ApiContext, Result, ApiError};
+use crate::db;
 use crate::db::DbResult;
 use crate::db::entities::tag::{Tag, TagId, TagWithCount};
 
@@ -33,7 +34,10 @@ async fn create_tag(
         DbResult::Existing(tag) => Err(ApiError::Conflict {
             serialized_entity: serde_json::to_string(&tag).unwrap(),
         }),
-        DbResult::New(tag) => Ok(Json(tag)),
+        DbResult::New(tag) => {
+            db::export(&ctx).await?;
+            Ok(Json(tag))
+        },
     }
 }
 
@@ -66,7 +70,10 @@ async fn delete_tag(
     let maybe_tag = Tag::delete_by_id(&tag_id, &ctx.db).await?;
     match maybe_tag {
         None => Err(ApiError::NotFound),
-        Some(tag) => Ok(Json(tag)),
+        Some(tag) => {
+            db::export(&ctx).await?;
+            Ok(Json(tag))
+        },
     }
 }
 

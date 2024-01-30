@@ -7,6 +7,8 @@ use path_absolutize::Absolutize;
 use relative_path::PathExt;
 use crate::api::error::{ApiError};
 use crate::api::{ApiContext, Result};
+use crate::db;
+use crate::db::DbResult;
 use crate::db::entities::media::{Media, MediaId};
 use crate::db::entities::tag::Tag;
 use crate::utils::hash_utils::MurMurHasher;
@@ -106,8 +108,12 @@ async fn add_media(
     if filepath.is_dir() { return Err(ApiError::unprocessable_entity([("filename", "file is a directory")])); }
 
     let media = Media::from_file(&filepath, &relative_path)?;
-    let media = Media::create(&media, &ctx.db).await?.safe_unwrap();
-    Ok(Json(media))
+    let media = Media::create(&media, &ctx.db).await?;
+    if let DbResult::New(_) = media {
+        db::export(&ctx).await?;
+    }
+    db::export(&ctx).await?;
+    Ok(Json(media.safe_unwrap()))
 }
 
 async fn upload_media(
@@ -148,6 +154,7 @@ async fn upload_media(
     let mut media = Media::from_file(&filepath, &relative_path)?;
     media.was_uploaded = true;
     let media = Media::create(&media, &ctx.db).await?.safe_unwrap();
+    db::export(&ctx).await?;
     Ok(Json(media))
 }
 
@@ -187,7 +194,7 @@ async fn delete_media(
     }
 
     let media = maybe_media.unwrap();
-
+    db::export(&ctx).await?;
     Ok(Json(media))
 }
 
@@ -208,6 +215,7 @@ async fn add_tag_to_media(
         let tag = Tag::ensure_exists(&req.name, &ctx.db).await?.safe_unwrap();
         Media::add_tag(&media_id, &tag.id, &ctx.db).await?;
         media.add_tag_str(&tag.name);
+        db::export(&ctx).await?;
     }
     Ok(Json(media))
 }
@@ -227,6 +235,7 @@ async fn delete_tag_from_media(
     if media.contains_tag(&req.name) {
         Media::remove_tag(&media_id, &req.name, &ctx.db).await?;
         media.remove_tag_str(&req.name);
+        db::export(&ctx).await?;
     }
     Ok(Json(media))
 }

@@ -13,7 +13,7 @@ use tracing_subscriber::layer::SubscriberExt;
 use tracing_subscriber::util::SubscriberInitExt;
 pub use error::{ApiError};
 use crate::api::controllers::{media, ping, tags};
-use crate::db::migrate;
+use crate::db;
 
 mod error;
 mod controllers;
@@ -49,7 +49,8 @@ pub async fn serve(workdir: &str) {
         cfg: Arc::new(config),
         db,
     };
-    migrate(ctx.clone()).await.expect("failed to migrate db");
+    db::migrate(&ctx).await.expect("failed to migrate db");
+    db::import(&ctx).await.expect("failed to import db");
 
     let app = ping::router()
         .merge(media::router())

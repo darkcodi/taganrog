@@ -26,7 +26,26 @@ impl<T> DbResult<T> {
     }
 }
 
-pub async fn migrate(ctx: ApiContext) -> anyhow::Result<()> {
+pub async fn export(ctx: &ApiContext) -> anyhow::Result<()> {
+    info!("Starting DB export...");
+    let path = ctx.cfg.workdir.join("taganrod.db");
+    ctx.db.export(path).await?;
+    info!("DB Exported!");
+    Ok(())
+}
+
+pub async fn import(ctx: &ApiContext) -> anyhow::Result<()> {
+    info!("Starting DB import...");
+    let path = ctx.cfg.workdir.join("taganrod.db");
+    if !path.exists() {
+        export(ctx).await?;
+    }
+    ctx.db.import(path).await?;
+    info!("DB Imported!");
+    Ok(())
+}
+
+pub async fn migrate(ctx: &ApiContext) -> anyhow::Result<()> {
     info!("Starting DB migration...");
     Tag::migrate(&ctx.db).await?;
     Media::migrate(&ctx.db).await?;
