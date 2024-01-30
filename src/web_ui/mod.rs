@@ -110,6 +110,9 @@ async fn tag_search(
     Key(key): Key,
     Query(query): Query<SearchQuery>,
 ) -> impl IntoResponse {
+    if query.q.is_empty() {
+        return RenderHtml(key, engine, TagSearchPageContext { suggestions: vec![] });
+    }
     let api_response = api_client.search_tags(&query.q).await.unwrap();
     let tags: Vec<Tag> = api_response.json().await.unwrap();
     let ctx = TagSearchPageContext { suggestions: tags, };
