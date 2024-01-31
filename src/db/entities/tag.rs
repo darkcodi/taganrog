@@ -19,8 +19,11 @@ pub struct TagWithCount {
 }
 
 impl Tag {
-    pub fn normalize_string(query: &str) -> Vec<String> {
-        let tags = query.split(" ").map(|x| x.trim()).filter(|x| !x.is_empty()).map(|x| x.to_string()).collect::<Vec<String>>();
+    pub fn split_query(query: &str) -> Vec<String> {
+        let mut tags = query.split(" ").map(|x| x.trim()).filter(|x| !x.is_empty()).map(|x| x.to_string()).collect::<Vec<String>>();
+        if tags.len() > 0 && query.ends_with(" ") {
+            tags.push("".to_string());
+        }
         tags
     }
 }

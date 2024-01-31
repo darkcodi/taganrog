@@ -239,7 +239,7 @@ async fn search_media(
 ) -> Result<Json<Vec<Media>>> {
     let page_size = req.s.unwrap_or(5).clamp(1, 50);
     let page_index = req.p.unwrap_or(0);
-    let tags = Tag::normalize_string(&req.q);
+    let tags = Tag::split_query(&req.q);
     if tags.len() == 0 || tags.len() == 1 && tags.first().unwrap() == "null" {
         let media_vec = db::get_untagged_media(&ctx).await?;
         Ok(Json(media_vec))

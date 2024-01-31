@@ -164,6 +164,7 @@ WHERE array::len(->has->tag) == 0;";
     ) -> SurrealDbResult<Vec<Media>> {
         let start = page_size * page_index;
         let limit = page_size;
+        let tags = tags.iter().filter(|x| !x.is_empty()).map(|x| x.to_string()).collect::<Vec<String>>();
         let head = tags.iter().take(tags.len() - 1).map(|x| format!("'{}'", x.slugify())).join(",");
         let last = tags.last().unwrap().slugify();
         let query = format!("LET $head = [{head}];
@@ -174,7 +175,7 @@ LET $last_tags = SELECT VALUE name FROM tag WHERE name @1@ $last;
 SELECT *, ->has->tag.name AS tags
 FROM media
 WHERE ->has->tag.name CONTAINSALL $head
-AND (->has->tag.name CONTAINSANY $last_tags OR string::len($last) == 0)
+AND ->has->tag.name CONTAINSANY $last_tags
 ORDER BY created_at DESC
 LIMIT {limit} START {start};");
         debug!("DB Request: {query}");
@@ -228,31 +229,78 @@ LIMIT {limit} START {start};");
     ) -> SurrealDbResult<Vec<TagWithCount>> {
         let start = page_size * page_index;
         let limit = page_size;
+        let suggest_next_tag = tags.len() > 0 && tags.last().unwrap().is_empty();
+        let tags = tags.iter().filter(|x| !x.is_empty()).map(|x| x.to_string()).collect::<Vec<String>>();
         let head = tags.iter().take(tags.len() - 1).map(|x| format!("'{}'", x.slugify())).join(",");
-        let last = tags.last().unwrap().slugify();
+        let last = tags.last().unwrap_or(&"".to_string()).slugify();
+
+        // if query is 'a b c ', then head = ['a', 'b'], last = 'c', suggest_next_tag = true
+        // if query is 'a b c', then head = ['a', 'b'], last = 'c', suggest_next_tag = false
+        // if query is 'a b ', then head = ['a'], last = 'b', suggest_next_tag = true
+        // if query is 'a b', then head = ['a'], last = 'b', suggest_next_tag = false
+        // if query is 'a ', then head = [], last = 'a', suggest_next_tag = true
+        // if query is 'a', then head = [], last = 'a', suggest_next_tag = false
+        // query CAN NOT be empty or contain only spaces
+        // SO, 'head' CAN be empty, but 'last' CAN NOT be empty
+        // if suggest_next_tag is false, then we are looking for:
+        //   1) exact matches on head and exact matches on last (res1)
+        //   2) exact matches on head and fuzzy matches on last (res2)
+        // if suggest_next_tag is true, then we are looking for:
+        //   1) exact matches on head and exact matches on last (res1)
+        //   2) exact matches on head and exact matches on last and some next tag (res3)
         let query = format!("LET $head = [{head}];
 LET $last = '{last}';
+LET $suggest_next_tag = {suggest_next_tag};
 
-LET $last_tags = SELECT VALUE name FROM tag WHERE name @1@ $last;
+LET $exact_match_last_tags = SELECT VALUE name FROM tag WHERE name == $last;
+LET $fuzzy_match_last_tags = SELECT VALUE name FROM tag WHERE name @1@ $last AND name != $last;
 
-SELECT * FROM
-(
+LET $res1_exact_match =
     SELECT id, name, created_at, count(id) AS count
     FROM array::flatten((
         SELECT VALUE ->has->tag.* AS rel_tags
         FROM media
         WHERE ->has->tag.name CONTAINSALL $head
-        AND (->has->tag.name CONTAINSANY $last_tags OR string::len($last) == 0)
+        AND ->has->tag.name CONTAINSANY $exact_match_last_tags
     ))
-    WHERE $head CONTAINSNOT name AND string::startsWith(name, $last)
+    WHERE name == $last
     GROUP BY id, name, created_at
-)
-ORDER BY count DESC
-LIMIT {limit} START {start};");
+    ORDER BY count DESC
+    LIMIT 1;
+
+LET $res2_fuzzy_match =
+    SELECT id, name, created_at, count(id) AS count
+    FROM array::flatten((
+        SELECT VALUE ->has->tag.* AS rel_tags
+        FROM media
+        WHERE $suggest_next_tag == false
+        AND ->has->tag.name CONTAINSALL $head
+        AND ->has->tag.name CONTAINSANY $fuzzy_match_last_tags
+    ))
+    WHERE $fuzzy_match_last_tags CONTAINS name
+    GROUP BY id, name, created_at
+    ORDER BY count DESC
+    LIMIT {limit} START {start};
+
+LET $res3_next_tag =
+    SELECT id, name, created_at, count(id) AS count
+    FROM array::flatten((
+        SELECT VALUE ->has->tag.* AS rel_tags
+        FROM media
+        WHERE $suggest_next_tag == true
+        AND ->has->tag.name CONTAINSALL $head
+        AND ->has->tag.name CONTAINSANY $exact_match_last_tags
+    ))
+    WHERE $head CONTAINSNOT name AND $last != name
+    GROUP BY id, name, created_at
+    ORDER BY count DESC
+    LIMIT {limit} START {start};
+
+SELECT * FROM array::concat(array::concat($res1_exact_match, $res2_fuzzy_match), $res3_next_tag);");
         debug!("DB Request: {query}");
         let mut response = db.query(query.as_str()).await?;
         debug!("DB Response: {:?}", response);
-        let tag_vec: Vec<Document<TagWithCount>> = response.take(3)?;
+        let tag_vec: Vec<Document<TagWithCount>> = response.take(8)?;
         let teg_vec = tag_vec.into_iter().map(|x| x.into_inner()).collect();
         Ok(teg_vec)
     }
