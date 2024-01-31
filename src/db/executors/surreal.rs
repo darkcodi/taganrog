@@ -218,21 +218,24 @@ LET $last = '{last}';
 
 LET $last_tags = SELECT VALUE name FROM tag WHERE name @1@ $last;
 
-SELECT id, name, created_at, count(id)
-FROM array::flatten((
-    SELECT VALUE ->has->tag.* AS rel_tags
-    FROM media
-    WHERE ->has->tag.name CONTAINSALL $head
-    AND (->has->tag.name CONTAINSANY $last_tags OR string::len($last) == 0)
-))
-WHERE $head CONTAINSNOT name AND string::startsWith(name, $last)
-GROUP BY id, name, created_at;");
+SELECT * FROM
+(
+    SELECT id, name, created_at, count(id) AS count
+    FROM array::flatten((
+        SELECT VALUE ->has->tag.* AS rel_tags
+        FROM media
+        WHERE ->has->tag.name CONTAINSALL $head
+        AND (->has->tag.name CONTAINSANY $last_tags OR string::len($last) == 0)
+    ))
+    WHERE $head CONTAINSNOT name AND string::startsWith(name, $last)
+    GROUP BY id, name, created_at
+)
+ORDER BY count DESC LIMIT 10;");
         debug!("DB Request: {query}");
         let mut response = db.query(query.as_str()).await?;
         debug!("DB Response: {:?}", response);
         let tag_vec: Vec<Document<TagWithCount>> = response.take(3)?;
-        let teg_vec = tag_vec.into_iter().map(|x| x.into_inner())
-            .sorted_by_key(|x| x.count).rev().collect();
+        let teg_vec = tag_vec.into_iter().map(|x| x.into_inner()).collect();
         Ok(teg_vec)
     }
 
