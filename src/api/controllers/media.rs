@@ -36,7 +36,7 @@ struct TagBody {
 
 #[derive(serde::Deserialize, Debug, Default)]
 struct SearchBody {
-    tags: Vec<String>,
+    q: String,
 }
 
 #[derive(serde::Deserialize, Debug, Default)]
@@ -234,16 +234,17 @@ async fn search_media(
     ctx: Extension<ApiContext>,
     Json(req): Json<SearchBody>,
 ) -> Result<Json<Vec<Media>>> {
-    if req.tags.len() == 1 && req.tags.first().unwrap() == "null" {
+    let tags = req.q.split(" ").map(|x| x.trim()).filter(|x| !x.is_empty()).map(|x| x.to_string()).collect::<Vec<String>>();
+    if tags.len() == 0 || tags.len() == 1 && tags.first().unwrap() == "null" {
         let media_vec = db::get_untagged_media(&ctx).await?;
         Ok(Json(media_vec))
     }
-    else if req.tags.len() == 1 && req.tags.first().unwrap() == "all" {
+    else if tags.len() == 1 && tags.first().unwrap() == "all" {
         let media_vec = db::get_all_media(&ctx, 10, 0).await?;
         Ok(Json(media_vec))
     }
     else {
-        let media_vec = db::search_media(&ctx, &req.tags).await?;
+        let media_vec = db::search_media(&ctx, &tags).await?;
         Ok(Json(media_vec))
     }
 }
