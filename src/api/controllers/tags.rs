@@ -5,7 +5,6 @@ use axum::{Json, Router};
 
 use crate::api::{ApiContext, Result, ApiError};
 use crate::db;
-use crate::db::DbResult;
 use crate::db::entities::tag::{Tag, TagId, TagWithCount};
 
 pub fn router() -> Router {
@@ -29,22 +28,14 @@ async fn create_tag(
     ctx: Extension<ApiContext>,
     Json(req): Json<CreateTag>,
 ) -> Result<Json<Tag>> {
-    let db_result = Tag::ensure_exists(&req.name, &ctx.db).await?;
-    match db_result {
-        DbResult::Existing(tag) => Err(ApiError::Conflict {
-            serialized_entity: serde_json::to_string(&tag).unwrap(),
-        }),
-        DbResult::New(tag) => {
-            db::export(&ctx).await?;
-            Ok(Json(tag))
-        },
-    }
+    let tag = db::create_tag(&ctx, &req.name).await?;
+    Ok(Json(tag))
 }
 
 async fn get_all_tags(
     ctx: Extension<ApiContext>,
 ) -> Result<Json<Vec<Tag>>> {
-    let tags = Tag::get_all(&ctx.db).await?;
+    let tags = db::get_all_tags(&ctx).await?;
     Ok(Json(tags))
 }
 
@@ -53,7 +44,7 @@ async fn get_tag(
     Path(tag_id): Path<String>,
 ) -> Result<Json<Tag>> {
     let tag_id = TagId::from_str(&tag_id)?;
-    let maybe_tag = Tag::get_by_id(&tag_id, &ctx.db).await?;
+    let maybe_tag = db::get_tag_by_id(&ctx, &tag_id).await?;
     if maybe_tag.is_none() {
         return Err(ApiError::NotFound);
     }
@@ -67,11 +58,10 @@ async fn delete_tag(
     Path(tag_id): Path<String>,
 ) -> Result<Json<Tag>> {
     let tag_id = TagId::from_str(&tag_id)?;
-    let maybe_tag = Tag::delete_by_id(&tag_id, &ctx.db).await?;
+    let maybe_tag = db::delete_tag_by_id(&ctx, &tag_id).await?;
     match maybe_tag {
         None => Err(ApiError::NotFound),
         Some(tag) => {
-            db::export(&ctx).await?;
             Ok(Json(tag))
         },
     }
@@ -81,6 +71,6 @@ async fn search_tags(
     ctx: Extension<ApiContext>,
     Json(req): Json<CountMediaRequest>,
 ) -> Result<Json<Vec<TagWithCount>>> {
-    let counts_vec = Tag::count_media(&req.tags, &ctx.db).await?;
+    let counts_vec = db::search_tags(&ctx, &req.tags).await?;
     Ok(Json(counts_vec))
 }

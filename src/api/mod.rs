@@ -2,6 +2,7 @@ use std::path::PathBuf;
 use axum::Extension;
 use std::sync::Arc;
 use path_absolutize::Absolutize;
+use simple_wal::LogFile;
 use surrealdb::engine::local::{Db, Mem};
 use surrealdb::Surreal;
 use tokio::sync::Mutex;
@@ -29,8 +30,8 @@ pub async fn serve(workdir: &str) {
     let tracing_layer = tracing_subscriber::fmt::layer();
     let filter = filter::Targets::new()
         // .with_target("tower_http::trace::on_request", Level::DEBUG)
-        .with_target("tower_http::trace::on_response", Level::DEBUG)
-        .with_target("tower_http::trace::make_span", Level::DEBUG)
+        // .with_target("tower_http::trace::on_response", Level::DEBUG)
+        // .with_target("tower_http::trace::make_span", Level::DEBUG)
         .with_default(Level::INFO);
     tracing_subscriber::registry()
         .with(tracing_layer)
@@ -39,20 +40,20 @@ pub async fn serve(workdir: &str) {
 
     let workdir = get_or_create_workdir_path(workdir).expect("failed to get or create workdir path");
     let db_path = get_or_create_db_path(&workdir).expect("failed to get or create db path");
-    let config: ApiConfig = ApiConfig { workdir };
+    let config: ApiConfig = ApiConfig { workdir, db_path };
     info!("{:?}", &config);
 
+    let log_file = LogFile::open(&config.db_path).expect("failed to open log file");
     let db = Surreal::new::<Mem>(()).await.expect("failed to open db connection");
     db.use_ns("taganrog").await.expect("failed to use namespace");
     db.use_db("taganrog").await.expect("failed to use database");
 
     let ctx = ApiContext {
         cfg: Arc::new(config),
+        wal: Arc::new(Mutex::new(log_file)),
         db,
-        db_lock: Arc::new(Mutex::new(())),
     };
-    db::migrate(&ctx).await.expect("failed to migrate db");
-    db::import(&ctx).await.expect("failed to import db");
+    db::init(&ctx).await.expect("failed to init db");
 
     let app = ping::router()
         .merge(media::router())
@@ -86,17 +87,21 @@ fn get_or_create_db_path(workdir: &PathBuf) -> anyhow::Result<PathBuf> {
     if db_path.exists() && !db_path.is_file() {
         anyhow::bail!("db_path is not a file");
     }
+    if !db_path.exists() {
+        std::fs::write(&db_path, "")?;
+    }
     Ok(db_path)
 }
 
 #[derive(Debug)]
 pub struct ApiConfig {
     pub workdir: PathBuf,
+    pub db_path: PathBuf,
 }
 
 #[derive(Clone)]
 pub struct ApiContext {
     pub cfg: Arc<ApiConfig>,
+    pub wal: Arc<Mutex<LogFile>>,
     pub db: Surreal<Db>,
-    pub db_lock: Arc<Mutex<()>>,
 }

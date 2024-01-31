@@ -8,9 +8,7 @@ use relative_path::PathExt;
 use crate::api::error::{ApiError};
 use crate::api::{ApiContext, Result};
 use crate::db;
-use crate::db::DbResult;
 use crate::db::entities::media::{Media, MediaId};
-use crate::db::entities::tag::Tag;
 use crate::utils::hash_utils::MurMurHasher;
 
 const MAX_UPLOAD_SIZE_IN_BYTES: usize = 52_428_800; // 50 MB
@@ -108,12 +106,8 @@ async fn add_media(
     if filepath.is_dir() { return Err(ApiError::unprocessable_entity([("filename", "file is a directory")])); }
 
     let media = Media::from_file(&filepath, &relative_path)?;
-    let media = Media::create(&media, &ctx.db).await?;
-    if let DbResult::New(_) = media {
-        db::export(&ctx).await?;
-    }
-    db::export(&ctx).await?;
-    Ok(Json(media.safe_unwrap()))
+    let media = db::create_media(&ctx, &media).await?;
+    Ok(Json(media))
 }
 
 async fn upload_media(
@@ -135,7 +129,7 @@ async fn upload_media(
         .map_err(|x| ApiError::unprocessable_entity([("file", format!("multipart error: {}", x.to_string()))]))?
         .to_vec();
     let hash = MurMurHasher::hash_bytes(data.as_slice());
-    let existing_media = Media::get_by_hash(&hash, &ctx.db).await?;
+    let existing_media = db::get_media_by_hash(&ctx, &hash).await?;
     if existing_media.is_some() {
         return Err(ApiError::conflict(existing_media));
     }
@@ -153,8 +147,7 @@ async fn upload_media(
     std::fs::write(&filepath, data)?;
     let mut media = Media::from_file(&filepath, &relative_path)?;
     media.was_uploaded = true;
-    let media = Media::create(&media, &ctx.db).await?.safe_unwrap();
-    db::export(&ctx).await?;
+    media = db::create_media(&ctx, &media).await?;
     Ok(Json(media))
 }
 
@@ -164,8 +157,7 @@ async fn get_all_media(
 ) -> Result<Json<Vec<Media>>> {
     let page_size = pagination.page_size.unwrap_or(10).clamp(1, 50);
     let page_index = pagination.page_index.unwrap_or(0);
-    let media_vec: Vec<Media> = Media::get_all(page_size, page_index, &ctx.db).await?;
-
+    let media_vec = db::get_all_media(&ctx, page_size, page_index).await?;
     Ok(Json(media_vec))
 }
 
@@ -174,7 +166,7 @@ async fn get_media(
     Path(media_id): Path<String>,
 ) -> Result<Json<Media>> {
     let media_id = MediaId::from_str(&media_id)?;
-    let maybe_media = Media::get_by_id(&media_id, &ctx.db).await?;
+    let maybe_media = db::get_media_by_id(&ctx, &media_id).await?;
     if maybe_media.is_none() {
         return Err(ApiError::NotFound);
     }
@@ -188,13 +180,12 @@ async fn delete_media(
     Path(media_id): Path<String>,
 ) -> Result<Json<Media>> {
     let media_id = MediaId::from_str(&media_id)?;
-    let maybe_media = Media::delete_by_id(&media_id, &ctx.db).await?;
+    let maybe_media = db::delete_media_by_id(&ctx, &media_id).await?;
     if maybe_media.is_none() {
         return Err(ApiError::NotFound);
     }
 
     let media = maybe_media.unwrap();
-    db::export(&ctx).await?;
     Ok(Json(media))
 }
 
@@ -204,7 +195,7 @@ async fn add_tag_to_media(
     Json(req): Json<TagBody>,
 ) -> Result<Json<Media>> {
     let media_id = MediaId::from_str(&media_id)?;
-    let maybe_media = Media::get_by_id(&media_id, &ctx.db).await?;
+    let maybe_media = db::get_media_by_id(&ctx, &media_id).await?;
     if maybe_media.is_none() {
         return Err(ApiError::NotFound);
     }
@@ -212,10 +203,9 @@ async fn add_tag_to_media(
     let mut media = maybe_media.unwrap();
     let contains_tag = media.contains_tag(&req.name);
     if !contains_tag {
-        let tag = Tag::ensure_exists(&req.name, &ctx.db).await?.safe_unwrap();
-        Media::add_tag(&media_id, &tag.id, &ctx.db).await?;
+        let tag = db::create_tag(&ctx, &req.name).await?;
+        db::add_tag_to_media(&ctx, &media_id, &tag.id).await?;
         media.add_tag_str(&tag.name);
-        db::export(&ctx).await?;
     }
     Ok(Json(media))
 }
@@ -226,16 +216,16 @@ async fn delete_tag_from_media(
     Json(req): Json<TagBody>,
 ) -> Result<Json<Media>> {
     let media_id = MediaId::from_str(&media_id)?;
-    let maybe_media = Media::get_by_id(&media_id, &ctx.db).await?;
+    let maybe_media = db::get_media_by_id(&ctx, &media_id).await?;
     if maybe_media.is_none() {
         return Err(ApiError::NotFound);
     }
 
     let mut media = maybe_media.unwrap();
     if media.contains_tag(&req.name) {
-        Media::remove_tag(&media_id, &req.name, &ctx.db).await?;
+        let tag = db::create_tag(&ctx, &req.name).await?;
+        db::remove_tag_from_media(&ctx, &media_id, &tag.id).await?;
         media.remove_tag_str(&req.name);
-        db::export(&ctx).await?;
     }
     Ok(Json(media))
 }
@@ -245,15 +235,15 @@ async fn search_media(
     Json(req): Json<SearchBody>,
 ) -> Result<Json<Vec<Media>>> {
     if req.tags.len() == 1 && req.tags.first().unwrap() == "null" {
-        let media_vec: Vec<Media> = Media::get_untagged(&ctx.db).await?;
+        let media_vec = db::get_untagged_media(&ctx).await?;
         Ok(Json(media_vec))
     }
     else if req.tags.len() == 1 && req.tags.first().unwrap() == "all" {
-        let media_vec: Vec<Media> = Media::get_all(50, 0, &ctx.db).await?;
+        let media_vec = db::get_all_media(&ctx, 10, 0).await?;
         Ok(Json(media_vec))
     }
     else {
-        let media_vec: Vec<Media> = Media::search(&req.tags, &ctx.db).await?;
+        let media_vec = db::search_media(&ctx, &req.tags).await?;
         Ok(Json(media_vec))
     }
 }

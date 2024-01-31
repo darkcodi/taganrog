@@ -13,7 +13,7 @@ use tracing_subscriber::filter;
 use tracing_subscriber::layer::SubscriberExt;
 use crate::api::client::ApiClient;
 use crate::db::entities::media::Media;
-use crate::db::entities::tag::{Tag, TagWithCount};
+use crate::db::entities::tag::TagWithCount;
 
 const INDEX_TEMPLATE: &str = include_str!("templates/index.html");
 const SEARCH_TEMPLATE: &str = include_str!("templates/search.html");
