@@ -14,7 +14,7 @@ use tracing_subscriber::filter;
 use tracing_subscriber::layer::SubscriberExt;
 use tracing_subscriber::util::SubscriberInitExt;
 pub use error::{ApiError};
-use crate::api::controllers::{media, ping, tags};
+use crate::api::controllers::{media, ping, tag};
 use crate::db;
 
 mod error;
@@ -58,7 +58,7 @@ pub async fn serve(workdir: &str) {
 
     let app = ping::router()
         .merge(media::router())
-        .merge(tags::router())
+        .merge(tag::router())
         .layer(CorsLayer::new().allow_methods(Any).allow_headers(Any).allow_origin(Any))
         .layer(ServiceBuilder::new().layer(Extension(ctx)).layer(TraceLayer::new_for_http()),
     );

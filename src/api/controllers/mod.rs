@@ -1,3 +1,3 @@
 pub mod media;
-pub mod tags;
+pub mod tag;
 pub mod ping;
