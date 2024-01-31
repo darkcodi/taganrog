@@ -20,8 +20,10 @@ struct CreateTag {
 }
 
 #[derive(serde::Deserialize, Debug, Default)]
-struct CountMediaRequest {
-    tags: Vec<String>,
+struct SearchTagsBody {
+    q: String,
+    p: Option<u64>,
+    s: Option<u64>,
 }
 
 async fn create_tag(
@@ -69,8 +71,11 @@ async fn delete_tag(
 
 async fn search_tags(
     ctx: Extension<ApiContext>,
-    Json(req): Json<CountMediaRequest>,
+    Json(req): Json<SearchTagsBody>,
 ) -> Result<Json<Vec<TagWithCount>>> {
-    let counts_vec = db::search_tags(&ctx, &req.tags).await?;
+    let page_size = req.s.unwrap_or(10).clamp(1, 50);
+    let page_index = req.p.unwrap_or(0);
+    let tags = Tag::normalize_string(&req.q);
+    let counts_vec = db::search_tags(&ctx, &tags, page_size, page_index).await?;
     Ok(Json(counts_vec))
 }

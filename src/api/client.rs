@@ -28,16 +28,15 @@ impl ApiClient {
         Ok(res)
     }
 
-    pub async fn search_tags(&self, query: &str) -> anyhow::Result<reqwest::Response> {
+    pub async fn search_tags(&self, query: &str, page: u64) -> anyhow::Result<reqwest::Response> {
         let url: String = format!("{}/api/tags/search", self.config.api_url);
-        let tags = query.split(" ").map(|x| x.trim()).filter(|x| *x != "").map(|x| x.to_string()).collect::<Vec<String>>();
-        let res = self.client.post(&url).json(&json!({ "tags": tags })).send().await?;
+        let res = self.client.post(&url).json(&json!({ "q": query, "p": page })).send().await?;
         Ok(res)
     }
 
-    pub async fn search_media(&self, query: &str) -> anyhow::Result<reqwest::Response> {
+    pub async fn search_media(&self, query: &str, page: u64) -> anyhow::Result<reqwest::Response> {
         let url: String = format!("{}/api/media/search", self.config.api_url);
-        let res = self.client.post(&url).json(&json!({ "q": query })).send().await?;
+        let res = self.client.post(&url).json(&json!({ "q": query, "p": page })).send().await?;
         Ok(res)
     }
 }

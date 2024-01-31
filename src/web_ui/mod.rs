@@ -76,6 +76,7 @@ async fn index(
 #[derive(Deserialize)]
 struct SearchQuery {
     q: String,
+    p: Option<u64>,
 }
 
 #[derive(Debug, Serialize)]
@@ -90,7 +91,11 @@ async fn media_search(
     Key(key): Key,
     Query(query): Query<SearchQuery>,
 ) -> impl IntoResponse {
-    let api_response = api_client.search_media(&query.q).await.unwrap();
+    if query.q.is_empty() {
+        return RenderHtml(key, engine, SearchPageContext { query: "".to_string(), media_vec: vec![] });
+    }
+    let page = query.p.unwrap_or(0);
+    let api_response = api_client.search_media(&query.q, page).await.unwrap();
     let media_vec: Vec<Media> = api_response.json().await.unwrap();
     let ctx = SearchPageContext {
         query: query.q,
@@ -113,7 +118,8 @@ async fn tag_search(
     if query.q.is_empty() {
         return RenderHtml(key, engine, TagSearchPageContext { suggestions: vec![] });
     }
-    let api_response = api_client.search_tags(&query.q).await.unwrap();
+    let page = query.p.unwrap_or(0);
+    let api_response = api_client.search_tags(&query.q, page).await.unwrap();
     let tags: Vec<TagWithCount> = api_response.json().await.unwrap();
     let ctx = TagSearchPageContext { suggestions: tags, };
     RenderHtml(key, engine, ctx)

@@ -159,7 +159,11 @@ WHERE array::len(->has->tag) == 0;";
     async fn search_media(
         db: &Surreal<Db>,
         tags: &[String],
+        page_size: u64,
+        page_index: u64,
     ) -> SurrealDbResult<Vec<Media>> {
+        let start = page_size * page_index;
+        let limit = page_size;
         let head = tags.iter().take(tags.len() - 1).map(|x| format!("'{}'", x.slugify())).join(",");
         let last = tags.last().unwrap().slugify();
         let query = format!("LET $head = [{head}];
@@ -171,7 +175,8 @@ SELECT *, ->has->tag.name AS tags
 FROM media
 WHERE ->has->tag.name CONTAINSALL $head
 AND (->has->tag.name CONTAINSANY $last_tags OR string::len($last) == 0)
-ORDER BY created_at DESC;");
+ORDER BY created_at DESC
+LIMIT {limit} START {start};");
         debug!("DB Request: {query}");
         let mut response = db.query(query.as_str()).await?;
         debug!("DB Response: {:?}", response);
@@ -218,7 +223,11 @@ ORDER BY created_at DESC;");
     async fn search_tags(
         db: &Surreal<Db>,
         tags: &[String],
+        page_size: u64,
+        page_index: u64,
     ) -> SurrealDbResult<Vec<TagWithCount>> {
+        let start = page_size * page_index;
+        let limit = page_size;
         let head = tags.iter().take(tags.len() - 1).map(|x| format!("'{}'", x.slugify())).join(",");
         let last = tags.last().unwrap().slugify();
         let query = format!("LET $head = [{head}];
@@ -238,7 +247,8 @@ SELECT * FROM
     WHERE $head CONTAINSNOT name AND string::startsWith(name, $last)
     GROUP BY id, name, created_at
 )
-ORDER BY count DESC LIMIT 10;");
+ORDER BY count DESC
+LIMIT {limit} START {start};");
         debug!("DB Request: {query}");
         let mut response = db.query(query.as_str()).await?;
         debug!("DB Response: {:?}", response);
@@ -269,7 +279,7 @@ size = {size},
 location = '{location}',
 was_uploaded = {was_uploaded};");
         debug!("DB Request: {query}");
-        let mut response = db.query(query.as_str()).await?;
+        let response = db.query(query.as_str()).await?;
         debug!("DB Response: {:?}", response);
         let response_result = response.check();
         if let Err(surrealdb::Error::Db(surrealdb::err::Error::IndexExists { .. })) = response_result {
@@ -294,7 +304,7 @@ was_uploaded = {was_uploaded};");
 SET name = '{name}',
 created_at = time::now();");
         debug!("DB Request: {query}");
-        let mut response = db.query(query.as_str()).await?;
+        let response = db.query(query.as_str()).await?;
         debug!("DB Response: {:?}", response);
         let response_result = response.check();
         if let Err(surrealdb::Error::Db(surrealdb::err::Error::IndexExists { .. })) = response_result {

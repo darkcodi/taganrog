@@ -68,8 +68,8 @@ pub async fn get_untagged_media(ctx: &ApiContext) -> anyhow::Result<Vec<Media>> 
     Ok(media_vec)
 }
 
-pub async fn search_media(ctx: &ApiContext, tags: &[String]) -> anyhow::Result<Vec<Media>> {
-    let media_vec = SurrealDbExecutor::search_media(&ctx.db, tags).await?;
+pub async fn search_media(ctx: &ApiContext, tags: &[String], page_size: u64, page_index: u64) -> anyhow::Result<Vec<Media>> {
+    let media_vec = SurrealDbExecutor::search_media(&ctx.db, tags, page_size, page_index).await?;
     Ok(media_vec)
 }
 
@@ -83,8 +83,8 @@ pub async fn get_tag_by_id(ctx: &ApiContext, id: &TagId) -> anyhow::Result<Optio
     Ok(maybe_tag)
 }
 
-pub async fn search_tags(ctx: &ApiContext, tags: &[String]) -> anyhow::Result<Vec<TagWithCount>> {
-    let tag_vec = SurrealDbExecutor::search_tags(&ctx.db, tags).await?;
+pub async fn search_tags(ctx: &ApiContext, tags: &[String], page_size: u64, page_index: u64) -> anyhow::Result<Vec<TagWithCount>> {
+    let tag_vec = SurrealDbExecutor::search_tags(&ctx.db, tags, page_size, page_index).await?;
     Ok(tag_vec)
 }
 

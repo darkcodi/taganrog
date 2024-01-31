@@ -17,11 +17,11 @@ pub trait DbExecutor {
     async fn get_media_by_hash(db: &Self::Db, hash: &str) -> Result<Option<Media>, Self::DbError>;
     async fn get_all_media(db: &Self::Db, page_size: u64, page_index: u64) -> Result<Vec<Media>, Self::DbError>;
     async fn get_untagged_media(db: &Self::Db) -> Result<Vec<Media>, Self::DbError>;
-    async fn search_media(db: &Self::Db, tags: &[String]) -> Result<Vec<Media>, Self::DbError>;
+    async fn search_media(db: &Self::Db, tags: &[String], page_size: u64, page_index: u64) -> Result<Vec<Media>, Self::DbError>;
     async fn get_all_tags(db: &Self::Db) -> Result<Vec<Tag>, Self::DbError>;
     async fn get_tag_by_id(db: &Self::Db, id: &TagId) -> Result<Option<Tag>, Self::DbError>;
     async fn get_tag_by_name(db: &Self::Db, name: &str) -> Result<Option<Tag>, Self::DbError>;
-    async fn search_tags(db: &Self::Db, tags: &[String]) -> Result<Vec<TagWithCount>, Self::DbError>;
+    async fn search_tags(db: &Self::Db, tags: &[String], page_size: u64, page_index: u64) -> Result<Vec<TagWithCount>, Self::DbError>;
 
     // write operations
     async fn create_media(db: &Self::Db, media: &Media) -> Result<DbInsertResult<Media>, Self::DbError>;

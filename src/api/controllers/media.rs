@@ -9,6 +9,7 @@ use crate::api::error::{ApiError};
 use crate::api::{ApiContext, Result};
 use crate::db;
 use crate::db::entities::media::{Media, MediaId};
+use crate::db::entities::tag::Tag;
 use crate::utils::hash_utils::MurMurHasher;
 
 const MAX_UPLOAD_SIZE_IN_BYTES: usize = 52_428_800; // 50 MB
@@ -35,8 +36,10 @@ struct TagBody {
 }
 
 #[derive(serde::Deserialize, Debug, Default)]
-struct SearchBody {
+struct SearchMediaBody {
     q: String,
+    p: Option<u64>,
+    s: Option<u64>,
 }
 
 #[derive(serde::Deserialize, Debug, Default)]
@@ -232,9 +235,11 @@ async fn delete_tag_from_media(
 
 async fn search_media(
     ctx: Extension<ApiContext>,
-    Json(req): Json<SearchBody>,
+    Json(req): Json<SearchMediaBody>,
 ) -> Result<Json<Vec<Media>>> {
-    let tags = req.q.split(" ").map(|x| x.trim()).filter(|x| !x.is_empty()).map(|x| x.to_string()).collect::<Vec<String>>();
+    let page_size = req.s.unwrap_or(5).clamp(1, 50);
+    let page_index = req.p.unwrap_or(0);
+    let tags = Tag::normalize_string(&req.q);
     if tags.len() == 0 || tags.len() == 1 && tags.first().unwrap() == "null" {
         let media_vec = db::get_untagged_media(&ctx).await?;
         Ok(Json(media_vec))
@@ -244,7 +249,7 @@ async fn search_media(
         Ok(Json(media_vec))
     }
     else {
-        let media_vec = db::search_media(&ctx, &tags).await?;
+        let media_vec = db::search_media(&ctx, &tags, page_size, page_index).await?;
         Ok(Json(media_vec))
     }
 }
