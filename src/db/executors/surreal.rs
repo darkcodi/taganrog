@@ -160,14 +160,22 @@ WHERE array::len(->has->tag) == 0;";
         db: &Surreal<Db>,
         tags: &[String],
     ) -> SurrealDbResult<Vec<Media>> {
-        let tags_arr = tags.iter().map(|x| format!("'{}'", x.slugify())).join(", ");
-        let query = format!("SELECT *, ->has->tag.name AS tags
+        let head = tags.iter().take(tags.len() - 1).map(|x| format!("'{}'", x.slugify())).join(",");
+        let last = tags.last().unwrap().slugify();
+        let query = format!("LET $head = [{head}];
+LET $last = '{last}';
+
+LET $last_tags = SELECT VALUE name FROM tag WHERE name @1@ $last;
+
+SELECT *, ->has->tag.name AS tags
 FROM media
-WHERE ->has->tag.name CONTAINSALL [{tags_arr}];");
+WHERE ->has->tag.name CONTAINSALL $head
+AND (->has->tag.name CONTAINSANY $last_tags OR string::len($last) == 0)
+ORDER BY created_at DESC;");
         debug!("DB Request: {query}");
         let mut response = db.query(query.as_str()).await?;
         debug!("DB Response: {:?}", response);
-        let media_vec: Vec<Document<Media>> = response.take(0)?;
+        let media_vec: Vec<Document<Media>> = response.take(3)?;
         Ok(media_vec.into_iter().map(|x| x.into_inner()).collect())
     }
 
