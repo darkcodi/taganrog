@@ -6,7 +6,6 @@ use std::borrow::Cow;
 use std::collections::HashMap;
 use tracing::error;
 use crate::api::{APPLICATION_JSON, CONTENT_TYPE_HEADER};
-use crate::db::id::IdError;
 
 #[derive(thiserror::Error, Debug)]
 pub enum ApiError {
@@ -28,9 +27,6 @@ pub enum ApiError {
     UnprocessableEntity {
         errors: HashMap<Cow<'static, str>, Vec<Cow<'static, str>>>,
     },
-
-    #[error("invalid id: {0}")]
-    IdError(#[from] IdError),
 
     #[error("io error: {0}")]
     IoErr(#[from] std::io::Error),
@@ -69,7 +65,6 @@ impl ApiError {
             Self::NotFound => StatusCode::NOT_FOUND,
             Self::Conflict { .. } => StatusCode::CONFLICT,
             Self::UnprocessableEntity { .. } => StatusCode::UNPROCESSABLE_ENTITY,
-            Self::IdError(_) => StatusCode::BAD_REQUEST,
             Self::IoErr(_) | Self::Anyhow(_) => StatusCode::INTERNAL_SERVER_ERROR,
         }
     }
@@ -102,10 +97,6 @@ impl IntoResponse for ApiError {
                     self.to_string(),
                 )
                     .into_response();
-            }
-
-            Self::IdError(ref e) => {
-                error!("ID error: {:?}", e);
             }
 
             Self::IoErr(ref e) => {

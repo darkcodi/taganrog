@@ -1,5 +1,5 @@
 use crate::api::client::ApiClient;
-use crate::db::entities::media::Media;
+use crate::db::Media;
 
 pub async fn add_media(api_url: &str, filepath: &str) {
     let canonical_filepath_result = std::fs::canonicalize(filepath);

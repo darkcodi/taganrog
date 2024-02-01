@@ -1,5 +1,4 @@
 use std::ffi::OsStr;
-use std::str::FromStr;
 use axum::extract::{DefaultBodyLimit, Extension, Multipart, Path, Query};
 use axum::routing::{get, post};
 use axum::{Json, Router};
@@ -8,9 +7,9 @@ use relative_path::PathExt;
 use crate::api::error::{ApiError};
 use crate::api::{ApiContext, Result};
 use crate::db;
-use crate::db::entities::media::{Media, MediaId};
-use crate::db::entities::tag::Tag;
+use crate::db::{Media, TagWithCount};
 use crate::utils::hash_utils::MurMurHasher;
+use crate::utils::str_utils::StringExtensions;
 
 const MAX_UPLOAD_SIZE_IN_BYTES: usize = 52_428_800; // 50 MB
 
@@ -22,6 +21,7 @@ pub fn router() -> Router {
         .route("/api/media/:media_id/remove-tag", post(delete_tag_from_media))
         .route("/api/media/search", post(search_media))
         .route("/api/media/upload", post(upload_media))
+        .route("/api/tags/search", post(search_tags))
         .layer(DefaultBodyLimit::max(MAX_UPLOAD_SIZE_IN_BYTES))
 }
 
@@ -36,7 +36,7 @@ struct TagBody {
 }
 
 #[derive(serde::Deserialize, Debug, Default)]
-struct SearchMediaBody {
+struct SearchBody {
     q: String,
     p: Option<u64>,
     s: Option<u64>,
@@ -109,8 +109,8 @@ async fn add_media(
     if filepath.is_dir() { return Err(ApiError::unprocessable_entity([("filename", "file is a directory")])); }
 
     let media = Media::from_file(&filepath, &relative_path)?;
-    let media = db::create_media(&ctx, &media).await?;
-    Ok(Json(media))
+    let media = db::create_media(&ctx, media).await?;
+    Ok(Json(media.safe_unwrap()))
 }
 
 async fn upload_media(
@@ -132,7 +132,7 @@ async fn upload_media(
         .map_err(|x| ApiError::unprocessable_entity([("file", format!("multipart error: {}", x.to_string()))]))?
         .to_vec();
     let hash = MurMurHasher::hash_bytes(data.as_slice());
-    let existing_media = db::get_media_by_hash(&ctx, &hash).await?;
+    let existing_media = db::get_media_by_id(&ctx, &hash).await?;
     if existing_media.is_some() {
         return Err(ApiError::conflict(existing_media));
     }
@@ -150,7 +150,7 @@ async fn upload_media(
     std::fs::write(&filepath, data)?;
     let mut media = Media::from_file(&filepath, &relative_path)?;
     media.was_uploaded = true;
-    media = db::create_media(&ctx, &media).await?;
+    media = db::create_media(&ctx, media).await?.safe_unwrap();
     Ok(Json(media))
 }
 
@@ -168,7 +168,6 @@ async fn get_media(
     ctx: Extension<ApiContext>,
     Path(media_id): Path<String>,
 ) -> Result<Json<Media>> {
-    let media_id = MediaId::from_str(&media_id)?;
     let maybe_media = db::get_media_by_id(&ctx, &media_id).await?;
     if maybe_media.is_none() {
         return Err(ApiError::NotFound);
@@ -182,7 +181,6 @@ async fn delete_media(
     ctx: Extension<ApiContext>,
     Path(media_id): Path<String>,
 ) -> Result<Json<Media>> {
-    let media_id = MediaId::from_str(&media_id)?;
     let maybe_media = db::delete_media_by_id(&ctx, &media_id).await?;
     if maybe_media.is_none() {
         return Err(ApiError::NotFound);
@@ -197,18 +195,17 @@ async fn add_tag_to_media(
     Path(media_id): Path<String>,
     Json(req): Json<TagBody>,
 ) -> Result<Json<Media>> {
-    let media_id = MediaId::from_str(&media_id)?;
+    let tag = req.name.slugify();
     let maybe_media = db::get_media_by_id(&ctx, &media_id).await?;
     if maybe_media.is_none() {
         return Err(ApiError::NotFound);
     }
 
     let mut media = maybe_media.unwrap();
-    let contains_tag = media.contains_tag(&req.name);
+    let contains_tag = media.tags.contains(&tag);
     if !contains_tag {
-        let tag = db::create_tag(&ctx, &req.name).await?;
-        db::add_tag_to_media(&ctx, &media_id, &tag.id).await?;
-        media.add_tag_str(&tag.name);
+        db::add_tag_to_media(&ctx, &media_id, &tag).await?;
+        media.tags.push(tag);
     }
     Ok(Json(media))
 }
@@ -218,38 +215,59 @@ async fn delete_tag_from_media(
     Path(media_id): Path<String>,
     Json(req): Json<TagBody>,
 ) -> Result<Json<Media>> {
-    let media_id = MediaId::from_str(&media_id)?;
+    let tag = req.name.slugify();
     let maybe_media = db::get_media_by_id(&ctx, &media_id).await?;
     if maybe_media.is_none() {
         return Err(ApiError::NotFound);
     }
 
     let mut media = maybe_media.unwrap();
-    if media.contains_tag(&req.name) {
-        let tag = db::create_tag(&ctx, &req.name).await?;
-        db::remove_tag_from_media(&ctx, &media_id, &tag.id).await?;
-        media.remove_tag_str(&req.name);
+    let contains_tag = media.tags.contains(&tag);
+    if contains_tag {
+        db::remove_tag_from_media(&ctx, &media_id, &tag).await?;
+        media.tags.retain(|x| x != &tag);
     }
     Ok(Json(media))
 }
 
 async fn search_media(
     ctx: Extension<ApiContext>,
-    Json(req): Json<SearchMediaBody>,
+    Json(req): Json<SearchBody>,
 ) -> Result<Json<Vec<Media>>> {
     let page_size = req.s.unwrap_or(5).clamp(1, 50);
     let page_index = req.p.unwrap_or(0);
-    let tags = Tag::split_query(&req.q);
+    let tags = split_query(&req.q);
     if tags.len() == 0 || tags.len() == 1 && tags.first().unwrap() == "null" {
-        let media_vec = db::get_untagged_media(&ctx).await?;
+        let media_vec = db::get_untagged_media(&ctx, page_size, page_index).await?;
         Ok(Json(media_vec))
     }
     else if tags.len() == 1 && tags.first().unwrap() == "all" {
-        let media_vec = db::get_all_media(&ctx, 10, 0).await?;
+        let media_vec = db::get_all_media(&ctx, page_size, page_index).await?;
         Ok(Json(media_vec))
     }
     else {
         let media_vec = db::search_media(&ctx, &tags, page_size, page_index).await?;
         Ok(Json(media_vec))
     }
+}
+
+async fn search_tags(
+    ctx: Extension<ApiContext>,
+    Json(req): Json<SearchBody>,
+) -> Result<Json<Vec<TagWithCount>>> {
+    let page_size = req.s.unwrap_or(10).clamp(1, 50);
+    let tags = split_query(&req.q);
+    if tags.is_empty() {
+        return Ok(Json(vec![]));
+    }
+    let counts_vec = db::search_tags(&ctx, &tags, page_size as usize).await?;
+    Ok(Json(counts_vec))
+}
+
+fn split_query(query: &str) -> Vec<String> {
+    let mut tags = query.split(" ").map(|x| x.trim()).filter(|x| !x.is_empty()).map(|x| x.slugify().to_string()).collect::<Vec<String>>();
+    if tags.len() > 0 && query.ends_with(" ") {
+        tags.push("".to_string());
+    }
+    tags
 }

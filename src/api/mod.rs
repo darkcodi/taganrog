@@ -3,9 +3,7 @@ use axum::Extension;
 use std::sync::Arc;
 use path_absolutize::Absolutize;
 use simple_wal::LogFile;
-use surrealdb::engine::local::{Db, Mem};
-use surrealdb::Surreal;
-use tokio::sync::Mutex;
+use tokio::sync::RwLock;
 use tower::ServiceBuilder;
 use tower_http::cors::{Any, CorsLayer};
 use tower_http::trace::TraceLayer;
@@ -14,8 +12,9 @@ use tracing_subscriber::filter;
 use tracing_subscriber::layer::SubscriberExt;
 use tracing_subscriber::util::SubscriberInitExt;
 pub use error::{ApiError};
-use crate::api::controllers::{media, ping, tag};
+use crate::api::controllers::{media, ping};
 use crate::db;
+use crate::db::WalDb;
 
 mod error;
 mod controllers;
@@ -45,20 +44,16 @@ pub async fn serve(workdir: &str) {
     info!("{:?}", &config);
 
     let log_file = LogFile::open(&config.db_path).expect("failed to open log file");
-    let db = Surreal::new::<Mem>(()).await.expect("failed to open db connection");
-    db.use_ns("taganrog").await.expect("failed to use namespace");
-    db.use_db("taganrog").await.expect("failed to use database");
+    let db = WalDb::new(log_file);
 
     let ctx = ApiContext {
         cfg: Arc::new(config),
-        wal: Arc::new(Mutex::new(log_file)),
-        db,
+        db: Arc::new(RwLock::new(db)),
     };
     db::init(&ctx).await.expect("failed to init db");
 
     let app = ping::router()
         .merge(media::router())
-        .merge(tag::router())
         .layer(CorsLayer::new().allow_methods(Any).allow_headers(Any).allow_origin(Any))
         .layer(ServiceBuilder::new().layer(Extension(ctx)).layer(TraceLayer::new_for_http()),
     );
@@ -103,6 +98,5 @@ pub struct ApiConfig {
 #[derive(Clone)]
 pub struct ApiContext {
     pub cfg: Arc<ApiConfig>,
-    pub wal: Arc<Mutex<LogFile>>,
-    pub db: Surreal<Db>,
+    pub db: Arc<RwLock<WalDb>>,
 }
