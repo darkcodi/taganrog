@@ -13,6 +13,7 @@ use tracing_subscriber::filter;
 use tracing_subscriber::layer::SubscriberExt;
 use crate::api::client::ApiClient;
 use crate::db::{Media, TagsAutocomplete};
+use crate::utils::str_utils::StringExtensions;
 
 const INDEX_TEMPLATE: &str = include_str!("templates/index.html");
 const SEARCH_TEMPLATE: &str = include_str!("templates/search.html");
@@ -109,8 +110,19 @@ async fn media_search_more(
     let page_index = query.p.unwrap_or(0);
     let page_size = 5;
     let api_response = api_client.search_media(&query.q, page_size, page_index).await.unwrap();
-    let media_vec: Vec<Media> = api_response.json().await.unwrap();
+    let mut media_vec: Vec<Media> = api_response.json().await.unwrap();
     let has_next = media_vec.len() as u64 == page_size;
+
+    // order tags in each media by the order they appear in the query
+    let tag_to_index = query.q.split(" ")
+        .map(|x| x.slugify().to_string())
+        .filter(|x| !x.is_empty())
+        .enumerate().map(|(i, x)| (x, i))
+        .collect::<std::collections::HashMap<String, usize>>();
+    media_vec.iter_mut().for_each(|media| {
+        media.tags.sort_by_key(|x| tag_to_index.get(x).unwrap_or(&usize::MAX));
+    });
+
     let ctx = SearchPageContext {
         query: query.q,
         media_vec,
