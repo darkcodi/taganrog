@@ -12,11 +12,11 @@ use tower_http::trace::TraceLayer;
 use tracing_subscriber::filter;
 use tracing_subscriber::layer::SubscriberExt;
 use crate::api::client::ApiClient;
-use crate::db::{Media, TagWithCount};
+use crate::db::{Media, TagsAutocomplete};
 
 const INDEX_TEMPLATE: &str = include_str!("templates/index.html");
 const SEARCH_TEMPLATE: &str = include_str!("templates/search.html");
-const TAG_SEARCH_TEMPLATE: &str = include_str!("templates/tag_search.html");
+const TAGS_AUTOCOMPLETE_TEMPLATE: &str = include_str!("templates/tag_autocomplete.html");
 
 pub async fn serve(api_url: &str) {
     let tracing_layer = tracing_subscriber::fmt::layer();
@@ -34,13 +34,13 @@ pub async fn serve(api_url: &str) {
     let mut jinja = Environment::new();
     jinja.add_template("/", INDEX_TEMPLATE).unwrap();
     jinja.add_template("/search", SEARCH_TEMPLATE).unwrap();
-    jinja.add_template("/tags/search", TAG_SEARCH_TEMPLATE).unwrap();
+    jinja.add_template("/tags/autocomplete", TAGS_AUTOCOMPLETE_TEMPLATE).unwrap();
 
     info!("initializing router...");
     let router = Router::new()
         .route("/", get(index))
         .route("/search", get(media_search))
-        .route("/tags/search", get(tag_search))
+        .route("/tags/autocomplete", get(autocomplete_tags))
         .with_state(AppState {
             engine: Engine::from(jinja),
             api_client: ApiClient::new(api_url.to_string()),
@@ -104,11 +104,17 @@ async fn media_search(
 }
 
 #[derive(Debug, Serialize)]
-pub struct TagSearchPageContext {
-    suggestions: Vec<TagWithCount>,
+pub struct EnhancedTagsAutocomplete {
+    last_tag: String,
+    full_query: String,
 }
 
-async fn tag_search(
+#[derive(Debug, Serialize)]
+pub struct TagSearchPageContext {
+    suggestions: Vec<EnhancedTagsAutocomplete>,
+}
+
+async fn autocomplete_tags(
     State(engine): State<AppEngine>,
     State(api_client): State<ApiClient>,
     Key(key): Key,
@@ -118,8 +124,14 @@ async fn tag_search(
         return RenderHtml(key, engine, TagSearchPageContext { suggestions: vec![] });
     }
     let page = query.p.unwrap_or(0);
-    let api_response = api_client.search_tags(&query.q, page).await.unwrap();
-    let tags: Vec<TagWithCount> = api_response.json().await.unwrap();
-    let ctx = TagSearchPageContext { suggestions: tags, };
+    let api_response = api_client.autocomplete_tags(&query.q, page).await.unwrap();
+    let autocomplete: Vec<TagsAutocomplete> = api_response.json().await.unwrap();
+    let suggestions: Vec<EnhancedTagsAutocomplete> = autocomplete.into_iter().map(|tag| {
+        let head = tag.head;
+        let last = tag.last;
+        let full_query = format!("{} {}", head.join(" "), last);
+        EnhancedTagsAutocomplete { last_tag: last, full_query }
+    }).collect();
+    let ctx = TagSearchPageContext { suggestions };
     RenderHtml(key, engine, ctx)
 }

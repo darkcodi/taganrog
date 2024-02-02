@@ -7,7 +7,7 @@ use relative_path::PathExt;
 use crate::api::error::{ApiError};
 use crate::api::{ApiContext, Result};
 use crate::db;
-use crate::db::{Media, TagWithCount};
+use crate::db::{Media, TagsAutocomplete};
 use crate::utils::hash_utils::MurMurHasher;
 use crate::utils::str_utils::StringExtensions;
 
@@ -21,7 +21,7 @@ pub fn router() -> Router {
         .route("/api/media/:media_id/remove-tag", post(delete_tag_from_media))
         .route("/api/media/search", post(search_media))
         .route("/api/media/upload", post(upload_media))
-        .route("/api/tags/search", post(search_tags))
+        .route("/api/tags/autocomplete", post(autocomplete_tags))
         .layer(DefaultBodyLimit::max(MAX_UPLOAD_SIZE_IN_BYTES))
 }
 
@@ -236,38 +236,39 @@ async fn search_media(
 ) -> Result<Json<Vec<Media>>> {
     let page_size = req.s.unwrap_or(5).clamp(1, 50);
     let page_index = req.p.unwrap_or(0);
-    let tags = split_query(&req.q);
-    if tags.len() == 0 || tags.len() == 1 && tags.first().unwrap() == "null" {
-        let media_vec = db::get_untagged_media(&ctx, page_size, page_index).await?;
-        Ok(Json(media_vec))
-    }
-    else if tags.len() == 1 && tags.first().unwrap() == "all" {
-        let media_vec = db::get_all_media(&ctx, page_size, page_index).await?;
-        Ok(Json(media_vec))
-    }
-    else {
-        let media_vec = db::search_media(&ctx, &tags, page_size, page_index).await?;
-        Ok(Json(media_vec))
-    }
-}
-
-async fn search_tags(
-    ctx: Extension<ApiContext>,
-    Json(req): Json<SearchBody>,
-) -> Result<Json<Vec<TagWithCount>>> {
-    let page_size = req.s.unwrap_or(10).clamp(1, 50);
-    let tags = split_query(&req.q);
-    if tags.is_empty() {
+    let query = normalize_query(&req.q);
+    if query.is_empty() {
         return Ok(Json(vec![]));
     }
-    let counts_vec = db::search_tags(&ctx, &tags, page_size as usize).await?;
-    Ok(Json(counts_vec))
+    if query == "null" {
+        let media_vec = db::get_untagged_media(&ctx, page_size, page_index).await?;
+        return Ok(Json(media_vec))
+    }
+    if query == "all" {
+        let media_vec = db::get_all_media(&ctx, page_size, page_index).await?;
+        return Ok(Json(media_vec))
+    }
+    let media_vec = db::search_media(&ctx, &query, page_size, page_index).await?;
+    Ok(Json(media_vec))
 }
 
-fn split_query(query: &str) -> Vec<String> {
+async fn autocomplete_tags(
+    ctx: Extension<ApiContext>,
+    Json(req): Json<SearchBody>,
+) -> Result<Json<Vec<TagsAutocomplete>>> {
+    let page_size = req.s.unwrap_or(10).clamp(1, 50);
+    let query = normalize_query(&req.q);
+    if query.is_empty() {
+        return Ok(Json(vec![]));
+    }
+    let autocomplete = db::autocomplete_tags(&ctx, &query, page_size as usize).await?;
+    Ok(Json(autocomplete))
+}
+
+fn normalize_query(query: &str) -> String {
     let mut tags = query.split(" ").map(|x| x.trim()).filter(|x| !x.is_empty()).map(|x| x.slugify().to_string()).collect::<Vec<String>>();
     if tags.len() > 0 && query.ends_with(" ") {
         tags.push("".to_string());
     }
-    tags
+    tags.join(" ")
 }

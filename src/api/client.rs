@@ -28,8 +28,8 @@ impl ApiClient {
         Ok(res)
     }
 
-    pub async fn search_tags(&self, query: &str, page: u64) -> anyhow::Result<reqwest::Response> {
-        let url: String = format!("{}/api/tags/search", self.config.api_url);
+    pub async fn autocomplete_tags(&self, query: &str, page: u64) -> anyhow::Result<reqwest::Response> {
+        let url: String = format!("{}/api/tags/autocomplete", self.config.api_url);
         let res = self.client.post(&url).json(&json!({ "q": query, "p": page })).send().await?;
         Ok(res)
     }

@@ -1,6 +1,6 @@
 use chrono::{DateTime, Utc};
 use dashmap::DashMap;
-use indicium::simple::{AutocompleteType, Indexable, SearchIndex};
+use indicium::simple::{AutocompleteType, EddieMetric, Indexable, SearchIndex, SearchType, StrsimMetric};
 use relative_path::RelativePath;
 use serde::{Deserialize, Serialize};
 use simple_wal::LogFile;
@@ -23,9 +23,9 @@ impl<T> DbInsertResult<T> {
 }
 
 #[derive(serde::Serialize, serde::Deserialize, Clone, Debug, PartialEq, Eq)]
-pub struct TagWithCount {
-    pub tag: String,
-    pub count: u64,
+pub struct TagsAutocomplete {
+    pub head: Vec<String>,
+    pub last: String,
 }
 
 #[derive(serde::Serialize, serde::Deserialize, Clone, Debug, PartialEq, Eq)]
@@ -80,7 +80,24 @@ impl WalDb {
     pub fn new(wal: LogFile) -> Self {
         Self {
             map: DashMap::new(),
-            index: SearchIndex::default(),
+            index: SearchIndex::new(
+                SearchType::Live,
+                AutocompleteType::Context,
+                Some(StrsimMetric::Levenshtein),
+                Some(EddieMetric::Levenshtein),
+                3,
+                0.3,
+                Some(vec!['\t', '\n', '\r', ' ', '!', '"', '&', '(', ')', '*', '+', ',', '.', '/', ':', ';', '<', '=', '>', '?', '[', '\\', ']', '^', '`', '{', '|', '}', '~', ' ', '¡', '«', '»', '¿', '×', '÷', 'ˆ', '‘', '’', '“', '”', '„', '‹', '›', '—', ]),
+                false,
+                0,
+                30,
+                Some(30),
+                None,
+                10,
+                20,
+                40_960,
+                None,
+            ),
             wal,
         }
     }
@@ -105,15 +122,19 @@ impl WalDb {
         media_vec
     }
 
-    fn search_media(&self, tags: &[String], page_size: u64, page_index: u64) -> Vec<Media> {
+    fn search_media(&self, query: &String, page_size: u64, page_index: u64) -> Vec<Media> {
         todo!()
     }
 
-    fn search_tags(&self, tags: &[String], max_items: usize) -> Vec<TagWithCount> {
-        let query = tags.join(" ");
-        let tags = self.index.autocomplete_with(&AutocompleteType::Context, &max_items, &query);
-        let tags = tags.into_iter().map(|x| TagWithCount { tag: x, count: 1 }).collect();
-        tags
+    fn autocomplete_tags(&self, query: &String, max_items: usize) -> Vec<TagsAutocomplete> {
+        let autocomplete = self.index.autocomplete_with(&AutocompleteType::Context, &max_items, query);
+        let res = autocomplete.into_iter().map(|str| {
+            let mut split = str.split(' ').map(|x| x.to_string()).collect::<Vec<String>>();
+            let last = split.pop().unwrap();
+            let head = split;
+            TagsAutocomplete { head, last }
+        }).collect();
+        res
     }
 
     fn create_media(&mut self, media: Media) -> DbInsertResult<Media> {
@@ -207,13 +228,15 @@ pub async fn get_media_by_id(ctx: &ApiContext, media_id: &String) -> anyhow::Res
     Ok(maybe_media)
 }
 
-pub async fn search_media(ctx: &ApiContext, tags: &[String], page_size: u64, page_index: u64) -> anyhow::Result<Vec<Media>> {
-    todo!()
+pub async fn search_media(ctx: &ApiContext, query: &String, page_size: u64, page_index: u64) -> anyhow::Result<Vec<Media>> {
+    let db = ctx.db.read().await;
+    let media_vec = db.search_media(query, page_size, page_index);
+    Ok(media_vec)
 }
 
-pub async fn search_tags(ctx: &ApiContext, tags: &[String], max_items: usize) -> anyhow::Result<Vec<TagWithCount>> {
+pub async fn autocomplete_tags(ctx: &ApiContext, query: &String, max_items: usize) -> anyhow::Result<Vec<TagsAutocomplete>> {
     let db = ctx.db.read().await;
-    let tags = db.search_tags(tags, max_items);
+    let tags = db.autocomplete_tags(query, max_items);
     Ok(tags)
 }
 
