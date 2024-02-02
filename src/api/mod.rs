@@ -29,8 +29,8 @@ pub async fn serve(workdir: &str) {
     let tracing_layer = tracing_subscriber::fmt::layer();
     let filter = filter::Targets::new()
         // .with_target("tower_http::trace::on_request", Level::DEBUG)
-        // .with_target("tower_http::trace::on_response", Level::DEBUG)
-        // .with_target("tower_http::trace::make_span", Level::DEBUG)
+        .with_target("tower_http::trace::on_response", Level::DEBUG)
+        .with_target("tower_http::trace::make_span", Level::DEBUG)
         // .with_target("taganrog", Level::DEBUG)
         .with_default(Level::INFO);
     tracing_subscriber::registry()

@@ -123,9 +123,11 @@ impl WalDb {
     }
 
     fn search_media(&self, query: &String, page_size: u64, page_index: u64) -> Vec<Media> {
-        let max_results = (page_size * (page_index + 1)) as usize;
+        let skip_results = (page_size * page_index) as usize;
+        let max_results = skip_results + page_size as usize;
         let media_ids = self.index.search_with(&SearchType::Live, &max_results, &query);
-        let media_vec = media_ids.into_iter().rev().take(page_size as usize).rev()
+        let media_vec = media_ids.into_iter()
+            .take(max_results).skip(skip_results)
             .map(|x| self.map.get(x).map(|x| x.value().clone())).flatten().collect();
         media_vec
     }

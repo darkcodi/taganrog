@@ -16,6 +16,7 @@ use crate::db::{Media, TagsAutocomplete};
 
 const INDEX_TEMPLATE: &str = include_str!("templates/index.html");
 const SEARCH_TEMPLATE: &str = include_str!("templates/search.html");
+const SEARCH_MORE_TEMPLATE: &str = include_str!("templates/search_more.html");
 const TAGS_AUTOCOMPLETE_TEMPLATE: &str = include_str!("templates/tag_autocomplete.html");
 
 pub async fn serve(api_url: &str) {
@@ -34,12 +35,14 @@ pub async fn serve(api_url: &str) {
     let mut jinja = Environment::new();
     jinja.add_template("/", INDEX_TEMPLATE).unwrap();
     jinja.add_template("/search", SEARCH_TEMPLATE).unwrap();
+    jinja.add_template("/search/more", SEARCH_MORE_TEMPLATE).unwrap();
     jinja.add_template("/tags/autocomplete", TAGS_AUTOCOMPLETE_TEMPLATE).unwrap();
 
     info!("initializing router...");
     let router = Router::new()
         .route("/", get(index))
         .route("/search", get(media_search))
+        .route("/search/more", get(media_search_more))
         .route("/tags/autocomplete", get(autocomplete_tags))
         .with_state(AppState {
             engine: Engine::from(jinja),
@@ -82,23 +85,37 @@ struct SearchQuery {
 pub struct SearchPageContext {
     query: String,
     media_vec: Vec<Media>,
+    next_page: u64,
+    has_next: bool,
 }
 
 async fn media_search(
+    State(engine): State<AppEngine>,
+    Key(key): Key,
+    Query(query): Query<SearchQuery>,
+) -> impl IntoResponse {
+    RenderHtml(key, engine, SearchPageContext { query: query.q, media_vec: vec![], next_page: 0, has_next: true })
+}
+
+async fn media_search_more(
     State(engine): State<AppEngine>,
     State(api_client): State<ApiClient>,
     Key(key): Key,
     Query(query): Query<SearchQuery>,
 ) -> impl IntoResponse {
     if query.q.is_empty() {
-        return RenderHtml(key, engine, SearchPageContext { query: "".to_string(), media_vec: vec![] });
+        return RenderHtml(key, engine, SearchPageContext { query: "".to_string(), media_vec: vec![], next_page: 0, has_next: false });
     }
-    let page = query.p.unwrap_or(0);
-    let api_response = api_client.search_media(&query.q, page).await.unwrap();
+    let page_index = query.p.unwrap_or(0);
+    let page_size = 5;
+    let api_response = api_client.search_media(&query.q, page_size, page_index).await.unwrap();
     let media_vec: Vec<Media> = api_response.json().await.unwrap();
+    let has_next = media_vec.len() as u64 == page_size;
     let ctx = SearchPageContext {
         query: query.q,
         media_vec,
+        next_page: page_index + 1,
+        has_next,
     };
     RenderHtml(key, engine, ctx)
 }

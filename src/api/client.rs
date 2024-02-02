@@ -34,9 +34,9 @@ impl ApiClient {
         Ok(res)
     }
 
-    pub async fn search_media(&self, query: &str, page: u64) -> anyhow::Result<reqwest::Response> {
+    pub async fn search_media(&self, query: &str, page_size: u64, page_index: u64) -> anyhow::Result<reqwest::Response> {
         let url: String = format!("{}/api/media/search", self.config.api_url);
-        let res = self.client.post(&url).json(&json!({ "q": query, "p": page })).send().await?;
+        let res = self.client.post(&url).json(&json!({ "q": query, "p": page_index, "s": page_size })).send().await?;
         Ok(res)
     }
 }
