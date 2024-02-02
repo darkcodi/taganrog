@@ -123,7 +123,9 @@ impl WalDb {
     }
 
     fn search_media(&self, query: &String, page_size: u64, page_index: u64) -> Vec<Media> {
-        todo!()
+        let media_ids = self.index.search(&query);
+        let media_vec = media_ids.into_iter().map(|x| self.map.get(x).map(|x| x.value().clone())).flatten().collect();
+        media_vec
     }
 
     fn autocomplete_tags(&self, query: &String, max_items: usize) -> Vec<TagsAutocomplete> {
