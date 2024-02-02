@@ -20,58 +20,65 @@
     </script>
 </head>
 <body>
-<header class="flex items-center justify-between bg-white px-4 py-4 sm:px-6 lg:px-8">
-    <form action="/" method="get" class="flex items-center space-x-4">
-        <button tabindex="-1" type="submit" class="border-none focus:outline-none">
-            <h1 class="flex items-center text-3xl font-bold tracking-tighter sm:text-4xl md:text-5xl"><span class="text-6xl font-extrabold text-red-500"> Tag </span><span class="ml-2 text-5xl"> anrog </span></h1>
-        </button>
-    </form>
-    <form action="/search" method="get" class="mx-auto flex w-full max-w-xl items-center">
-        <div class="flex-1 rounded-md shadow-sm">
-            <div>
-                <label class="sr-only" for="search"> Search </label>
-                <input class="relative block w-full appearance-none rounded-md border border-gray-300 px-3 py-2 text-gray-900 placeholder-gray-500 focus:z-10 focus:border-indigo-500 focus:outline-none focus:ring-indigo-500 sm:text-sm" id="search" placeholder="Search ..." type="text" name="q" value="{{ query }}" />
-            </div>
-        </div>
-        <button type="submit" class="!bg-black ring-offset-background focus-visible:ring-ring hover:bg-primary/90 ml-2 inline-flex h-10 items-center justify-center rounded-md px-4 py-2 text-sm font-medium text-white transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50">Search</button>
-    </form>
-    <button class="border-none focus:outline-none">
-        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="h-6 w-6">
-            <path stroke-linecap="round" color="#EF4444" stroke-linejoin="round" d="M3 16.5v2.25A2.25 2.25 0 0 0 5.25 21h13.5A2.25 2.25 0 0 0 21 18.75V16.5m-13.5-9L12 3m0 0 4.5 4.5M12 3v13.5" />
-        </svg>
-    </button>
-</header>
-<main class="h-screen flex flex-col items-center justify-center bg-white px-4 sm:px-6 lg:px-8">
-    <div class="max-w-7xl w-full mt-6">
-        {% for media in media_vec %}
-            <div class="rounded-md shadow-sm p-4 flex items-start space-x-4 mt-4 bg-gray-50">
-                <img
-                        alt="Search Result 1"
-                        class="w-32 h-32 object-cover rounded-md"
-                        height="100"
-                        src="https://generated.vusercontent.net/placeholder.svg"
-                        style="aspect-ratio: 100 / 100; object-fit: cover;"
-                        width="100"
-                />
+<div class="flex flex-col h-screen">
+    <header class="flex items-center justify-between bg-white px-4 py-4 sm:px-6 lg:px-8">
+        <form action="/" method="get" class="flex items-center space-x-4">
+            <button tabindex="-1" type="submit" class="border-none focus:outline-none">
+                <h1 class="flex items-center text-3xl font-bold tracking-tighter sm:text-4xl md:text-5xl"><span class="text-6xl font-extrabold text-red-500"> Tag </span><span class="ml-2 text-5xl"> anrog </span></h1>
+            </button>
+        </form>
+        <form action="/search" method="get" class="mx-auto flex w-full max-w-xl items-center">
+            <div class="flex-1 rounded-md shadow-sm">
                 <div>
-                    <h2 class="text-xl font-bold">{{ media.filename }}</h2>
-                    <p class="text-gray-600 dark:text-gray-400">File Size: {{ media.size }} bytes</p>
-                    <p class="text-gray-600 dark:text-gray-400">File Type: {{ media.content_type }}</p>
-                    <p class="text-gray-600 dark:text-gray-400">Created: {{ media.created_at }}</p>
-                    <div class="flex flex-wrap gap-2">
-                        {% for tag in media.tags %}
-                            <span class="bg-red-200 text-red-700 rounded px-2 py-1 text-sm">#{{ tag }}</span>
-                        {% endfor %}
-<!--                        <span class="bg-green-200 text-green-700 rounded px-2 py-1 text-sm">Tag2</span>-->
-<!--                        <span class="bg-blue-200 text-blue-700 rounded px-2 py-1 text-sm">Tag3</span>-->
-                    </div>
+                    <label class="sr-only" for="search"> Search </label>
+                    <input class="relative block w-full appearance-none rounded-md border border-gray-300 px-3 py-2 text-gray-900 placeholder-gray-500 focus:z-10 focus:border-indigo-500 focus:outline-none focus:ring-indigo-500 sm:text-sm" id="search" placeholder="Search ..." type="text" name="q" value="{{ query }}" />
                 </div>
             </div>
-        {% endfor %}
-    </div>
-</main>
-<footer class="fixed bottom-0 flex h-20 w-full items-center justify-center bg-white">
-    <div class="text-center"><p class="text-gray-600">For those, who love tags</p></div>
-</footer>
+            <button type="submit" class="!bg-black ring-offset-background focus-visible:ring-ring !hover:bg-gray-700 ml-2 inline-flex h-10 items-center justify-center rounded-md px-4 py-2 text-sm font-medium text-white transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50">Search</button>
+        </form>
+        <button class="border-none focus:outline-none">
+            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="h-6 w-6">
+                <path stroke-linecap="round" color="#EF4444" stroke-linejoin="round" d="M3 16.5v2.25A2.25 2.25 0 0 0 5.25 21h13.5A2.25 2.25 0 0 0 21 18.75V16.5m-13.5-9L12 3m0 0 4.5 4.5M12 3v13.5" />
+            </svg>
+        </button>
+    </header>
+    <main class="flex flex-col items-center justify-center bg-white px-4 sm:px-6 lg:px-8 overflow-y-auto flex-grow">
+        <div class="max-w-7xl w-full mt-6">
+            <div id="search-result">
+                {% for media in media_vec %}
+                    <a href="/media/{{ media.id }}" class="rounded-md shadow-sm p-4 flex items-start space-x-4 mt-4 bg-gray-50 hover:bg-gray-100">
+                        <img
+                                alt="Search Result 1"
+                                class="w-32 h-32 object-cover rounded-md"
+                                height="100"
+                                src="https://generated.vusercontent.net/placeholder.svg"
+                                style="aspect-ratio:100/100;object-fit:cover;"
+                                width="100"
+                        />
+                        <div>
+                            <h2 class="text-xl font-bold">{{ media.filename }}</h2>
+                            <p class="text-gray-600 dark:text-gray-400">File Size: {{ media.size }} bytes</p>
+                            <p class="text-gray-600 dark:text-gray-400">File Type: {{ media.content_type }}</p>
+                            <p class="text-gray-600 dark:text-gray-400">Created: {{ media.created_at }}</p>
+                            <div class="flex flex-wrap gap-2">
+                                {% for tag in media.tags %}
+                                    <span class="bg-red-200 text-red-700 rounded px-2 py-1 text-sm">#{{ tag }}</span>
+                                {% endfor %}
+        <!--                        <span class="bg-green-200 text-green-700 rounded px-2 py-1 text-sm">Tag2</span>-->
+        <!--                        <span class="bg-blue-200 text-blue-700 rounded px-2 py-1 text-sm">Tag3</span>-->
+                            </div>
+                        </div>
+                    </a>
+                {% endfor %}
+            </div>
+            <button class="!bg-black inline-flex items-center justify-center whitespace-nowrap rounded-md text-sm font-medium ring-offset-background transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 text-white !hover:bg-gray-700 h-10 px-4 py-2 mt-4 self-center">
+                Load more...
+            </button>
+        </div>
+    </main>
+    <footer class="w-full h-20 flex items-center justify-center bg-white">
+        <div class="text-center"><p class="text-gray-600">For those, who love tags</p></div>
+    </footer>
+</div>
 </body>
 </html>
