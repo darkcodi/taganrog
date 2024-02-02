@@ -28,6 +28,7 @@ pub fn router() -> Router {
 #[derive(serde::Deserialize, Debug)]
 struct AddMediaRequest {
     filename: String,
+    created_at: Option<u64>,
 }
 
 #[derive(serde::Deserialize, Debug, Default)]
@@ -108,7 +109,7 @@ async fn add_media(
     if !filepath.exists() { return Err(ApiError::unprocessable_entity([("filename", "file does not exist")])); }
     if filepath.is_dir() { return Err(ApiError::unprocessable_entity([("filename", "file is a directory")])); }
 
-    let media = Media::from_file(&filepath, &relative_path)?;
+    let media = Media::from_file(&filepath, &relative_path, req.created_at)?;
     let media = db::create_media(&ctx, media).await?;
     Ok(Json(media.safe_unwrap()))
 }
@@ -148,7 +149,7 @@ async fn upload_media(
         .map_err(|_| ApiError::unprocessable_entity([("filename", "invalid path 2")]))?;
 
     std::fs::write(&filepath, data)?;
-    let mut media = Media::from_file(&filepath, &relative_path)?;
+    let mut media = Media::from_file(&filepath, &relative_path, None)?;
     media.was_uploaded = true;
     media = db::create_media(&ctx, media).await?.safe_unwrap();
     Ok(Json(media))

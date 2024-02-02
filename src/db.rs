@@ -41,10 +41,14 @@ pub struct Media {
 }
 
 impl Media {
-    pub fn from_file(abs_path: &std::path::Path, rel_path: &RelativePath) -> anyhow::Result<Self> {
+    pub fn from_file(abs_path: &std::path::Path, rel_path: &RelativePath, created_at: Option<u64>) -> anyhow::Result<Self> {
         let filename = abs_path.file_name().ok_or(anyhow::anyhow!("filename is empty"))?.to_string_lossy().to_string();
         let location = rel_path.to_string();
-        let created_at = DateTime::from_naive_utc_and_offset(chrono::Utc::now().naive_utc(), Utc);
+        let created_at = if let Some(created_at) = created_at {
+            DateTime::from_naive_utc_and_offset(chrono::NaiveDateTime::from_timestamp_opt(created_at as i64, 0).unwrap(), Utc)
+        } else {
+            DateTime::from_naive_utc_and_offset(chrono::Utc::now().naive_utc(), Utc)
+        };
         let file_bytes = std::fs::read(&abs_path)?;
         let content_type = infer::get(&file_bytes).map(|x| x.mime_type()).unwrap_or("application/octet-stream").to_string();
         let hash = MurMurHasher::hash_bytes(&file_bytes);
