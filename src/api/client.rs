@@ -39,4 +39,10 @@ impl ApiClient {
         let res = self.client.post(&url).json(&json!({ "q": query, "p": page_index, "s": page_size })).send().await?;
         Ok(res)
     }
+
+    pub async fn stream_media(&self, media_id: &str) -> anyhow::Result<reqwest::Response> {
+        let url: String = format!("{}/api/media/{}/stream", self.config.api_url, media_id);
+        let res = self.client.get(&url).send().await?;
+        Ok(res)
+    }
 }

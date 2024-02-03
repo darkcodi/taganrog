@@ -1,5 +1,5 @@
 use axum::{routing::get, Router};
-use axum::extract::{Query, State};
+use axum::extract::{Path, Query, State};
 use axum::response::IntoResponse;
 use axum_macros::FromRef;
 use axum_template::engine::Engine;
@@ -42,6 +42,7 @@ pub async fn serve(api_url: &str) {
     info!("initializing router...");
     let router = Router::new()
         .route("/", get(index))
+        .route("/media/:media_id/stream", get(stream_media))
         .route("/search", get(media_search))
         .route("/search/more", get(media_search_more))
         .route("/tags/autocomplete", get(autocomplete_tags))
@@ -173,4 +174,23 @@ async fn autocomplete_tags(
     }).collect();
     let ctx = TagSearchPageContext { suggestions };
     RenderHtml(key, engine, ctx)
+}
+
+async fn stream_media(
+    State(api_client): State<ApiClient>,
+    Path(media_id): Path<String>,
+) -> impl IntoResponse {
+    let api_response = api_client.stream_media(&media_id).await;
+    match api_response {
+        Ok(response) => {
+            if response.status().is_success() {
+                let bytes_stream = response.bytes_stream();
+                let response = axum::http::Response::new(axum::body::Body::from_stream(bytes_stream));
+                Ok(response)
+            } else {
+                Err(axum::http::StatusCode::from_u16(response.status().as_u16()).unwrap())
+            }
+        }
+        Err(_) => Err(axum::http::StatusCode::INTERNAL_SERVER_ERROR)
+    }
 }
