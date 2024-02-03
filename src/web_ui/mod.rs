@@ -174,6 +174,9 @@ async fn media_search_more(
         .collect::<std::collections::HashMap<String, usize>>();
     media_vec.iter_mut().for_each(|media| {
         media.tags.sort_by_key(|x| tag_to_index.get(&x.name).unwrap_or(&usize::MAX));
+        media.tags.iter_mut().for_each(|tag| {
+            tag.is_in_query = query_tags.contains(&tag.name);
+        });
     });
 
     HtmlTemplate(SearchMoreTemplate {
