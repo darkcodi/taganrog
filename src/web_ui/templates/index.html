@@ -81,6 +81,11 @@
                     },
                 ];
             },
+            onSubmit({ state }) {
+                if (state.query) {
+                    window.location.href = '/search?q=' + encodeURIComponent(state.query);
+                }
+            },
         });
     </script>
 </div>
