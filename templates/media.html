@@ -1,89 +1,82 @@
 {% extends "base.html" %}
 
 {% block content %}
-<div class="flex flex-col h-screen">
-    <header class="flex items-center justify-between bg-white px-4 py-4 sm:px-6 lg:px-8">
-        <form action="/" method="get" class="flex items-center space-x-4">
-            <button tabindex="-1" type="submit" class="border-none focus:outline-none">
-                <h1 class="flex items-center text-3xl font-bold tracking-tighter sm:text-4xl md:text-5xl"><span class="text-6xl font-extrabold text-red-500"> Tag </span><span class="ml-2 text-5xl"> anrog </span></h1>
+    <div class="flex flex-col h-screen">
+        <header class="flex items-center justify-between bg-white px-4 py-4 sm:px-6 lg:px-8">
+            <form action="/" method="get" class="flex items-center space-x-4">
+                <button tabindex="-1" type="submit" class="border-none focus:outline-none">
+                    <h1 class="flex items-center text-3xl font-bold tracking-tighter sm:text-4xl md:text-5xl"><span class="text-6xl font-extrabold text-red-500"> Tag </span><span class="ml-2 text-5xl"> anrog </span></h1>
+                </button>
+            </form>
+            <div class="mx-auto w-full max-w-xl" id="autocomplete"></div>
+            <button class="border-none focus:outline-none">
+                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="h-6 w-6">
+                    <path stroke-linecap="round" color="#EF4444" stroke-linejoin="round" d="M3 16.5v2.25A2.25 2.25 0 0 0 5.25 21h13.5A2.25 2.25 0 0 0 21 18.75V16.5m-13.5-9L12 3m0 0 4.5 4.5M12 3v13.5" />
+                </svg>
             </button>
-        </form>
-        <form action="/search" method="get" class="mx-auto flex w-full max-w-xl items-center">
-            <div class="flex-1 rounded-md shadow-sm">
-                <div>
-                    <label class="sr-only" for="search"> Search </label>
-                    <input class="relative block w-full appearance-none rounded-md border border-gray-300 px-3 py-2 text-gray-900 placeholder-gray-500 focus:z-10 focus:border-indigo-500 focus:outline-none focus:ring-indigo-500 sm:text-sm" id="search" placeholder="Search ..." type="text" name="q" value="" />
+        </header>
+        <main class="h-screen flex flex-col items-center justify-center bg-white px-4 sm:px-6 lg:px-8">
+            <div class="max-w-7xl w-full mt-6 flex">
+                <div class="flex-1">
+                    <video
+                            controls
+                            class="w-full h-full object-cover rounded-md"
+                            src="/media/{{ media.id }}/stream"
+                            style="aspect-ratio:16/9;object-fit:contain;"
+                    ></video>
                 </div>
-            </div>
-            <button type="submit" class="!bg-black ring-offset-background focus-visible:ring-ring !hover:bg-gray-700 ml-2 inline-flex h-10 items-center justify-center rounded-md px-4 py-2 text-sm font-medium text-white transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50">Search</button>
-        </form>
-        <button class="border-none focus:outline-none">
-            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="h-6 w-6">
-                <path stroke-linecap="round" color="#EF4444" stroke-linejoin="round" d="M3 16.5v2.25A2.25 2.25 0 0 0 5.25 21h13.5A2.25 2.25 0 0 0 21 18.75V16.5m-13.5-9L12 3m0 0 4.5 4.5M12 3v13.5" />
-            </svg>
-        </button>
-    </header>
-    <main class="h-screen flex flex-col items-center justify-center bg-white px-4 sm:px-6 lg:px-8">
-        <div class="max-w-7xl w-full mt-6 flex">
-            <div class="flex-1">
-                <video
-                        controls
-                        class="w-full h-full object-cover rounded-md"
-                        src="/media/{{ media.id }}/stream"
-                        style="aspect-ratio:16/9;object-fit:contain;"
-                ></video>
-            </div>
-            <div class="w-64 p-4 bg-gray-100 rounded-md ml-4">
-                <h2 class="text-2xl font-bold mb-2">File Info</h2>
-                <ul>
-                    <li class="mb-2">
-                        <strong>Name:</strong>
-                        <span class="break-all"> {{ media.filename }}</span>
-                    </li>
-                    <li class="mb-2">
-                        <strong>Hash:</strong>
-                        <span class="break-all"> {{ media.id }}</span>
-                    </li>
-                    <li class="mb-2">
-                        <strong>Type:</strong>
-                        <span class="break-all"> {{ media.content_type }}</span>
-                    </li>
-                    <li class="mb-2">
-                        <strong>Date:</strong>
-                        <span class="break-all"> {{ media.created_at }}</span>
-                    </li>
-                </ul>
-                <h2 class="text-2xl font-bold mb-2">Tags</h2>
-                <ul>
-                    {% for tag in media.tags %}
-                        <li class="bg-red-200 text-red-700 rounded px-2 py-1 mb-2 flex justify-between items-center">
-                            <a href="/search?q={{ tag }}">#{{ tag }}</a>
-                            <span class="cursor-pointer hover:text-red-500">X</span>
+                <div class="w-64 p-4 bg-gray-100 rounded-md ml-4">
+                    <h2 class="text-2xl font-bold mb-2">File Info</h2>
+                    <ul>
+                        <li class="mb-2">
+                            <strong>Name:</strong>
+                            <span class="break-all"> {{ media.filename }}</span>
                         </li>
-                    {% endfor %}
-                </ul>
-                <div class="mt-4">
-                    <div class="rounded-md shadow-sm">
-                        <div>
-                            <label class="sr-only" for="tagSearch">
-                                Search Tags
-                            </label>
-                            <input
-                                    class="appearance-none rounded-none relative block w-full px-3 py-2 border border-gray-300 placeholder-gray-500 text-gray-900 rounded-t-md focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 focus:z-10 sm:text-sm"
-                                    id="tagSearch"
-                                    placeholder="Search tags..."
-                                    required=""
-                                    type="text"
-                                    name="tagSearch"
-                            />
+                        <li class="mb-2">
+                            <strong>Hash:</strong>
+                            <span class="break-all"> {{ media.id }}</span>
+                        </li>
+                        <li class="mb-2">
+                            <strong>Type:</strong>
+                            <span class="break-all"> {{ media.content_type }}</span>
+                        </li>
+                        <li class="mb-2">
+                            <strong>Date:</strong>
+                            <span class="break-all"> {{ media.created_at }}</span>
+                        </li>
+                    </ul>
+                    <h2 class="text-2xl font-bold mb-2">Tags</h2>
+                    <ul>
+                        {% for tag in media.tags %}
+                            <li class="bg-red-200 text-red-700 rounded px-2 py-1 mb-2 flex justify-between items-center">
+                                <a href="/search?q={{ tag }}">#{{ tag }}</a>
+                                <span class="cursor-pointer hover:text-red-500">X</span>
+                            </li>
+                        {% endfor %}
+                    </ul>
+                    <div class="mt-4">
+                        <div class="rounded-md shadow-sm">
+                            <div>
+                                <label class="sr-only" for="tagSearch">
+                                    Search Tags
+                                </label>
+                                <input
+                                        class="appearance-none rounded-none relative block w-full px-3 py-2 border border-gray-300 placeholder-gray-500 text-gray-900 rounded-t-md focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 focus:z-10 sm:text-sm"
+                                        id="tagSearch"
+                                        placeholder="Search tags..."
+                                        required=""
+                                        type="text"
+                                        name="tagSearch"
+                                />
+                            </div>
                         </div>
                     </div>
                 </div>
             </div>
-        </div>
-    </main>
-    <footer class="w-full h-20 flex items-center justify-center bg-white">
-        <div class="text-center"><p class="text-gray-600">Charting digital depths, from Alferaki to Faina</p></div>
-    </footer>
-</div>
+        </main>
+        <footer class="w-full h-20 flex items-center justify-center bg-white">
+            <div class="text-center"><p class="text-gray-600">Charting digital depths, from Alferaki to Faina</p></div>
+        </footer>
+        {% include "algolia_autocomplete.html" %}
+    </div>
 {% endblock %}

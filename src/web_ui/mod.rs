@@ -89,7 +89,7 @@ async fn favicon() -> impl IntoResponse {
 
 #[derive(Deserialize)]
 struct SearchQuery {
-    q: String,
+    q: Option<String>,
     p: Option<u64>,
 }
 
@@ -149,14 +149,14 @@ pub struct ExtendedTag {
 }
 
 async fn media_search(Query(query): Query<SearchQuery>) -> impl IntoResponse {
-    HtmlTemplate(SearchTemplate { query: normalize_query(&query.q) })
+    HtmlTemplate(SearchTemplate { query: normalize_query(&query.q.unwrap_or_default()) })
 }
 
 async fn media_search_more(
     State(api_client): State<ApiClient>,
     Query(query): Query<SearchQuery>,
 ) -> impl IntoResponse {
-    let normalized_query = normalize_query(&query.q);
+    let normalized_query = normalize_query(&query.q.unwrap_or_default());
     if normalized_query.is_empty() {
         return HtmlTemplate(SearchMoreTemplate::default());
     }
@@ -204,7 +204,7 @@ async fn autocomplete_tags(
     State(api_client): State<ApiClient>,
     Query(query): Query<SearchQuery>,
 ) -> Json<Vec<AutocompleteObject>> {
-    let normalized_query = normalize_query(&query.q);
+    let normalized_query = normalize_query(&query.q.unwrap_or_default());
     if normalized_query.is_empty() {
         return Json(vec![]);
     }
@@ -225,16 +225,19 @@ async fn autocomplete_tags(
 #[derive(Default, Template)]
 #[template(path = "media.html")]
 pub struct MediaPageTemplate {
+    query: String,
     media: Media,
 }
 
 async fn media(
     State(api_client): State<ApiClient>,
+    Query(query): Query<SearchQuery>,
     Path(media_id): Path<String>,
 ) -> impl IntoResponse {
+    let query = normalize_query(&query.q.unwrap_or_default());
     let api_response = api_client.get_media(&media_id).await.unwrap();
     let media: Media = api_response.json().await.unwrap();
-    HtmlTemplate(MediaPageTemplate { media })
+    HtmlTemplate(MediaPageTemplate { query, media })
 }
 
 async fn stream_media(

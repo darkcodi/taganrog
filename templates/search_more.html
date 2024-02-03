@@ -1,5 +1,5 @@
 {% for media in media_vec %}
-    <a href="/media/{{ media.id }}" class="rounded-md shadow-sm p-4 flex items-start space-x-4 mt-4 bg-gray-50 hover:bg-gray-100">
+    <a href="/media/{{ media.id }}?q={{ query }}" class="rounded-md shadow-sm p-4 flex items-start space-x-4 mt-4 bg-gray-50 hover:bg-gray-100">
         <img
                 alt="Search Result 1"
                 class="w-32 h-32 object-cover rounded-md"
