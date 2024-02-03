@@ -1,4 +1,5 @@
-use axum::{routing::get, Router};
+use std::iter::once;
+use axum::{routing::get, Router, Json};
 use axum::extract::{Path, Query, State};
 use axum::response::IntoResponse;
 use axum_macros::FromRef;
@@ -13,6 +14,7 @@ use tracing_subscriber::filter;
 use tracing_subscriber::layer::SubscriberExt;
 use crate::api::client::ApiClient;
 use crate::db::{Media, TagsAutocomplete};
+use crate::utils::normalize_query;
 use crate::utils::str_utils::StringExtensions;
 
 const INDEX_TEMPLATE: &str = include_str!("templates/index.html");
@@ -147,36 +149,32 @@ fn extract_tags(query: &SearchQuery) -> Vec<String> {
 }
 
 #[derive(Debug, Serialize)]
-pub struct EnhancedTagsAutocomplete {
-    last_tag: String,
-    full_query: String,
-}
-
-#[derive(Debug, Serialize)]
-pub struct TagSearchPageContext {
-    suggestions: Vec<EnhancedTagsAutocomplete>,
+struct AutocompleteObject {
+    query: String,
+    suggestion: String,
+    highlighted_suggestion: String,
 }
 
 async fn autocomplete_tags(
-    State(engine): State<AppEngine>,
     State(api_client): State<ApiClient>,
-    Key(key): Key,
     Query(query): Query<SearchQuery>,
-) -> impl IntoResponse {
-    if query.q.is_empty() {
-        return RenderHtml(key, engine, TagSearchPageContext { suggestions: vec![] });
+) -> Json<Vec<AutocompleteObject>> {
+    let normalized_query = normalize_query(&query.q);
+    if normalized_query.is_empty() {
+        return Json(vec![]);
     }
     let page = query.p.unwrap_or(0);
-    let api_response = api_client.autocomplete_tags(&query.q, page).await.unwrap();
+    let api_response = api_client.autocomplete_tags(&normalized_query, page).await.unwrap();
     let autocomplete: Vec<TagsAutocomplete> = api_response.json().await.unwrap();
-    let suggestions: Vec<EnhancedTagsAutocomplete> = autocomplete.into_iter().map(|tag| {
-        let head = tag.head;
-        let last = tag.last;
-        let full_query = format!("{} {}", head.join(" "), last);
-        EnhancedTagsAutocomplete { last_tag: last, full_query }
-    }).collect();
-    let ctx = TagSearchPageContext { suggestions };
-    RenderHtml(key, engine, ctx)
+    let autocomplete = autocomplete.iter().map(|x| {
+        let query = normalized_query.clone();
+        let suggestion = x.head.iter().map(|x| x.as_str())
+            .chain(once(x.last.as_str()))
+            .collect::<Vec<&str>>().join(" ");
+        let highlighted_suggestion = query.clone() + "<mark>" + &suggestion[normalized_query.len()..] + "</mark>";
+        AutocompleteObject { query, suggestion, highlighted_suggestion }
+    }).collect::<Vec<AutocompleteObject>>();
+    Json(autocomplete)
 }
 
 #[derive(Debug, Serialize)]

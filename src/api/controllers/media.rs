@@ -9,6 +9,7 @@ use crate::api::{ApiContext, Result};
 use crate::db;
 use crate::db::{Media, TagsAutocomplete};
 use crate::utils::hash_utils::MurMurHasher;
+use crate::utils::normalize_query;
 use crate::utils::str_utils::StringExtensions;
 
 const MAX_UPLOAD_SIZE_IN_BYTES: usize = 52_428_800; // 50 MB
@@ -282,12 +283,4 @@ async fn stream_media(
     let stream = tokio_util::io::ReaderStream::new(file);
     let response = axum::http::Response::new(axum::body::Body::from_stream(stream));
     Ok(response)
-}
-
-fn normalize_query(query: &str) -> String {
-    let mut tags = query.split(" ").map(|x| x.trim()).filter(|x| !x.is_empty()).map(|x| x.slugify().to_string()).collect::<Vec<String>>();
-    if tags.len() > 0 && query.ends_with(" ") {
-        tags.push("".to_string());
-    }
-    tags.join(" ")
 }
