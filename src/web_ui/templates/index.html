@@ -58,6 +58,9 @@
                                     });
                                 });
                         },
+                        onSelect({ item }) {
+                            window.location.href = '/search?q=' + item.suggestion;
+                        },
                         getItemUrl({ item }) {
                             return '/search?q=' + item.suggestion;
                         },
