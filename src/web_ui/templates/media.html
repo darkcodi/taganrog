@@ -76,7 +76,9 @@
                 <ul>
                     {% for tag in media.tags %}
                         <li class="bg-red-200 text-red-700 rounded px-2 py-1 mb-2 flex justify-between items-center">
-                            #{{ tag }}
+                            <a href="/search?q={{ tag }}">
+                                #{{ tag }}
+                            </a>
                             <span class="cursor-pointer hover:text-red-500">X</span>
                         </li>
                     {% endfor %}
