@@ -6,7 +6,7 @@ use axum_macros::FromRef;
 use axum_template::engine::Engine;
 use axum_template::{Key, RenderHtml};
 use minijinja::Environment;
-use tracing::{info, Level};
+use tracing::{info, Level, warn};
 use tracing_subscriber::util::SubscriberInitExt;
 use serde::{Deserialize, Serialize};
 use tower_http::trace::TraceLayer;
@@ -17,6 +17,7 @@ use crate::db::{Media, TagsAutocomplete};
 use crate::utils::normalize_query;
 use crate::utils::str_utils::StringExtensions;
 
+const FAVICON: &[u8] = include_bytes!("assets/favicon.ico");
 const INDEX_TEMPLATE: &str = include_str!("templates/index.html");
 const MEDIA_TEMPLATE: &str = include_str!("templates/media.html");
 const SEARCH_TEMPLATE: &str = include_str!("templates/search.html");
@@ -46,6 +47,7 @@ pub async fn serve(api_url: &str) {
     info!("initializing router...");
     let router = Router::new()
         .route("/", get(index))
+        .route("/favicon.ico", get(favicon))
         .route("/media/:media_id", get(media))
         .route("/media/:media_id/stream", get(stream_media))
         .route("/search", get(media_search))
@@ -80,6 +82,10 @@ async fn index(
 ) -> impl IntoResponse {
     let ctx = IndexPageContext;
     RenderHtml(key, engine, ctx)
+}
+
+async fn favicon() -> impl IntoResponse {
+    axum::http::Response::<axum::body::Body>::new(FAVICON.into())
 }
 
 #[derive(Deserialize)]
