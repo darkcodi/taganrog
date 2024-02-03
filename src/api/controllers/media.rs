@@ -17,6 +17,7 @@ pub fn router() -> Router {
     Router::new()
         .route("/api/media", get(get_all_media).post(add_media))
         .route("/api/media/:media_id", get(get_media).delete(delete_media))
+        .route("/api/media/:media_id/stream", get(stream_media))
         .route("/api/media/:media_id/add-tag", post(add_tag_to_media))
         .route("/api/media/:media_id/remove-tag", post(delete_tag_from_media))
         .route("/api/media/search", post(search_media))
@@ -264,6 +265,23 @@ async fn autocomplete_tags(
     }
     let autocomplete = db::autocomplete_tags(&ctx, &query, page_size as usize).await?;
     Ok(Json(autocomplete))
+}
+
+async fn stream_media(
+    ctx: Extension<ApiContext>,
+    Path(media_id): Path<String>,
+) -> Result<axum::http::Response<axum::body::Body>> {
+    let maybe_media = db::get_media_by_id(&ctx, &media_id).await?;
+    if maybe_media.is_none() {
+        return Err(ApiError::NotFound);
+    }
+
+    let media = maybe_media.unwrap();
+    let full_path = ctx.cfg.workdir.join(&media.location);
+    let file = tokio::fs::File::open(&full_path).await?;
+    let stream = tokio_util::io::ReaderStream::new(file);
+    let response = axum::http::Response::new(axum::body::Body::from_stream(stream));
+    Ok(response)
 }
 
 fn normalize_query(query: &str) -> String {
