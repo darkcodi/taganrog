@@ -102,8 +102,9 @@ async fn media_search(
     Key(key): Key,
     Query(query): Query<SearchQuery>,
 ) -> impl IntoResponse {
-    let query_tags = extract_tags(&query);
-    RenderHtml(key, engine, SearchPageContext { query: query.q, query_tags, media_vec: vec![], next_page: 0, has_next: true })
+    let normalized_query = normalize_query(&query.q);
+    let query_tags = extract_tags(&normalized_query);
+    RenderHtml(key, engine, SearchPageContext { query: normalized_query, query_tags, media_vec: vec![], next_page: 0, has_next: true })
 }
 
 async fn media_search_more(
@@ -112,17 +113,18 @@ async fn media_search_more(
     Key(key): Key,
     Query(query): Query<SearchQuery>,
 ) -> impl IntoResponse {
-    if query.q.is_empty() {
+    let normalized_query = normalize_query(&query.q);
+    if normalized_query.is_empty() {
         return RenderHtml(key, engine, SearchPageContext { query: "".to_string(), query_tags: vec![], media_vec: vec![], next_page: 0, has_next: false });
     }
     let page_index = query.p.unwrap_or(0);
     let page_size = 5;
-    let api_response = api_client.search_media(&query.q, page_size, page_index).await.unwrap();
+    let api_response = api_client.search_media(&normalized_query, page_size, page_index).await.unwrap();
     let mut media_vec: Vec<Media> = api_response.json().await.unwrap();
     let has_next = media_vec.len() as u64 == page_size;
 
     // order tags in each media by the order they appear in the query
-    let query_tags = extract_tags(&query);
+    let query_tags = extract_tags(&normalized_query);
     let tag_to_index = query_tags.clone().into_iter()
         .enumerate().map(|(i, x)| (x, i))
         .collect::<std::collections::HashMap<String, usize>>();
@@ -131,7 +133,7 @@ async fn media_search_more(
     });
 
     let ctx = SearchPageContext {
-        query: query.q,
+        query: normalized_query,
         query_tags,
         media_vec,
         next_page: page_index + 1,
@@ -140,8 +142,8 @@ async fn media_search_more(
     RenderHtml(key, engine, ctx)
 }
 
-fn extract_tags(query: &SearchQuery) -> Vec<String> {
-    let query_tags = query.q.split(" ")
+fn extract_tags(query: &String) -> Vec<String> {
+    let query_tags = query.split(" ")
         .map(|x| x.slugify().to_string())
         .filter(|x| !x.is_empty())
         .collect::<Vec<String>>();

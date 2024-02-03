@@ -18,6 +18,12 @@
             hash: false
         })
     </script>
+    <!-- algolia -->
+    <link rel="stylesheet" href="https://unpkg.com/@algolia/autocomplete-theme-classic@1.15.1" />
+    <script src="https://unpkg.com/@algolia/autocomplete-js@1.15.1"></script>
+    <script>
+        const { autocomplete } = window['@algolia/autocomplete-js'];
+    </script>
 </head>
 <body>
 <div class="flex flex-col h-screen">
@@ -27,15 +33,7 @@
                 <h1 class="flex items-center text-3xl font-bold tracking-tighter sm:text-4xl md:text-5xl"><span class="text-6xl font-extrabold text-red-500"> Tag </span><span class="ml-2 text-5xl"> anrog </span></h1>
             </button>
         </form>
-        <form action="/search" method="get" class="mx-auto flex w-full max-w-xl items-center">
-            <div class="flex-1 rounded-md shadow-sm">
-                <div>
-                    <label class="sr-only" for="search"> Search </label>
-                    <input class="relative block w-full appearance-none rounded-md border border-gray-300 px-3 py-2 text-gray-900 placeholder-gray-500 focus:z-10 focus:border-indigo-500 focus:outline-none focus:ring-indigo-500 sm:text-sm" id="search" placeholder="Search ..." type="text" name="q" value="{{ query }}" />
-                </div>
-            </div>
-            <button type="submit" class="!bg-black ring-offset-background focus-visible:ring-ring !hover:bg-gray-700 ml-2 inline-flex h-10 items-center justify-center rounded-md px-4 py-2 text-sm font-medium text-white transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50">Search</button>
-        </form>
+        <div class="mx-auto w-full max-w-xl" id="autocomplete"></div>
         <button class="border-none focus:outline-none">
             <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="h-6 w-6">
                 <path stroke-linecap="round" color="#EF4444" stroke-linejoin="round" d="M3 16.5v2.25A2.25 2.25 0 0 0 5.25 21h13.5A2.25 2.25 0 0 0 21 18.75V16.5m-13.5-9L12 3m0 0 4.5 4.5M12 3v13.5" />
@@ -58,6 +56,65 @@
     <footer class="w-full h-20 flex items-center justify-center bg-white">
         <div class="text-center"><p class="text-gray-600">For those, who love tags</p></div>
     </footer>
+    <script>
+        autocomplete({
+            container: '#autocomplete',
+            initialState: {
+                query: "{{ query }}",
+            },
+            getSources({ query }) {
+                return [
+                    {
+                        sourceId: 'tags',
+                        getItems() {
+                            return fetch(`/tags/autocomplete?q=${encodeURIComponent(query)}`)
+                                .then((response) => response.json())
+                                .then((data) => {
+                                    return data.map((item) => {
+                                        return {
+                                            ...item,
+                                            suggestion: item.suggestion,
+                                            _highlightResult: {
+                                                highlighted_suggestion: {
+                                                    value: item.highlighted_suggestion
+                                                        .replace(/<mark>/g, '__aa-highlight__')
+                                                        .replace(/<\/mark>/g, '__/aa-highlight__')
+                                                },
+                                            },
+                                        };
+                                    });
+                                });
+                        },
+                        onSelect({ item }) {
+                            window.location.href = '/search?q=' + item.suggestion;
+                        },
+                        getItemUrl({ item }) {
+                            return '/search?q=' + item.suggestion;
+                        },
+                        getItemInputValue: ({ item }) => item.suggestion,
+                        templates: {
+                            item({ item, components, html }) {
+                                return html`<div className="aa-ItemWrapper">
+                                  <div className="aa-ItemContent">
+                                    <div className="aa-ItemContentBody">
+                                      <div className="aa-ItemContentTitle">
+                                        ${components.Highlight({ hit: item, attribute: 'highlighted_suggestion' })}
+                                      </div>
+                                    </div>
+                                  </div>
+                                </div>`
+                            },
+                        },
+                    },
+                ];
+            },
+            onSubmit({ state }) {
+                if (state.query) {
+                    window.location.href = '/search?q=' + encodeURIComponent(state.query);
+                }
+            },
+        });
+    </script>
 </div>
 </body>
 </html>
