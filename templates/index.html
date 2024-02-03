@@ -1,0 +1,20 @@
+{% extends "base.html" %}
+
+{% block content %}
+    <div id="content">
+        <main class="flex h-screen flex-col items-center justify-center bg-white px-4 sm:px-6 lg:px-8">
+            <div class="flex items-center justify-center">
+                <h1 class="text-4xl font-bold tracking-tighter sm:text-5xl md:text-6xl"><span class="text-7xl font-extrabold text-red-500"> Tag </span><span class="text-6xl"> anrog </span></h1>
+            </div>
+            <div class="mt-6 w-full max-w-xl space-y-8" id="autocomplete"></div>
+        </main>
+        <footer class="fixed bottom-0 flex h-20 w-full items-center justify-center bg-white">
+            <div class="text-center"><p class="text-gray-600">Charting digital depths, from Alferaki to Faina</p></div>
+        </footer>
+        {% include "algolia_autocomplete.html" %}
+        <script>
+            // focus on the Algolia input
+            document.querySelector('.aa-Input').focus();
+        </script>
+    </div>
+{% endblock %}

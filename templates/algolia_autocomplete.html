@@ -1,0 +1,59 @@
+<script>
+    autocomplete({
+        container: '#autocomplete',
+        initialState: {
+            query: "{{ query }}",
+        },
+        getSources({ query }) {
+            return [
+                {
+                    sourceId: 'tags',
+                    getItems() {
+                        return fetch(`/tags/autocomplete?q=${encodeURIComponent(query)}`)
+                            .then((response) => response.json())
+                            .then((data) => {
+                                return data.map((item) => {
+                                    return {
+                                        ...item,
+                                        suggestion: item.suggestion,
+                                        _highlightResult: {
+                                            highlighted_suggestion: {
+                                                value: item.highlighted_suggestion
+                                                    .replace(/<mark>/g, '__aa-highlight__')
+                                                    .replace(/<\/mark>/g, '__/aa-highlight__')
+                                            },
+                                        },
+                                    };
+                                });
+                            });
+                    },
+                    onSelect({ item }) {
+                        window.location.href = '/search?q=' + item.suggestion;
+                    },
+                    getItemUrl({ item }) {
+                        return '/search?q=' + item.suggestion;
+                    },
+                    getItemInputValue: ({ item }) => item.suggestion,
+                    templates: {
+                        item({ item, components, html }) {
+                            return html`<div className="aa-ItemWrapper">
+                                  <div className="aa-ItemContent">
+                                    <div className="aa-ItemContentBody">
+                                      <div className="aa-ItemContentTitle">
+                                        ${components.Highlight({ hit: item, attribute: 'highlighted_suggestion' })}
+                                      </div>
+                                    </div>
+                                  </div>
+                                </div>`
+                        },
+                    },
+                },
+            ];
+        },
+        onSubmit({ state }) {
+            if (state.query) {
+                window.location.href = '/search?q=' + encodeURIComponent(state.query);
+            }
+        },
+    });
+</script>

@@ -28,7 +28,7 @@ pub struct TagsAutocomplete {
     pub last: String,
 }
 
-#[derive(serde::Serialize, serde::Deserialize, Clone, Debug, PartialEq, Eq)]
+#[derive(serde::Serialize, serde::Deserialize, Default, Clone, Debug, PartialEq, Eq)]
 pub struct Media {
     pub id: String,
     pub filename: String,
