@@ -16,6 +16,7 @@ use crate::db::{Media, TagsAutocomplete};
 use crate::utils::str_utils::StringExtensions;
 
 const INDEX_TEMPLATE: &str = include_str!("templates/index.html");
+const MEDIA_TEMPLATE: &str = include_str!("templates/media.html");
 const SEARCH_TEMPLATE: &str = include_str!("templates/search.html");
 const SEARCH_MORE_TEMPLATE: &str = include_str!("templates/search_more.html");
 const TAGS_AUTOCOMPLETE_TEMPLATE: &str = include_str!("templates/tag_autocomplete.html");
@@ -35,6 +36,7 @@ pub async fn serve(api_url: &str) {
     info!("initializing templates...");
     let mut jinja = Environment::new();
     jinja.add_template("/", INDEX_TEMPLATE).unwrap();
+    jinja.add_template("/media/:media_id", MEDIA_TEMPLATE).unwrap();
     jinja.add_template("/search", SEARCH_TEMPLATE).unwrap();
     jinja.add_template("/search/more", SEARCH_MORE_TEMPLATE).unwrap();
     jinja.add_template("/tags/autocomplete", TAGS_AUTOCOMPLETE_TEMPLATE).unwrap();
@@ -42,6 +44,7 @@ pub async fn serve(api_url: &str) {
     info!("initializing router...");
     let router = Router::new()
         .route("/", get(index))
+        .route("/media/:media_id", get(media))
         .route("/media/:media_id/stream", get(stream_media))
         .route("/search", get(media_search))
         .route("/search/more", get(media_search_more))
@@ -174,6 +177,22 @@ async fn autocomplete_tags(
     }).collect();
     let ctx = TagSearchPageContext { suggestions };
     RenderHtml(key, engine, ctx)
+}
+
+#[derive(Debug, Serialize)]
+pub struct MediaPageContext {
+    media: Media,
+}
+
+async fn media(
+    State(engine): State<AppEngine>,
+    State(api_client): State<ApiClient>,
+    Path(media_id): Path<String>,
+    Key(key): Key,
+) -> impl IntoResponse {
+    let api_response = api_client.get_media(&media_id).await.unwrap();
+    let media: Media = api_response.json().await.unwrap();
+    RenderHtml(key, engine, MediaPageContext { media })
 }
 
 async fn stream_media(
