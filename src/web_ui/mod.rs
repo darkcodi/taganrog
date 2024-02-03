@@ -1,6 +1,7 @@
 use std::iter::once;
 use askama::Template;
 use axum::{routing::get, Router, Json};
+use axum::body::Body;
 use axum::extract::{Path, Query, State};
 use axum::http::StatusCode;
 use axum::response::{Html, IntoResponse, Response};
@@ -17,7 +18,13 @@ use crate::db::{Media, TagsAutocomplete};
 use crate::utils::normalize_query;
 use crate::utils::str_utils::StringExtensions;
 
+// icons
 const FAVICON: &[u8] = include_bytes!("assets/favicon.ico");
+const ICON_DEFAULT: &[u8] = include_bytes!("assets/icons/file.svg");
+const ICON_JPG: &[u8] = include_bytes!("assets/icons/jpg.svg");
+const ICON_MP3: &[u8] = include_bytes!("assets/icons/mp3.svg");
+const ICON_MP4: &[u8] = include_bytes!("assets/icons/mp4.svg");
+const ICON_PNG: &[u8] = include_bytes!("assets/icons/png.svg");
 
 pub async fn serve(api_url: &str) {
     let tracing_layer = tracing_subscriber::fmt::layer();
@@ -33,13 +40,25 @@ pub async fn serve(api_url: &str) {
 
     info!("initializing router...");
     let router = Router::new()
-        .route("/", get(index))
+
+        // icons
         .route("/favicon.ico", get(favicon))
+        .route("/icons/file.svg", get(icon_default))
+        .route("/icons/jpg.svg", get(icon_jpg))
+        .route("/icons/mp3.svg", get(icon_mp3))
+        .route("/icons/mp4.svg", get(icon_mp4))
+        .route("/icons/png.svg", get(icon_png))
+
+        // pages
+        .route("/", get(index))
         .route("/media/:media_id", get(media))
-        .route("/media/:media_id/stream", get(stream_media))
         .route("/search", get(media_search))
         .route("/search/more", get(media_search_more))
+
+        // api
+        .route("/media/:media_id/stream", get(stream_media))
         .route("/tags/autocomplete", get(autocomplete_tags))
+
         .with_state(AppState {
             api_client: ApiClient::new(api_url.to_string()),
         })
@@ -83,8 +102,18 @@ async fn index() -> impl IntoResponse {
     HtmlTemplate(IndexTemplate::default())
 }
 
-async fn favicon() -> impl IntoResponse {
-    Response::<axum::body::Body>::new(FAVICON.into())
+async fn favicon() -> impl IntoResponse { Response::<Body>::new(FAVICON.into()) }
+async fn icon_default() -> impl IntoResponse { icon_response(ICON_DEFAULT) }
+async fn icon_jpg() -> impl IntoResponse { icon_response(ICON_JPG) }
+async fn icon_mp3() -> impl IntoResponse { icon_response(ICON_MP3) }
+async fn icon_mp4() -> impl IntoResponse { icon_response(ICON_MP4) }
+async fn icon_png() -> impl IntoResponse { icon_response(ICON_PNG) }
+
+fn icon_response(icon: &'static [u8]) -> Response<Body> {
+    let mut response = Response::<Body>::new(icon.into());
+    response.headers_mut().insert("Cache-Control", "public, max-age=31536000".parse().unwrap());
+    response.headers_mut().insert("Content-Type", "image/svg+xml".parse().unwrap());
+    response
 }
 
 #[derive(Deserialize)]
