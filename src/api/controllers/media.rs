@@ -237,7 +237,7 @@ async fn search_media(
     ctx: Extension<ApiContext>,
     Json(req): Json<SearchBody>,
 ) -> Result<Json<Vec<Media>>> {
-    let page_size = req.s.unwrap_or(5).clamp(1, 50);
+    let page_size = req.s.unwrap_or(10).clamp(1, 50);
     let page_index = req.p.unwrap_or(0);
     let query = normalize_query(&req.q);
     if query.is_empty() {

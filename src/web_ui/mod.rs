@@ -118,7 +118,7 @@ async fn media_search_more(
         return RenderHtml(key, engine, SearchPageContext { query: "".to_string(), query_tags: vec![], media_vec: vec![], next_page: 0, has_next: false });
     }
     let page_index = query.p.unwrap_or(0);
-    let page_size = 5;
+    let page_size = 10;
     let api_response = api_client.search_media(&normalized_query, page_size, page_index).await.unwrap();
     let mut media_vec: Vec<Media> = api_response.json().await.unwrap();
     let has_next = media_vec.len() as u64 == page_size;
