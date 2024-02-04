@@ -317,7 +317,10 @@ async fn search_tags(
         let suggestion = x.head.iter().map(|x| x.as_str())
             .chain(once(x.last.as_str()))
             .collect::<Vec<&str>>().join(" ");
-        let highlighted_suggestion = query.clone() + "<mark>" + &suggestion[normalized_query.len()..] + "</mark>";
+        let highlighted_suggestion = match suggestion.starts_with(&query) {
+            true => query.clone() + "<mark>" + &suggestion[normalized_query.len()..] + "</mark>",
+            false => suggestion.clone(),
+        };
         AutocompleteObject { query, suggestion, highlighted_suggestion }
     }).collect::<Vec<AutocompleteObject>>();
     Json(autocomplete)
