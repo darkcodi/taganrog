@@ -49,7 +49,7 @@
                     <ul>
                         {% for tag in media.tags %}
                             <li id="li-{{ tag }}" class="bg-red-200 text-red-700 rounded px-2 py-1 mb-2 flex justify-between items-center">
-                                <a href="/media/{{ media.id }}?q={{ query }}%20{{ tag }}">#{{ tag }}</a>
+                                <a href="/search?q={{ query }}%20{{ tag }}">#{{ tag }}</a>
                                 <span class="cursor-pointer hover:text-red-500"
                                     hx-delete="/media/{{ media.id }}/remove-tag?tag={{ tag }}"
                                     hx-trigger="click"
