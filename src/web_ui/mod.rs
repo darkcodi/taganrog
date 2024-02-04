@@ -253,6 +253,11 @@ async fn add_tag_to_media(
         return HtmlTemplate(AddTagToMediaTemplate::default());
     }
     let normalized_query = normalize_query(&query.q.unwrap_or_default());
+    let api_response = api_client.get_media(&media_id).await.unwrap();
+    let media: Media = api_response.json().await.unwrap();
+    if media.tags.contains(&tag) {
+        return HtmlTemplate(AddTagToMediaTemplate::default());
+    }
     let api_response = api_client.add_tag_to_media(&media_id, &tag).await.unwrap();
     let media: Media = api_response.json().await.unwrap();
     HtmlTemplate(AddTagToMediaTemplate { media, tag, query: normalized_query })
