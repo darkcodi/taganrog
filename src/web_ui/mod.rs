@@ -52,14 +52,14 @@ pub async fn serve(api_url: &str) {
 
         // pages
         .route("/", get(index))
-        .route("/media/:media_id", get(media))
+        .route("/media/:media_id", get(get_media).delete(delete_media))
+        .route("/media/:media_id/add-tag", get(add_tag_to_media))
+        .route("/media/:media_id/remove-tag", delete(delete_tag_from_media))
         .route("/search", get(media_search))
         .route("/search/more", get(media_search_more))
 
         // api
         .route("/media/:media_id/stream", get(stream_media))
-        .route("/media/:media_id/add-tag", get(add_tag_to_media))
-        .route("/media/:media_id/remove-tag", delete(delete_tag_from_media))
         .route("/tags/search", get(search_tags))
         .route("/tags/autocomplete", get(autocomplete_tags))
 
@@ -333,7 +333,7 @@ pub struct MediaPageTemplate {
     media: Media,
 }
 
-async fn media(
+async fn get_media(
     State(api_client): State<ApiClient>,
     Query(query): Query<SearchQuery>,
     Path(media_id): Path<String>,
@@ -342,6 +342,18 @@ async fn media(
     let api_response = api_client.get_media(&media_id).await.unwrap();
     let media: Media = api_response.json().await.unwrap();
     HtmlTemplate(MediaPageTemplate { query, media })
+}
+
+async fn delete_media(
+    State(api_client): State<ApiClient>,
+    Path(media_id): Path<String>,
+) -> impl IntoResponse {
+    let api_response = api_client.delete_media(&media_id).await;
+    if api_response.is_err() || !api_response.unwrap().status().is_success() {
+        return StatusCode::INTERNAL_SERVER_ERROR;
+    }
+
+    StatusCode::OK
 }
 
 async fn stream_media(

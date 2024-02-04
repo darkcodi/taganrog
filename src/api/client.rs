@@ -34,6 +34,12 @@ impl ApiClient {
         Ok(res)
     }
 
+    pub async fn delete_media(&self, media_id: &str) -> anyhow::Result<reqwest::Response> {
+        let url: String = format!("{}/api/media/{}", self.config.api_url, media_id);
+        let res = self.client.delete(&url).send().await?;
+        Ok(res)
+    }
+
     pub async fn autocomplete_tags(&self, query: &str, page: u64) -> anyhow::Result<reqwest::Response> {
         let url: String = format!("{}/api/tags/autocomplete", self.config.api_url);
         let res = self.client.post(&url).json(&json!({ "q": query, "p": page })).send().await?;

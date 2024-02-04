@@ -16,7 +16,7 @@
             </button>
         </header>
         <main class="h-screen flex flex-col items-center justify-center bg-white px-4 sm:px-6 lg:px-8">
-            <div class="max-w-fit w-full mt-6 flex h-3/4">
+            <div id="media-main" class="max-w-fit w-full mt-6 flex h-3/4">
                 <div class="flex-1">
                     <video
                             controls
@@ -25,57 +25,65 @@
                             style="aspect-ratio:16/9;object-fit:contain;"
                     ></video>
                 </div>
-                <div class="w-96 p-4 bg-gray-100 rounded-md ml-4">
-                    <h2 class="text-2xl font-bold mb-2">File Info</h2>
-                    <ul>
-                        <li class="mb-2">
-                            <strong>Name:</strong>
-                            <span class="break-all"> {{ media.filename }}</span>
-                        </li>
-                        <li class="mb-2">
-                            <strong>Hash:</strong>
-                            <span class="break-all"> {{ media.id }}</span>
-                        </li>
-                        <li class="mb-2">
-                            <strong>Type:</strong>
-                            <span class="break-all"> {{ media.content_type }}</span>
-                        </li>
-                        <li class="mb-2">
-                            <strong>Date:</strong>
-                            <span class="break-all"> {{ media.created_at }}</span>
-                        </li>
-                    </ul>
-                    <h2 class="text-2xl font-bold mb-2">Tags</h2>
-                    <ul>
-                        <div id="tag-adder"
-                             hx-get="/media/{{ media.id }}/add-tag?q={{ query }}"
-                             hx-vals="js:{tag: document.querySelector('#tag-search .aa-Input').value}"
-                             hx-trigger="click"
-                             hx-target="#next-tag-stub"
-                             hx-swap="outerHTML">
-                            <input type="hidden" value="" name="tag">
-                        </div>
-                        {% for tag in media.tags %}
-                            <li id="li-{{ tag }}" class="bg-red-200 text-red-700 rounded px-2 py-1 mb-2 flex justify-between items-center">
-                                <a href="/search?q={{ query }}%20{{ tag }}">#{{ tag }}</a>
-                                <span class="cursor-pointer hover:text-red-500"
-                                    hx-delete="/media/{{ media.id }}/remove-tag?tag={{ tag }}"
-                                    hx-trigger="click"
-                                    hx-target="#li-{{ tag }}"
-                                    hx-swap="outerHTML">X</span>
+                <div class="w-96 p-4 bg-gray-100 rounded-md ml-4 flex flex-col justify-between">
+                    <div>
+                        <h2 class="text-2xl font-bold mb-2">File Info</h2>
+                        <ul>
+                            <li class="mb-2">
+                                <strong>Name:</strong>
+                                <span class="break-all"> {{ media.filename }}</span>
                             </li>
-                        {% endfor %}
-                        <div id="next-tag-stub"></div>
-                    </ul>
-                    <div class="mt-4">
-                        <div class="rounded-md shadow-sm">
-                            <div>
-                                <label class="sr-only" for="tag-search">
-                                    Search Tags
-                                </label>
-                                <div class="mx-auto w-full" id="tag-search"></div>
+                            <li class="mb-2">
+                                <strong>Hash:</strong>
+                                <span class="break-all"> {{ media.id }}</span>
+                            </li>
+                            <li class="mb-2">
+                                <strong>Type:</strong>
+                                <span class="break-all"> {{ media.content_type }}</span>
+                            </li>
+                            <li class="mb-2">
+                                <strong>Date:</strong>
+                                <span class="break-all"> {{ media.created_at }}</span>
+                            </li>
+                        </ul>
+                        <h2 class="text-2xl font-bold mb-2">Tags</h2>
+                        <ul>
+                            <div id="tag-adder"
+                                 hx-get="/media/{{ media.id }}/add-tag?q={{ query }}"
+                                 hx-vals="js:{tag: document.querySelector('#tag-search .aa-Input').value}"
+                                 hx-trigger="click"
+                                 hx-target="#next-tag-stub"
+                                 hx-swap="outerHTML">
+                                <input type="hidden" value="" name="tag">
+                            </div>
+                            {% for tag in media.tags %}
+                                <li id="li-{{ tag }}" class="bg-red-200 text-red-700 rounded px-2 py-1 mb-2 flex justify-between items-center">
+                                    <a href="/search?q={{ query }}%20{{ tag }}">#{{ tag }}</a>
+                                    <span class="cursor-pointer hover:text-red-500"
+                                        hx-delete="/media/{{ media.id }}/remove-tag?tag={{ tag }}"
+                                        hx-trigger="click"
+                                        hx-target="#li-{{ tag }}"
+                                        hx-swap="outerHTML">X</span>
+                                </li>
+                            {% endfor %}
+                            <div id="next-tag-stub"></div>
+                        </ul>
+                        <div class="mt-4">
+                            <div class="rounded-md shadow-sm">
+                                <div>
+                                    <label class="sr-only" for="tag-search">
+                                        Search Tags
+                                    </label>
+                                    <div class="mx-auto w-full" id="tag-search"></div>
+                                </div>
                             </div>
                         </div>
+                    </div>
+                    <div class="mt-4">
+                        <button class="inline-flex items-center justify-center whitespace-nowrap rounded-md text-sm font-medium ring-offset-background transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-500 focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 bg-red-600 text-white hover:bg-red-700 h-10 px-4 py-2 w-full"
+                                hx-delete="/media/{{ media.id }}" hx-trigger="click" hx-confirm="Are you sure you wish to delete this media?" hx-target="#media-main" hx-swap="outerHTML" >
+                            Delete media
+                        </button>
                     </div>
                 </div>
             </div>
