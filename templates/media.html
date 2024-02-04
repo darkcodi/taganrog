@@ -16,6 +16,7 @@
             </button>
         </header>
         <main class="h-screen flex flex-col items-center justify-center bg-white px-4 sm:px-6 lg:px-8">
+            {% if media_exists %}
             <div id="media-main" class="max-w-fit w-full mt-6 flex h-3/4">
                 <div class="flex-1">
                     <video
@@ -87,6 +88,7 @@
                     </div>
                 </div>
             </div>
+            {% endif %}
         </main>
         <footer class="w-full h-20 flex items-center justify-center bg-white">
             <div class="text-center"><p class="text-gray-600">Charting digital depths, from Alferaki to Faina</p></div>

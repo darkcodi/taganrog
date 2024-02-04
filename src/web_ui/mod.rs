@@ -331,6 +331,7 @@ async fn search_tags(
 pub struct MediaPageTemplate {
     query: String,
     media: Media,
+    media_exists: bool,
 }
 
 async fn get_media(
@@ -340,8 +341,11 @@ async fn get_media(
 ) -> impl IntoResponse {
     let query = normalize_query(&query.q.unwrap_or_default());
     let api_response = api_client.get_media(&media_id).await.unwrap();
-    let media: Media = api_response.json().await.unwrap();
-    HtmlTemplate(MediaPageTemplate { query, media })
+    if let Ok(media) = api_response.json().await {
+        HtmlTemplate(MediaPageTemplate { query, media, media_exists: true })
+    } else {
+        HtmlTemplate(MediaPageTemplate { query, media: Media::default(), media_exists: false })
+    }
 }
 
 async fn delete_media(
