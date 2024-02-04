@@ -60,6 +60,7 @@ pub async fn serve(api_url: &str) {
         .route("/media/:media_id/stream", get(stream_media))
         .route("/media/:media_id/add-tag", get(add_tag_to_media))
         .route("/media/:media_id/remove-tag", delete(delete_tag_from_media))
+        .route("/tags/search", get(search_tags))
         .route("/tags/autocomplete", get(autocomplete_tags))
 
         .with_state(AppState {
@@ -230,21 +231,31 @@ fn extract_tags(query: &String) -> Vec<String> {
 
 #[derive(Debug, Default, Deserialize)]
 pub struct TagBody {
+    q: Option<String>,
     tag: Option<String>,
+}
+
+#[derive(Default, Template)]
+#[template(path = "add_tag_to_media.html")]
+pub struct AddTagToMediaTemplate {
+    media: Media,
+    tag: String,
+    query: String,
 }
 
 async fn add_tag_to_media(
     State(api_client): State<ApiClient>,
     Path(media_id): Path<String>,
     Query(query): Query<TagBody>,
-) -> Json<Media> {
+) -> impl IntoResponse {
     let tag = query.tag.unwrap_or_default();
     if tag.is_empty() {
-        return Json(Media::default());
+        return HtmlTemplate(AddTagToMediaTemplate::default());
     }
+    let normalized_query = normalize_query(&query.q.unwrap_or_default());
     let api_response = api_client.add_tag_to_media(&media_id, &tag).await.unwrap();
     let media: Media = api_response.json().await.unwrap();
-    Json(media)
+    HtmlTemplate(AddTagToMediaTemplate { media, tag, query: normalized_query })
 }
 
 async fn delete_tag_from_media(
@@ -274,6 +285,28 @@ async fn autocomplete_tags(
 ) -> Json<Vec<AutocompleteObject>> {
     let normalized_query = normalize_query(&query.q.unwrap_or_default());
     if normalized_query.is_empty() {
+        return Json(vec![]);
+    }
+    let page = query.p.unwrap_or(0);
+    let api_response = api_client.autocomplete_tags(&normalized_query, page).await.unwrap();
+    let autocomplete: Vec<TagsAutocomplete> = api_response.json().await.unwrap();
+    let autocomplete = autocomplete.iter().map(|x| {
+        let query = normalized_query.clone();
+        let suggestion = x.head.iter().map(|x| x.as_str())
+            .chain(once(x.last.as_str()))
+            .collect::<Vec<&str>>().join(" ");
+        let highlighted_suggestion = query.clone() + "<mark>" + &suggestion[normalized_query.len()..] + "</mark>";
+        AutocompleteObject { query, suggestion, highlighted_suggestion }
+    }).collect::<Vec<AutocompleteObject>>();
+    Json(autocomplete)
+}
+
+async fn search_tags(
+    State(api_client): State<ApiClient>,
+    Query(query): Query<SearchQuery>,
+) -> Json<Vec<AutocompleteObject>> {
+    let mut normalized_query = normalize_query(&query.q.unwrap_or_default());
+    if normalized_query.is_empty() || normalized_query.contains(" ") {
         return Json(vec![]);
     }
     let page = query.p.unwrap_or(0);

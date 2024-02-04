@@ -47,6 +47,14 @@
                     </ul>
                     <h2 class="text-2xl font-bold mb-2">Tags</h2>
                     <ul>
+                        <div id="tag-adder"
+                             hx-get="/media/{{ media.id }}/add-tag?q={{ query }}"
+                             hx-vals="js:{tag: document.querySelector('#tag-search .aa-Input').value}"
+                             hx-trigger="click"
+                             hx-target="#next-tag-stub"
+                             hx-swap="outerHTML">
+                            <input type="hidden" value="" name="tag">
+                        </div>
                         {% for tag in media.tags %}
                             <li id="li-{{ tag }}" class="bg-red-200 text-red-700 rounded px-2 py-1 mb-2 flex justify-between items-center">
                                 <a href="/search?q={{ query }}%20{{ tag }}">#{{ tag }}</a>
@@ -57,21 +65,15 @@
                                     hx-swap="outerHTML">X</span>
                             </li>
                         {% endfor %}
+                        <div id="next-tag-stub"></div>
                     </ul>
                     <div class="mt-4">
                         <div class="rounded-md shadow-sm">
                             <div>
-                                <label class="sr-only" for="tagSearch">
+                                <label class="sr-only" for="tag-search">
                                     Search Tags
                                 </label>
-                                <input
-                                        class="appearance-none rounded-none relative block w-full px-3 py-2 border border-gray-300 placeholder-gray-500 text-gray-900 rounded-t-md focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 focus:z-10 sm:text-sm"
-                                        id="tagSearch"
-                                        placeholder="Search tags..."
-                                        required=""
-                                        type="text"
-                                        name="tagSearch"
-                                />
+                                <div class="mx-auto w-full" id="tag-search"></div>
                             </div>
                         </div>
                     </div>
@@ -82,5 +84,65 @@
             <div class="text-center"><p class="text-gray-600">Charting digital depths, from Alferaki to Faina</p></div>
         </footer>
         {% include "algolia_autocomplete.html" %}
+        <script>
+            document.body.addEventListener('htmx:afterRequest', function(event) {
+                console.log(event);
+                if (event.detail.elt.id === 'tag-adder') {
+                    document.querySelector('#tag-search .aa-Input').value = '';
+                }
+            });
+
+            autocomplete({
+                container: '#tag-search',
+                getSources({ query }) {
+                    return [
+                        {
+                            sourceId: 'tag-search',
+                            getItems() {
+                                return fetch(`/tags/search?q=${encodeURIComponent(query)}`)
+                                    .then((response) => response.json())
+                                    .then((data) => {
+                                        return data.map((item) => {
+                                            return {
+                                                ...item,
+                                                suggestion: item.suggestion,
+                                                _highlightResult: {
+                                                    highlighted_suggestion: {
+                                                        value: item.highlighted_suggestion
+                                                            .replace(/<mark>/g, '__aa-highlight__')
+                                                            .replace(/<\/mark>/g, '__/aa-highlight__')
+                                                    },
+                                                },
+                                            };
+                                        });
+                                    });
+                            },
+                            onSelect({ item }) {
+                                document.querySelector('#tag-adder').click();
+                            },
+                            getItemInputValue: ({ item }) => item.suggestion,
+                            templates: {
+                                item({ item, components, html }) {
+                                    return html`<div className="aa-ItemWrapper">
+                                  <div className="aa-ItemContent">
+                                    <div className="aa-ItemContentBody">
+                                      <div className="aa-ItemContentTitle">
+                                        ${components.Highlight({ hit: item, attribute: 'highlighted_suggestion' })}
+                                      </div>
+                                    </div>
+                                  </div>
+                                </div>`
+                                },
+                            },
+                        },
+                    ];
+                },
+                onSubmit({ state }) {
+                    if (state.query) {
+                        document.querySelector('#tag-adder').click();
+                    }
+                },
+            });
+        </script>
     </div>
 {% endblock %}

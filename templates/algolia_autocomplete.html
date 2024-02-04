@@ -7,7 +7,7 @@
         getSources({ query }) {
             return [
                 {
-                    sourceId: 'tags',
+                    sourceId: 'tags-autocomplete',
                     getItems() {
                         return fetch(`/tags/autocomplete?q=${encodeURIComponent(query)}`)
                             .then((response) => response.json())
