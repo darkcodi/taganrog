@@ -51,4 +51,16 @@ impl ApiClient {
         let res = self.client.get(&url).send().await?;
         Ok(res)
     }
+
+    pub async fn add_tag_to_media(&self, media_id: &str, tag: &str) -> anyhow::Result<reqwest::Response> {
+        let url: String = format!("{}/api/media/{}/add-tag", self.config.api_url, media_id);
+        let res = self.client.post(&url).json(&json!({ "name": tag })).send().await?;
+        Ok(res)
+    }
+
+    pub async fn delete_tag_from_media(&self, media_id: &str, tag: &str) -> anyhow::Result<reqwest::Response> {
+        let url: String = format!("{}/api/media/{}/remove-tag", self.config.api_url, media_id);
+        let res = self.client.post(&url).json(&json!({ "name": tag })).send().await?;
+        Ok(res)
+    }
 }

@@ -5,6 +5,7 @@ use axum::body::Body;
 use axum::extract::{Path, Query, State};
 use axum::http::StatusCode;
 use axum::response::{Html, IntoResponse, Response};
+use axum::routing::delete;
 use axum_macros::FromRef;
 use chrono::{DateTime, Utc};
 use tracing::{info, Level};
@@ -57,6 +58,8 @@ pub async fn serve(api_url: &str) {
 
         // api
         .route("/media/:media_id/stream", get(stream_media))
+        .route("/media/:media_id/add-tag", get(add_tag_to_media))
+        .route("/media/:media_id/remove-tag", delete(delete_tag_from_media))
         .route("/tags/autocomplete", get(autocomplete_tags))
 
         .with_state(AppState {
@@ -223,6 +226,39 @@ fn extract_tags(query: &String) -> Vec<String> {
         .filter(|x| !x.is_empty())
         .collect::<Vec<String>>();
     query_tags
+}
+
+#[derive(Debug, Default, Deserialize)]
+pub struct TagBody {
+    tag: Option<String>,
+}
+
+async fn add_tag_to_media(
+    State(api_client): State<ApiClient>,
+    Path(media_id): Path<String>,
+    Query(query): Query<TagBody>,
+) -> Json<Media> {
+    let tag = query.tag.unwrap_or_default();
+    if tag.is_empty() {
+        return Json(Media::default());
+    }
+    let api_response = api_client.add_tag_to_media(&media_id, &tag).await.unwrap();
+    let media: Media = api_response.json().await.unwrap();
+    Json(media)
+}
+
+async fn delete_tag_from_media(
+    State(api_client): State<ApiClient>,
+    Path(media_id): Path<String>,
+    Query(query): Query<TagBody>,
+) -> impl IntoResponse {
+    let tag = query.tag.unwrap_or_default();
+    if tag.is_empty() {
+        return Response::new(Body::empty());
+    }
+    let api_response = api_client.delete_tag_from_media(&media_id, &tag).await.unwrap();
+    let _: Media = api_response.json().await.unwrap();
+    Response::new(Body::empty())
 }
 
 #[derive(Debug, Serialize)]
