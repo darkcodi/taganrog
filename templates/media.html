@@ -58,12 +58,14 @@
                                 <input type="hidden" value="" name="tag">
                             </div>
                             {% for tag in media.tags %}
-                                <li id="li-{{ tag }}" class="bg-red-200 text-red-700 rounded px-2 py-1 mb-2 flex justify-between items-center">
-                                    <a href="/search?q={{ tag }}">#{{ tag }}</a>
+                                <li id="li-{{ tag.name }}" class="rounded px-2 py-1 mb-2 flex justify-between items-center"
+                                    style="background-color: {{ tag.bg_color }}; color: {{ tag.fg_color }};"
+                                >
+                                    <a href="/search?q={{ tag.name }}">#{{ tag.name }}</a>
                                     <span class="cursor-pointer hover:text-red-500"
-                                        hx-delete="/media/{{ media.id }}/remove-tag?tag={{ tag }}"
+                                        hx-delete="/media/{{ media.id }}/remove-tag?tag={{ tag.name }}"
                                         hx-trigger="click"
-                                        hx-target="#li-{{ tag }}"
+                                        hx-target="#li-{{ tag.name }}"
                                         hx-swap="outerHTML">X</span>
                                 </li>
                             {% endfor %}

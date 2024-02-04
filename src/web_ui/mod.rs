@@ -1,3 +1,4 @@
+use std::hash::Hasher;
 use std::iter::once;
 use askama::Template;
 use axum::{routing::get, Router, Json};
@@ -157,10 +158,9 @@ pub struct ExtendedMedia {
 impl From<Media> for ExtendedMedia {
     fn from(media: Media) -> Self {
         let tags = media.tags.into_iter().map(|tag| {
-            ExtendedTag {
-                name: tag,
-                is_in_query: false,
-            }
+            let mut tag: ExtendedTag = tag.into();
+            tag.is_in_query = false;
+            tag
         }).collect();
         Self {
             id: media.id,
@@ -179,6 +179,21 @@ impl From<Media> for ExtendedMedia {
 pub struct ExtendedTag {
     pub name: String,
     pub is_in_query: bool,
+    pub bg_color: String,
+    pub fg_color: String,
+}
+
+impl From<String> for ExtendedTag {
+    fn from(tag: String) -> Self {
+        let bg_color = get_bg_color(&tag);
+        let fg_color = get_fg_color(&bg_color);
+        Self {
+            name: tag,
+            is_in_query: false,
+            bg_color,
+            fg_color,
+        }
+    }
 }
 
 async fn media_search(Query(query): Query<SearchQuery>) -> impl IntoResponse {
@@ -239,7 +254,7 @@ pub struct TagBody {
 #[template(path = "add_tag_to_media.html")]
 pub struct AddTagToMediaTemplate {
     media: Media,
-    tag: String,
+    tag: ExtendedTag,
     query: String,
 }
 
@@ -260,6 +275,8 @@ async fn add_tag_to_media(
     }
     let api_response = api_client.add_tag_to_media(&media_id, &tag).await.unwrap();
     let media: Media = api_response.json().await.unwrap();
+    let tag_color = get_bg_color(&tag);
+    let tag: ExtendedTag = ExtendedTag { name: tag, is_in_query: false, bg_color: tag_color.clone(), fg_color: get_fg_color(&tag_color) };
     HtmlTemplate(AddTagToMediaTemplate { media, tag, query: normalized_query })
 }
 
@@ -335,7 +352,7 @@ async fn search_tags(
 #[template(path = "media.html")]
 pub struct MediaPageTemplate {
     query: String,
-    media: Media,
+    media: ExtendedMedia,
     media_exists: bool,
 }
 
@@ -346,10 +363,11 @@ async fn get_media(
 ) -> impl IntoResponse {
     let query = normalize_query(&query.q.unwrap_or_default());
     let api_response = api_client.get_media(&media_id).await.unwrap();
-    if let Ok(media) = api_response.json().await {
-        HtmlTemplate(MediaPageTemplate { query, media, media_exists: true })
+    if let Ok(media) = api_response.json::<Media>().await {
+        let extended_media: ExtendedMedia = media.into();
+        HtmlTemplate(MediaPageTemplate { query, media: extended_media, media_exists: true })
     } else {
-        HtmlTemplate(MediaPageTemplate { query, media: Media::default(), media_exists: false })
+        HtmlTemplate(MediaPageTemplate { query, media: ExtendedMedia::default(), media_exists: false })
     }
 }
 
@@ -382,4 +400,24 @@ async fn stream_media(
         }
         Err(_) => Err(StatusCode::INTERNAL_SERVER_ERROR)
     }
+}
+
+fn get_bg_color(text: &str) -> String {
+    const MAX_VALUE: u64 = 0xFFFFFF;
+    let mut hasher = twox_hash::XxHash64::default();
+    hasher.write(text.as_bytes());
+    let hash = hasher.finish();
+    let color = hash % MAX_VALUE;
+    let color_str = format!("#{:06x}", color);
+    color_str
+}
+
+fn get_fg_color(bg_color: &str) -> String {
+    let bg_color = bg_color.trim_start_matches('#');
+    let r = u8::from_str_radix(&bg_color[0..2], 16).unwrap();
+    let g = u8::from_str_radix(&bg_color[2..4], 16).unwrap();
+    let b = u8::from_str_radix(&bg_color[4..6], 16).unwrap();
+    let yiq = ((r as f32 * 299.0) + (g as f32 * 587.0) + (b as f32 * 114.0)) / 1000.0;
+    let fg_color = if yiq >= 128.0 { "black" } else { "white" };
+    fg_color.to_string()
 }

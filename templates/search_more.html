@@ -28,9 +28,13 @@
             <div class="flex flex-wrap gap-2">
                 {% for tag in media.tags %}
                     {% if tag.is_in_query %}
-                        <a href="/search?q={{ query }}%20-{{ tag.name }}" class="bg-red-200 text-red-700 rounded px-2 py-1 text-sm border-2 border-black">#{{ tag.name }}</a>
+                        <a href="/search?q={{ query }}%20-{{ tag.name }}" class="rounded px-2 py-1 text-sm border-2 border-black"
+                           style="background-color: {{ tag.bg_color }}; color: {{ tag.fg_color }};"
+                        >#{{ tag.name }}</a>
                     {% else %}
-                        <a href="/search?q={{ query }}%20{{ tag.name }}" class="bg-red-200 text-red-700 rounded px-2 py-1 text-sm">#{{ tag.name }}</a>
+                        <a href="/search?q={{ query }}%20{{ tag.name }}" class="rounded px-2 py-1 text-sm"
+                           style="background-color: {{ tag.bg_color }}; color: {{ tag.fg_color }};"
+                        >#{{ tag.name }}</a>
                     {% endif %}
                 {% endfor %}
             </div>
