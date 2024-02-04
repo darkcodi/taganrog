@@ -17,6 +17,7 @@ const MAX_UPLOAD_SIZE_IN_BYTES: usize = 52_428_800; // 50 MB
 pub fn router() -> Router {
     Router::new()
         .route("/api/media", get(get_all_media).post(add_media))
+        .route("/api/media/random", get(get_random_media))
         .route("/api/media/:media_id", get(get_media).delete(delete_media))
         .route("/api/media/:media_id/stream", get(stream_media))
         .route("/api/media/:media_id/add-tag", post(add_tag_to_media))
@@ -172,6 +173,18 @@ async fn get_media(
     Path(media_id): Path<String>,
 ) -> Result<Json<Media>> {
     let maybe_media = db::get_media_by_id(&ctx, &media_id).await?;
+    if maybe_media.is_none() {
+        return Err(ApiError::NotFound);
+    }
+
+    let media = maybe_media.unwrap();
+    Ok(Json(media))
+}
+
+async fn get_random_media(
+    ctx: Extension<ApiContext>,
+) -> Result<Json<Media>> {
+    let maybe_media = db::get_random_media(&ctx).await?;
     if maybe_media.is_none() {
         return Err(ApiError::NotFound);
     }

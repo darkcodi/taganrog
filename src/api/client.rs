@@ -34,6 +34,12 @@ impl ApiClient {
         Ok(res)
     }
 
+    pub async fn get_random_media(&self) -> anyhow::Result<reqwest::Response> {
+        let url: String = format!("{}/api/media/random", self.config.api_url);
+        let res = self.client.get(&url).send().await?;
+        Ok(res)
+    }
+
     pub async fn delete_media(&self, media_id: &str) -> anyhow::Result<reqwest::Response> {
         let url: String = format!("{}/api/media/{}", self.config.api_url, media_id);
         let res = self.client.delete(&url).send().await?;

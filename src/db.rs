@@ -5,6 +5,7 @@ use relative_path::RelativePath;
 use serde::{Deserialize, Serialize};
 use simple_wal::LogFile;
 use tracing::info;
+use rand::seq::SliceRandom;
 use crate::api::ApiContext;
 use crate::utils::hash_utils::MurMurHasher;
 
@@ -108,6 +109,12 @@ impl WalDb {
 
     fn get_media(&self, media_id: &String) -> Option<Media> {
         let maybe_media = self.map.get(media_id).map(|x| x.value().clone());
+        maybe_media
+    }
+
+    fn get_random_media(&self) -> Option<Media> {
+        let media_vec = self.map.iter().map(|x| x.value().clone()).collect::<Vec<Media>>();
+        let maybe_media = media_vec.choose(&mut rand::thread_rng()).map(|x| x.clone());
         maybe_media
     }
 
@@ -235,6 +242,12 @@ pub async fn get_untagged_media(ctx: &ApiContext, page_size: u64, page_index: u6
 pub async fn get_media_by_id(ctx: &ApiContext, media_id: &String) -> anyhow::Result<Option<Media>> {
     let db = ctx.db.read().await;
     let maybe_media = db.get_media(media_id);
+    Ok(maybe_media)
+}
+
+pub async fn get_random_media(ctx: &ApiContext) -> anyhow::Result<Option<Media>> {
+    let db = ctx.db.read().await;
+    let maybe_media = db.get_random_media();
     Ok(maybe_media)
 }
 

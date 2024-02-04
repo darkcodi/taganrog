@@ -53,6 +53,7 @@ pub async fn serve(api_url: &str) {
 
         // pages
         .route("/", get(index))
+        .route("/media/random", get(get_random_media))
         .route("/media/:media_id", get(get_media).delete(delete_media))
         .route("/media/:media_id/add-tag", get(add_tag_to_media))
         .route("/media/:media_id/remove-tag", delete(delete_tag_from_media))
@@ -368,6 +369,24 @@ async fn get_media(
         HtmlTemplate(MediaPageTemplate { query, media: extended_media, media_exists: true })
     } else {
         HtmlTemplate(MediaPageTemplate { query, media: ExtendedMedia::default(), media_exists: false })
+    }
+}
+
+async fn get_random_media(
+    State(api_client): State<ApiClient>,
+) -> impl IntoResponse {
+    let api_response = api_client.get_random_media().await;
+    match api_response {
+        Ok(response) => {
+            if response.status().is_success() {
+                let media: Media = response.json().await.unwrap();
+                let extended_media: ExtendedMedia = media.into();
+                HtmlTemplate(MediaPageTemplate { query: "".to_string(), media: extended_media, media_exists: true })
+            } else {
+                HtmlTemplate(MediaPageTemplate { query: "".to_string(), media: ExtendedMedia::default(), media_exists: false })
+            }
+        }
+        Err(_) => HtmlTemplate(MediaPageTemplate { query: "".to_string(), media: ExtendedMedia::default(), media_exists: false })
     }
 }
 
