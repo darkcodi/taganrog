@@ -89,6 +89,7 @@
                 console.log(event);
                 if (event.detail.elt.id === 'tag-adder') {
                     document.querySelector('#tag-search .aa-Input').value = '';
+                    document.querySelector('#tag-search .aa-Input').focus();
                 }
             });
 
