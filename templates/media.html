@@ -97,6 +97,7 @@
                 if (event.detail.elt.id === 'tag-adder') {
                     document.querySelector('#tag-search .aa-Input').value = '';
                     document.querySelector('#tag-search .aa-Input').focus();
+                    document.querySelector('#tag-search .aa-Input').value = '';
                 }
             });
 
@@ -127,6 +128,7 @@
                             },
                             onSelect({ item }) {
                                 document.querySelector('#tag-adder').click();
+                                document.querySelector('#tag-search .aa-Input').value = '';
                             },
                             getItemInputValue: ({ item }) => item.suggestion,
                             templates: {
@@ -148,6 +150,7 @@
                 onSubmit({ state }) {
                     if (state.query) {
                         document.querySelector('#tag-adder').click();
+                        document.querySelector('#tag-search .aa-Input').value = '';
                     }
                 },
             });
