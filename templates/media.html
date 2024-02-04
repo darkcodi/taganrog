@@ -19,9 +19,9 @@
             {% if media_exists %}
             <div id="media-main" class="max-w-fit w-full mt-6 flex h-3/4">
                 <div class="flex-1">
-                    <video
+                    <video id="media-player" preload="auto" autoplay="autoplay" loop="loop"
                             controls
-                            class="w-full h-full object-cover rounded-md"
+                            class="w-full h-full object-cover rounded-md focus:outline-none"
                             src="/media/{{ media.id }}/stream"
                             style="aspect-ratio:16/9;object-fit:contain;"
                     ></video>
@@ -100,6 +100,13 @@
                     document.querySelector('#tag-search .aa-Input').focus();
                     document.querySelector('#tag-search .aa-Input').value = '';
                 }
+            });
+
+            window.addEventListener('DOMContentLoaded', () => {
+                const video = document.getElementById('media-player');
+                video.focus();
+                // Attempt to play the video automatically
+                video.play().catch(error => console.error("Auto-play was prevented by the browser."));
             });
 
             autocomplete({
