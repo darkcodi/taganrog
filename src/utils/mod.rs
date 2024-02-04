@@ -15,12 +15,19 @@ pub fn normalize_query(query: &str) -> String {
         .map(|x| x.slugify()) // and slugify them
         .filter(|x| !x.is_empty()) // remove empty strings
         .collect::<Vec<String>>();
-    let final_tags = initial_tags.iter()
+    let mut final_tags = initial_tags.iter()
         .map(|x| x.slugify().to_string()) // slugify all tags
         .filter(|x| !x.is_empty()) // remove empty strings
         .filter(|x| !tags_to_exclude.contains(&x)) // remove tags to exclude
         .unique() // filter out duplicates
         .collect::<Vec<String>>();
+
+    if final_tags.len() > 1 {
+        if final_tags.iter().any(|x| x == "all" || x == "null") {
+            final_tags.retain(|x| x != "all" && x != "null");
+        }
+    }
+
     let mut normalized_query = final_tags.join(" ");
 
     // append ' ' if query ends with a space
