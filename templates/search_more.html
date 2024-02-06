@@ -12,7 +12,8 @@
             {% else if media.content_type == "audio/mpeg" %}
             <img src="/icons/mp3.svg" class="w-32 h-32 object-cover rounded-md" style="aspect-ratio:100/100;object-fit:cover;">
             {% else if media.content_type == "video/mp4" %}
-            <img src="/icons/mp4.svg" class="w-32 h-32 object-cover rounded-md" style="aspect-ratio:100/100;object-fit:cover;">
+<!--            <img src="/icons/mp4.svg" class="w-32 h-32 object-cover rounded-md" style="aspect-ratio:100/100;object-fit:cover;">-->
+            <video src="/media/{{ media.id }}/stream#t=0" class="w-32 h-32 object-contain rounded-md" style="aspect-ratio:100/100;object-fit:contain;"></video>
             {% else %}
             <img src="/icons/file.svg" class="w-32 h-32 object-cover rounded-md" style="aspect-ratio:100/100;object-fit:cover;">
             {% endif %}
