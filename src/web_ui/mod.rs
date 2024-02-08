@@ -59,6 +59,7 @@ pub async fn serve(api_url: &str) {
         .route("/media/:media_id/remove-tag", delete(delete_tag_from_media))
         .route("/search", get(media_search))
         .route("/search/more", get(media_search_more))
+        .route("/upload", get(upload))
 
         // api
         .route("/media/:media_id/stream", get(stream_media))
@@ -422,6 +423,14 @@ async fn stream_media(
         }
         Err(_) => Err(StatusCode::INTERNAL_SERVER_ERROR)
     }
+}
+
+#[derive(Default, Template)]
+#[template(path = "upload.html")]
+struct UploadTemplate { }
+
+async fn upload() -> impl IntoResponse {
+    HtmlTemplate(UploadTemplate::default())
 }
 
 fn get_bg_color(text: &str) -> String {
