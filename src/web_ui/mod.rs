@@ -3,13 +3,14 @@ use std::iter::once;
 use askama::Template;
 use axum::{routing::get, Router, Json};
 use axum::body::Body;
-use axum::extract::{Path, Query, State};
+use axum::extract::{DefaultBodyLimit, Path, Query, State};
 use axum::http::StatusCode;
 use axum::response::{Html, IntoResponse, Response};
-use axum::routing::delete;
+use axum::routing::{delete, post};
 use axum_macros::FromRef;
 use chrono::{DateTime, Utc};
-use tracing::{info, Level};
+use itertools::Itertools;
+use tracing::{info, Level, warn};
 use tracing_subscriber::util::SubscriberInitExt;
 use serde::{Deserialize, Serialize};
 use tower_http::trace::TraceLayer;
@@ -27,6 +28,7 @@ const ICON_JPG: &[u8] = include_bytes!("assets/icons/jpg.svg");
 const ICON_MP3: &[u8] = include_bytes!("assets/icons/mp3.svg");
 const ICON_MP4: &[u8] = include_bytes!("assets/icons/mp4.svg");
 const ICON_PNG: &[u8] = include_bytes!("assets/icons/png.svg");
+const MAX_UPLOAD_SIZE_IN_BYTES: usize = 52_428_800; // 50 MB
 
 pub async fn serve(api_url: &str) {
     let tracing_layer = tracing_subscriber::fmt::layer();
@@ -59,7 +61,8 @@ pub async fn serve(api_url: &str) {
         .route("/media/:media_id/remove-tag", delete(delete_tag_from_media))
         .route("/search", get(media_search))
         .route("/search/more", get(media_search_more))
-        .route("/upload", get(upload))
+        .route("/upload", get(upload_page))
+        .route("/upload/file", post(upload_file))
 
         // api
         .route("/media/:media_id/stream", get(stream_media))
@@ -69,7 +72,8 @@ pub async fn serve(api_url: &str) {
         .with_state(AppState {
             api_client: ApiClient::new(api_url.to_string()),
         })
-        .layer(TraceLayer::new_for_http());
+        .layer(TraceLayer::new_for_http())
+        .layer(DefaultBodyLimit::max(MAX_UPLOAD_SIZE_IN_BYTES));
 
     let addr = "[::]:1775";
     let listener = tokio::net::TcpListener::bind(addr).await.expect("failed to bind to address");
@@ -429,8 +433,51 @@ async fn stream_media(
 #[template(path = "upload.html")]
 struct UploadTemplate { }
 
-async fn upload() -> impl IntoResponse {
+async fn upload_page() -> impl IntoResponse {
     HtmlTemplate(UploadTemplate::default())
+}
+
+async fn upload_file(
+    State(api_client): State<ApiClient>,
+    mut multipart: axum::extract::Multipart,
+) -> impl IntoResponse {
+    {
+        let file_field_result = multipart.next_field().await;
+        if file_field_result.is_err() {
+            return (StatusCode::BAD_REQUEST, "No file was uploaded 1");
+        }
+        let maybe_file_field = file_field_result.unwrap();
+        if maybe_file_field.is_none() {
+            return (StatusCode::BAD_REQUEST, "No file was uploaded 2");
+        }
+        let file_field = maybe_file_field.unwrap();
+        let file_name = file_field.file_name().unwrap_or_default().to_string();
+        let content_type = file_field.content_type().unwrap_or_default().to_string();
+        let file_bytes = file_field.bytes().await.unwrap();
+        let file_size = file_bytes.len();
+
+        dbg!(&file_name, &content_type, &file_size);
+    }
+
+    {
+        let preview_field_result = multipart.next_field().await;
+        if preview_field_result.is_err() {
+            return (StatusCode::BAD_REQUEST, "No preview was uploaded 1");
+        }
+        let maybe_preview_field = preview_field_result.unwrap();
+        if maybe_preview_field.is_none() {
+            return (StatusCode::BAD_REQUEST, "No preview was uploaded 2");
+        }
+        let preview_field = maybe_preview_field.unwrap();
+        let preview_name = preview_field.file_name().unwrap_or_default().to_string();
+        let preview_content_type = preview_field.content_type().unwrap_or_default().to_string();
+        let preview_bytes = preview_field.bytes().await.unwrap();
+        let preview_size = preview_bytes.len();
+
+        dbg!(&preview_name, &preview_content_type, &preview_size);
+    }
+
+    (StatusCode::OK, "File uploaded")
 }
 
 fn get_bg_color(text: &str) -> String {

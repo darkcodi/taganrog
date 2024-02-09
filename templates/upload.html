@@ -21,28 +21,20 @@
     </header>
     <main class="h-screen flex flex-col items-center justify-center bg-white px-4 sm:px-6 lg:px-8">
         <div class="max-w-7xl w-full mt-6 grid grid-cols-1 gap-4 bg-gray-50">
-            <div class="rounded-md shadow-sm p-4">
+            <form id="upload-form" enctype="multipart/form-data" method="post" class="rounded-md shadow-sm p-4">
                 <h2 class="text-2xl font-bold mt-2">
                     Upload your file
                 </h2>
                 <div class="mt-4">
-                    <label class="sr-only" for="file-upload">Upload</label>
+                    <label class="sr-only" for="file">Upload</label>
                     <input class="appearance-none rounded-none relative block w-full px-3 py-2 border border-gray-300 placeholder-gray-500 text-gray-900 rounded-md focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 focus:z-10 sm:text-sm"
-                           id="file-upload" required="" type="file" name="file-upload">
+                           id="file" required="" type="file" autocomplete="off" name="file" accept=".jpg,.jpeg.,.gif,.png,.mov,.mp4">
                 </div>
-                <div class="mt-4">
-                    <label class="sr-only" for="tags">
-                        Tags
-                    </label>
-                    <input class="appearance-none rounded-none relative block w-full px-3 py-2 border border-gray-300 placeholder-gray-500 text-gray-900 rounded-md focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 focus:z-10 sm:text-sm"
-                           id="tags" placeholder="Enter tags separated by commas" required="" type="text" name="tags"
-                           accept=".jpg,.jpeg.,.gif,.png,.mov,.mp4">
-                </div>
-                <button class="inline-flex items-center justify-center whitespace-nowrap rounded-md text-sm font-medium transition-colors focus-visible:outline-none !bg-black !text-white h-10 px-4 py-2 mt-4">
+                <div id="preview-container"></div>
+                <button type="submit" class="inline-flex items-center justify-center whitespace-nowrap rounded-md text-sm font-medium transition-colors focus-visible:outline-none !bg-black !text-white h-10 px-4 py-2 mt-4">
                     Submit
                 </button>
-            </div>
-            <div id="preview"></div>
+            </form>
         </div>
     </main>
     <footer class="w-full h-20 flex items-center justify-center bg-white">
@@ -51,14 +43,33 @@
         </div>
     </footer>
     <script>
-        document.getElementById('file-upload').addEventListener('change', function(event) {
+        document.getElementById('file').addEventListener('change', function(event) {
+            // clear previous preview children
+            var previewContainer = document.getElementById('preview-container');
+            while (previewContainer.firstChild) {
+                previewContainer.removeChild(previewContainer.firstChild);
+            }
+
             var file = event.target.files[0];
             var fileReader = new FileReader();
             if (file.type.match('image')) {
                 fileReader.onload = function() {
-                    var img = document.createElement('img');
+                    // convert to png
+                    var img = new Image();
                     img.src = fileReader.result;
-                    document.getElementById('preview').appendChild(img);
+                    img.onload = function() {
+                        var canvas = document.createElement('canvas');
+                        canvas.width = img.width;
+                        canvas.height = img.height;
+                        var ctx = canvas.getContext('2d');
+                        ctx.drawImage(img, 0, 0);
+                        var dataUrl = canvas.toDataURL('image/png');
+                        var img2 = document.createElement('img');
+                        img2.id = "preview";
+                        img2.src = dataUrl;
+                        img2.classList.add('w-32', 'h-32', 'object-cover', 'rounded-md');
+                        document.getElementById('preview-container').appendChild(img2);
+                    };
                 };
                 fileReader.readAsDataURL(file);
             } else {
@@ -86,8 +97,10 @@
                         var success = image.length > 100000;
                         if (success) {
                             var img = document.createElement('img');
+                            img.id = "preview";
                             img.src = image;
-                            document.getElementById('preview').appendChild(img);
+                            img.classList.add('w-32', 'h-32', 'object-cover', 'rounded-md');
+                            document.getElementById('preview-container').appendChild(img);
                             URL.revokeObjectURL(url);
                         }
                         return success;
@@ -103,6 +116,31 @@
                 fileReader.readAsArrayBuffer(file);
             }
         });
+        document.getElementById('upload-form').addEventListener('submit', async function(event) {
+            event.preventDefault(); // Prevent the default form submission
+
+            const formData = new FormData();
+            const fileInput = document.getElementById('file');
+            const imgElement = document.getElementById('preview');
+            const blob = dataURLtoBlob(imgElement.src);
+
+            formData.append('file', fileInput.files[0]);
+            formData.append('preview', blob, 'preview.png');
+
+           await fetch('/upload/file', {
+                method: 'POST',
+                body: formData
+            });
+        });
+
+        function dataURLtoBlob(dataurl) {
+            var arr = dataurl.split(','), mime = arr[0].match(/:(.*?);/)[1],
+                bstr = atob(arr[1]), n = bstr.length, u8arr = new Uint8Array(n);
+            while(n--){
+                u8arr[n] = bstr.charCodeAt(n);
+            }
+            return new Blob([u8arr], {type:mime});
+        }
     </script>
 </div>
 {% endblock %}
