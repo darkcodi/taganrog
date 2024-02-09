@@ -28,9 +28,11 @@
                 <div class="mt-4">
                     <label class="sr-only" for="file">Upload</label>
                     <input class="appearance-none rounded-none relative block w-full px-3 py-2 border border-gray-300 placeholder-gray-500 text-gray-900 rounded-md focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 focus:z-10 sm:text-sm"
-                           id="file" required="" type="file" autocomplete="off" name="file" accept=".jpg,.jpeg.,.gif,.png,.mov,.mp4">
+                           id="file" required="" type="file" autocomplete="off" name="file" accept=".jpg,.jpeg.,.gif,.png,.mov,.mp4" multiple>
                 </div>
-                <div id="preview-container"></div>
+                <div class="container mx-auto px-4">
+                    <div id="preview-container" class="grid grid-cols-7 gap-4"></div>
+                </div>
                 <button type="submit" class="inline-flex items-center justify-center whitespace-nowrap rounded-md text-sm font-medium transition-colors focus-visible:outline-none !bg-black !text-white h-10 px-4 py-2 mt-4">
                     Submit
                 </button>
@@ -45,75 +47,78 @@
     <script>
         document.getElementById('file').addEventListener('change', function(event) {
             // clear previous preview children
-            var previewContainer = document.getElementById('preview-container');
+            let previewContainer = document.getElementById('preview-container');
             while (previewContainer.firstChild) {
                 previewContainer.removeChild(previewContainer.firstChild);
             }
 
-            var file = event.target.files[0];
-            var fileReader = new FileReader();
-            if (file.type.match('image')) {
-                fileReader.onload = function() {
-                    // convert to png
-                    var img = new Image();
-                    img.src = fileReader.result;
-                    img.onload = function() {
-                        var canvas = document.createElement('canvas');
-                        canvas.width = img.width;
-                        canvas.height = img.height;
-                        var ctx = canvas.getContext('2d');
-                        ctx.drawImage(img, 0, 0);
-                        var dataUrl = canvas.toDataURL('image/png');
-                        var img2 = document.createElement('img');
-                        img2.id = "preview";
-                        img2.src = dataUrl;
-                        img2.classList.add('w-32', 'h-32', 'object-cover', 'rounded-md');
-                        document.getElementById('preview-container').appendChild(img2);
+            for (let i = 0; i < event.target.files.length; i++) {
+                let file = event.target.files[i];
+                console.log(file);
+                let fileReader = new FileReader();
+                if (file.type.match('image')) {
+                    fileReader.onload = function() {
+                        // convert to png
+                        let img = new Image();
+                        img.src = fileReader.result;
+                        img.onload = function() {
+                            let canvas = document.createElement('canvas');
+                            canvas.width = img.width;
+                            canvas.height = img.height;
+                            let ctx = canvas.getContext('2d');
+                            ctx.drawImage(img, 0, 0);
+                            let dataUrl = canvas.toDataURL('image/png');
+                            let img2 = document.createElement('img');
+                            img2.id = "preview";
+                            img2.src = dataUrl;
+                            img2.classList.add('w-32', 'h-32', 'object-cover', 'rounded-md');
+                            document.getElementById('preview-container').appendChild(img2);
+                        };
                     };
-                };
-                fileReader.readAsDataURL(file);
-            } else {
-                fileReader.onload = function() {
-                    var blob = new Blob([fileReader.result], {type: file.type});
-                    var url = URL.createObjectURL(blob);
-                    var video = document.createElement('video');
-                    var timeupdate = function() {
-                        if (snapImage()) {
-                            video.removeEventListener('timeupdate', timeupdate);
-                            video.pause();
-                        }
+                    fileReader.readAsDataURL(file);
+                } else {
+                    fileReader.onload = function() {
+                        let blob = new Blob([fileReader.result], {type: file.type});
+                        let url = URL.createObjectURL(blob);
+                        let video = document.createElement('video');
+                        let timeupdate = function() {
+                            if (snapImage()) {
+                                video.removeEventListener('timeupdate', timeupdate);
+                                video.pause();
+                            }
+                        };
+                        video.addEventListener('loadeddata', function() {
+                            if (snapImage()) {
+                                video.removeEventListener('timeupdate', timeupdate);
+                            }
+                        });
+                        let snapImage = function() {
+                            let canvas = document.createElement('canvas');
+                            canvas.width = video.videoWidth;
+                            canvas.height = video.videoHeight;
+                            canvas.getContext('2d').drawImage(video, 0, 0, canvas.width, canvas.height);
+                            let image = canvas.toDataURL();
+                            let success = image.length > 100000;
+                            if (success) {
+                                let img = document.createElement('img');
+                                img.id = "preview";
+                                img.src = image;
+                                img.classList.add('w-32', 'h-32', 'object-cover', 'rounded-md');
+                                document.getElementById('preview-container').appendChild(img);
+                                URL.revokeObjectURL(url);
+                            }
+                            return success;
+                        };
+                        video.addEventListener('timeupdate', timeupdate);
+                        video.preload = 'metadata';
+                        video.src = url;
+                        // Load video in Safari / IE11
+                        video.muted = true;
+                        video.playsInline = true;
+                        video.play();
                     };
-                    video.addEventListener('loadeddata', function() {
-                        if (snapImage()) {
-                            video.removeEventListener('timeupdate', timeupdate);
-                        }
-                    });
-                    var snapImage = function() {
-                        var canvas = document.createElement('canvas');
-                        canvas.width = video.videoWidth;
-                        canvas.height = video.videoHeight;
-                        canvas.getContext('2d').drawImage(video, 0, 0, canvas.width, canvas.height);
-                        var image = canvas.toDataURL();
-                        var success = image.length > 100000;
-                        if (success) {
-                            var img = document.createElement('img');
-                            img.id = "preview";
-                            img.src = image;
-                            img.classList.add('w-32', 'h-32', 'object-cover', 'rounded-md');
-                            document.getElementById('preview-container').appendChild(img);
-                            URL.revokeObjectURL(url);
-                        }
-                        return success;
-                    };
-                    video.addEventListener('timeupdate', timeupdate);
-                    video.preload = 'metadata';
-                    video.src = url;
-                    // Load video in Safari / IE11
-                    video.muted = true;
-                    video.playsInline = true;
-                    video.play();
-                };
-                fileReader.readAsArrayBuffer(file);
+                    fileReader.readAsArrayBuffer(file);
+                }
             }
         });
         document.getElementById('upload-form').addEventListener('submit', async function(event) {
@@ -134,7 +139,7 @@
         });
 
         function dataURLtoBlob(dataurl) {
-            var arr = dataurl.split(','), mime = arr[0].match(/:(.*?);/)[1],
+            let arr = dataurl.split(','), mime = arr[0].match(/:(.*?);/)[1],
                 bstr = atob(arr[1]), n = bstr.length, u8arr = new Uint8Array(n);
             while(n--){
                 u8arr[n] = bstr.charCodeAt(n);
