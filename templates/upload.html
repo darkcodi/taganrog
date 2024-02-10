@@ -30,10 +30,10 @@
                     <input class="appearance-none rounded-none relative block w-full px-3 py-2 border border-gray-300 placeholder-gray-500 text-gray-900 rounded-md focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 focus:z-10 sm:text-sm"
                            id="file" required="" type="file" autocomplete="off" name="file" accept=".jpg,.jpeg.,.gif,.png,.mov,.mp4" multiple>
                 </div>
-                <div class="container mx-auto px-4">
+                <div class="container mt-4 mx-auto px-4">
                     <div id="preview-container" class="grid grid-cols-7 gap-4"></div>
                 </div>
-                <button type="submit" class="inline-flex items-center justify-center whitespace-nowrap rounded-md text-sm font-medium transition-colors focus-visible:outline-none !bg-black !text-white h-10 px-4 py-2 mt-4">
+                <button id="submit-button" type="submit" class="inline-flex items-center justify-center whitespace-nowrap rounded-md text-sm font-medium transition-colors !bg-black !text-white !hover:bg-gray-700 !disabled:bg-gray-400 h-10 px-4 py-2 mt-4">
                     Submit
                 </button>
             </form>
@@ -54,7 +54,6 @@
 
             for (let i = 0; i < event.target.files.length; i++) {
                 let file = event.target.files[i];
-                console.log(file);
                 let fileReader = new FileReader();
                 if (file.type.match('image')) {
                     fileReader.onload = function() {
@@ -69,10 +68,10 @@
                             ctx.drawImage(img, 0, 0);
                             let dataUrl = canvas.toDataURL('image/png');
                             let img2 = document.createElement('img');
-                            img2.id = "preview";
                             img2.src = dataUrl;
-                            img2.classList.add('w-32', 'h-32', 'object-cover', 'rounded-md');
+                            img2.classList.add('w-32', 'h-32', 'object-cover', 'rounded-md', 'file-preview');
                             document.getElementById('preview-container').appendChild(img2);
+                            console.log('preview added ' + i);
                         };
                     };
                     fileReader.readAsDataURL(file);
@@ -101,11 +100,11 @@
                             let success = image.length > 100000;
                             if (success) {
                                 let img = document.createElement('img');
-                                img.id = "preview";
                                 img.src = image;
-                                img.classList.add('w-32', 'h-32', 'object-cover', 'rounded-md');
+                                img.classList.add('w-32', 'h-32', 'object-cover', 'rounded-md', 'file-preview');
                                 document.getElementById('preview-container').appendChild(img);
                                 URL.revokeObjectURL(url);
+                                console.log('preview added ' + i);
                             }
                             return success;
                         };
@@ -123,18 +122,32 @@
         });
         document.getElementById('upload-form').addEventListener('submit', async function(event) {
             event.preventDefault(); // Prevent the default form submission
+            document.getElementById('submit-button').disabled = true;
 
             const formData = new FormData();
             const fileInput = document.getElementById('file');
-            const imgElement = document.getElementById('preview');
-            const blob = dataURLtoBlob(imgElement.src);
+            const previewElements = document.getElementsByClassName('file-preview');
 
-            formData.append('file', fileInput.files[0]);
-            formData.append('preview', blob, 'preview.png');
+            for (let i = 0; i < fileInput.files.length; i++) {
+                let imgElement = previewElements[i];
+                let blob = dataURLtoBlob(imgElement.src);
+                formData.append('file', fileInput.files[i]);
+                formData.append('preview', blob, 'preview.png');
+            }
 
-           await fetch('/upload/file', {
+            await fetch('/upload/file', {
                 method: 'POST',
                 body: formData
+            }).then(response => {
+                if (response.ok) {
+                    document.getElementById('submit-button').disabled = false;
+                } else {
+                    console.error('Error:', response);
+                    alert('Error uploading file');
+                }
+            }).catch(error => {
+                console.error('Error:', error);
+                alert('Error uploading file');
             });
         });
 

@@ -28,7 +28,7 @@ const ICON_JPG: &[u8] = include_bytes!("assets/icons/jpg.svg");
 const ICON_MP3: &[u8] = include_bytes!("assets/icons/mp3.svg");
 const ICON_MP4: &[u8] = include_bytes!("assets/icons/mp4.svg");
 const ICON_PNG: &[u8] = include_bytes!("assets/icons/png.svg");
-const MAX_UPLOAD_SIZE_IN_BYTES: usize = 52_428_800; // 50 MB
+const MAX_UPLOAD_SIZE_IN_BYTES: usize = 524_288_000; // 500 MB
 
 pub async fn serve(api_url: &str) {
     let tracing_layer = tracing_subscriber::fmt::layer();
@@ -441,43 +441,39 @@ async fn upload_file(
     State(api_client): State<ApiClient>,
     mut multipart: axum::extract::Multipart,
 ) -> impl IntoResponse {
-    {
-        let file_field_result = multipart.next_field().await;
-        if file_field_result.is_err() {
-            return (StatusCode::BAD_REQUEST, "No file was uploaded 1");
-        }
-        let maybe_file_field = file_field_result.unwrap();
-        if maybe_file_field.is_none() {
-            return (StatusCode::BAD_REQUEST, "No file was uploaded 2");
-        }
-        let file_field = maybe_file_field.unwrap();
-        let file_name = file_field.file_name().unwrap_or_default().to_string();
-        let content_type = file_field.content_type().unwrap_or_default().to_string();
-        let file_bytes = file_field.bytes().await.unwrap();
-        let file_size = file_bytes.len();
-
-        dbg!(&file_name, &content_type, &file_size);
+    let mut files = Vec::new();
+    while let Ok(file) = read_multipart_file(&mut multipart).await {
+        files.push(file);
     }
-
-    {
-        let preview_field_result = multipart.next_field().await;
-        if preview_field_result.is_err() {
-            return (StatusCode::BAD_REQUEST, "No preview was uploaded 1");
-        }
-        let maybe_preview_field = preview_field_result.unwrap();
-        if maybe_preview_field.is_none() {
-            return (StatusCode::BAD_REQUEST, "No preview was uploaded 2");
-        }
-        let preview_field = maybe_preview_field.unwrap();
-        let preview_name = preview_field.file_name().unwrap_or_default().to_string();
-        let preview_content_type = preview_field.content_type().unwrap_or_default().to_string();
-        let preview_bytes = preview_field.bytes().await.unwrap();
-        let preview_size = preview_bytes.len();
-
-        dbg!(&preview_name, &preview_content_type, &preview_size);
-    }
-
+    dbg!(files.len());
     (StatusCode::OK, "File uploaded")
+}
+
+#[derive(Default, Debug, Serialize)]
+struct MultipartFile {
+    file_name: String,
+    content_type: String,
+    bytes: Vec<u8>,
+    preview_file_name: String,
+    preview_content_type: String,
+    preview_bytes: Vec<u8>,
+}
+
+async fn read_multipart_file(multipart: &mut axum::extract::Multipart) -> anyhow::Result<MultipartFile> {
+    let mut result = MultipartFile::default();
+    {
+        let file = multipart.next_field().await?.ok_or(anyhow::anyhow!("No file was uploaded"))?;
+        result.file_name = file.file_name().unwrap_or_default().to_string();
+        result.content_type = file.content_type().unwrap_or_default().to_string();
+        result.bytes = file.bytes().await?.to_vec();
+    }
+    {
+        let file = multipart.next_field().await?.ok_or(anyhow::anyhow!("No preview file was uploaded"))?;
+        result.preview_file_name = file.file_name().unwrap_or_default().to_string();
+        result.preview_content_type = file.content_type().unwrap_or_default().to_string();
+        result.preview_bytes = file.bytes().await?.to_vec();
+    }
+    Ok(result)
 }
 
 fn get_bg_color(text: &str) -> String {
