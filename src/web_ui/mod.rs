@@ -16,7 +16,7 @@ use serde::{Deserialize, Serialize};
 use tower_http::trace::TraceLayer;
 use tracing_subscriber::filter;
 use tracing_subscriber::layer::SubscriberExt;
-use crate::api::client::ApiClient;
+use crate::api::client::{ApiClient, MultipartFile};
 use crate::db::{Media, TagsAutocomplete};
 use crate::utils::normalize_query;
 use crate::utils::str_utils::StringExtensions;
@@ -445,18 +445,13 @@ async fn upload_file(
     while let Ok(file) = read_multipart_file(&mut multipart).await {
         files.push(file);
     }
-    dbg!(files.len());
-    (StatusCode::OK, "File uploaded")
-}
-
-#[derive(Default, Debug, Serialize)]
-struct MultipartFile {
-    file_name: String,
-    content_type: String,
-    bytes: Vec<u8>,
-    preview_file_name: String,
-    preview_content_type: String,
-    preview_bytes: Vec<u8>,
+    for file in files {
+        let api_response = api_client.upload_media(file).await;
+        if api_response.is_err() || !api_response.unwrap().status().is_success() {
+            return StatusCode::INTERNAL_SERVER_ERROR;
+        }
+    }
+    StatusCode::OK
 }
 
 async fn read_multipart_file(multipart: &mut axum::extract::Multipart) -> anyhow::Result<MultipartFile> {

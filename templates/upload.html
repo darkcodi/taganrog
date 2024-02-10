@@ -141,6 +141,7 @@
             }).then(response => {
                 if (response.ok) {
                     document.getElementById('submit-button').disabled = false;
+                    window.location.href = '/search?q=null';
                 } else {
                     console.error('Error:', response);
                     alert('Error uploading file');

@@ -1,4 +1,3 @@
-use std::ffi::OsStr;
 use axum::extract::{DefaultBodyLimit, Extension, Multipart, Path, Query};
 use axum::routing::{get, post};
 use axum::{Json, Router};
@@ -52,53 +51,6 @@ struct Pagination {
     page_index: Option<u64>,
 }
 
-struct File {
-    filename: String,
-    extension: Option<String>,
-    content_type: String,
-    data: Vec<u8>,
-    size: usize,
-    hash: String,
-}
-
-impl File {
-    pub async fn try_from(mut value: Multipart) -> std::result::Result<Self, ApiError> {
-        let file = value.next_field()
-            .await
-            .map_err(|x| ApiError::unprocessable_entity([("file", format!("multipart error: {}", x.to_string()))]))?
-            .ok_or(ApiError::unprocessable_entity([("file", "missing file")]))?;
-
-        let filename = file.file_name()
-            .ok_or(ApiError::unprocessable_entity([("file", "filename is empty")]))?
-            .to_string();
-        let extension = File::get_extension(filename.as_str());
-
-        let content_type = file.content_type().unwrap_or("application/octet-stream").to_string();
-        let data = file.bytes()
-            .await
-            .map_err(|x| ApiError::unprocessable_entity([("file", format!("multipart error: {}", x.to_string()))]))?
-            .to_vec();
-        let size = data.len();
-        let hash = MurMurHasher::hash_bytes(data.as_slice());
-
-        Ok(Self {
-            filename,
-            extension,
-            content_type,
-            data,
-            size,
-            hash,
-        })
-    }
-
-    fn get_extension(filename: &str) -> Option<String> {
-        std::path::Path::new(filename)
-            .extension()
-            .and_then(OsStr::to_str)
-            .map(|x| format!(".{x}"))
-    }
-}
-
 async fn add_media(
     ctx: Extension<ApiContext>,
     Json(req): Json<AddMediaRequest>,
@@ -138,7 +90,7 @@ async fn upload_media(
     let hash = MurMurHasher::hash_bytes(data.as_slice());
     let existing_media = db::get_media_by_id(&ctx, &hash).await?;
     if existing_media.is_some() {
-        return Err(ApiError::conflict(existing_media));
+        return Ok(Json(existing_media.unwrap()));
     }
 
     let mut filename = filename.clone();

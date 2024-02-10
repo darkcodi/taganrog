@@ -1,6 +1,7 @@
 use std::sync::Arc;
 use axum_macros::FromRef;
 use reqwest::Client;
+use serde::Serialize;
 use serde_json::json;
 
 #[derive(Debug)]
@@ -12,6 +13,16 @@ struct ApiConfig {
 pub struct ApiClient {
     client: Client,
     config: Arc<ApiConfig>,
+}
+
+#[derive(Default, Debug, Serialize)]
+pub struct MultipartFile {
+    pub file_name: String,
+    pub content_type: String,
+    pub bytes: Vec<u8>,
+    pub preview_file_name: String,
+    pub preview_content_type: String,
+    pub preview_bytes: Vec<u8>,
 }
 
 impl ApiClient {
@@ -73,6 +84,21 @@ impl ApiClient {
     pub async fn delete_tag_from_media(&self, media_id: &str, tag: &str) -> anyhow::Result<reqwest::Response> {
         let url: String = format!("{}/api/media/{}/remove-tag", self.config.api_url, media_id);
         let res = self.client.post(&url).json(&json!({ "name": tag })).send().await?;
+        Ok(res)
+    }
+
+    pub async fn upload_media(&self, file: MultipartFile) -> anyhow::Result<reqwest::Response> {
+        let url: String = format!("{}/api/media/upload", self.config.api_url);
+        let res = self.client.post(&url).multipart(reqwest::multipart::Form::new()
+            .part("file",
+                  reqwest::multipart::Part::bytes(file.bytes)
+                      .file_name(file.file_name)
+                      .mime_str(&file.content_type)?)
+            .part("preview",
+                  reqwest::multipart::Part::bytes(file.preview_bytes)
+                      .file_name(file.preview_file_name)
+                      .mime_str(&file.preview_content_type)?))
+            .send().await?;
         Ok(res)
     }
 }
