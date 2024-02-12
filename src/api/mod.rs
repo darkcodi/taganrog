@@ -12,7 +12,6 @@ use tracing_subscriber::filter;
 use tracing_subscriber::layer::SubscriberExt;
 use tracing_subscriber::util::SubscriberInitExt;
 pub use error::{ApiError};
-use crate::api::controllers::{media, ping};
 use crate::db;
 use crate::db::WalDb;
 
@@ -52,8 +51,7 @@ pub async fn serve(workdir: &str) {
     };
     db::init(&ctx).await.expect("failed to init db");
 
-    let app = ping::router()
-        .merge(media::router())
+    let app = controllers::router()
         .layer(CorsLayer::new().allow_methods(Any).allow_headers(Any).allow_origin(Any))
         .layer(ServiceBuilder::new().layer(Extension(ctx)).layer(TraceLayer::new_for_http()),
     );

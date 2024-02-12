@@ -15,6 +15,7 @@ const MAX_UPLOAD_SIZE_IN_BYTES: usize = 52_428_800; // 50 MB
 
 pub fn router() -> Router {
     Router::new()
+        .route("/api/ping", get(ping))
         .route("/api/media", get(get_all_media).post(add_media))
         .route("/api/media/random", get(get_random_media))
         .route("/api/media/:media_id", get(get_media).delete(delete_media))
@@ -25,6 +26,10 @@ pub fn router() -> Router {
         .route("/api/media/upload", post(upload_media))
         .route("/api/tags/autocomplete", post(autocomplete_tags))
         .layer(DefaultBodyLimit::max(MAX_UPLOAD_SIZE_IN_BYTES))
+}
+
+async fn ping() -> String {
+    "pong".to_string()
 }
 
 #[derive(serde::Deserialize, Debug)]
