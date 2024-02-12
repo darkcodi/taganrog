@@ -25,6 +25,7 @@ pub fn router() -> Router {
         .route("/api/media/search", post(search_media))
         .route("/api/media/upload", post(upload_media))
         .route("/api/tags/autocomplete", post(autocomplete_tags))
+        .route("/api/export", get(export_db))
         .layer(DefaultBodyLimit::max(MAX_UPLOAD_SIZE_IN_BYTES))
 }
 
@@ -253,4 +254,11 @@ async fn stream_media(
     let stream = tokio_util::io::ReaderStream::new(file);
     let response = axum::http::Response::new(axum::body::Body::from_stream(stream));
     Ok(response)
+}
+
+async fn export_db(
+    ctx: Extension<ApiContext>,
+) -> Result<Json<Vec<Media>>> {
+    let media_vec = db::get_all_media(&ctx, u64::MAX, 0).await?;
+    Ok(Json(media_vec))
 }
