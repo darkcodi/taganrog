@@ -1,9 +1,9 @@
+use std::path::PathBuf;
 use chrono::{DateTime, Utc};
 use dashmap::DashMap;
 use indicium::simple::{AutocompleteType, EddieMetric, Indexable, SearchIndex, SearchType, StrsimMetric};
 use relative_path::RelativePath;
 use serde::{Deserialize, Serialize};
-use simple_wal::LogFile;
 use tracing::info;
 use rand::seq::SliceRandom;
 use crate::api::ApiContext;
@@ -78,11 +78,11 @@ impl Indexable for Media {
 pub struct WalDb {
     map: DashMap<String, Media>,
     index: SearchIndex<String>,
-    wal: LogFile,
+    db_path: PathBuf,
 }
 
 impl WalDb {
-    pub fn new(wal: LogFile) -> Self {
+    pub fn new(db_path: PathBuf) -> Self {
         Self {
             map: DashMap::new(),
             index: SearchIndex::new(
@@ -103,7 +103,7 @@ impl WalDb {
                 40_960,
                 None,
             ),
-            wal,
+            db_path,
         }
     }
 
@@ -212,10 +212,12 @@ enum DbOperation {
 pub async fn init(ctx: &ApiContext) -> anyhow::Result<()> {
     info!("Starting DB import from WAL...");
     let mut db = ctx.db.write().await;
-    let iter = db.wal.iter(..)?;
-    let operations: Vec<_> = iter.collect::<Result<_, _>>()?;
-    for item in operations {
-        let operation: DbOperation = rmp_serde::from_slice(&*item)?;
+    let file_str = tokio::fs::read_to_string(&db.db_path).await?;
+    for line in file_str.split('\n') {
+        if line.is_empty() {
+            continue;
+        }
+        let operation: DbOperation = serde_json::from_str(line)?;
         match operation {
             DbOperation::CreateMedia { media } => { db.create_media(media); }
             DbOperation::DeleteMedia { media_id } => { db.delete_media(&media_id); }
@@ -301,9 +303,10 @@ pub async fn remove_tag_from_media(ctx: &ApiContext, media_id: &String, tag: &St
 
 async fn write_wal(db: &mut WalDb, operation: DbOperation) -> anyhow::Result<()> {
     info!("Writing to WAL: {:?}", operation);
-    let mut serialized_operation = rmp_serde::to_vec(&operation)?;
-    db.wal.write(&mut serialized_operation)?;
-    db.wal.flush()?;
+    let serialized_operation = serde_json::to_string(&operation)?;
+    let line = format!("{}\n", serialized_operation);
+    let mut file = tokio::fs::OpenOptions::new().append(true).open(&db.db_path).await?;
+    tokio::io::AsyncWriteExt::write_all(&mut file, line.as_bytes()).await?;
     info!("WAL written!");
     Ok(())
 }

@@ -2,7 +2,6 @@ use std::path::PathBuf;
 use axum::Extension;
 use std::sync::Arc;
 use path_absolutize::Absolutize;
-use simple_wal::LogFile;
 use tokio::sync::RwLock;
 use tower::ServiceBuilder;
 use tower_http::cors::{Any, CorsLayer};
@@ -42,8 +41,7 @@ pub async fn serve(workdir: &str) {
     let config: ApiConfig = ApiConfig { workdir, db_path };
     info!("{:?}", &config);
 
-    let log_file = LogFile::open(&config.db_path).expect("failed to open log file");
-    let db = WalDb::new(log_file);
+    let db = WalDb::new(config.db_path.clone());
 
     let ctx = ApiContext {
         cfg: Arc::new(config),
@@ -77,7 +75,7 @@ fn get_or_create_workdir_path(workdir: &str) -> anyhow::Result<PathBuf> {
 
 fn get_or_create_db_path(workdir: &PathBuf) -> anyhow::Result<PathBuf> {
     info!("db_path: {}", workdir.display());
-    let db_path = workdir.join("taganrog.db");
+    let db_path = workdir.join("taganrog.db.json");
     if db_path.exists() && !db_path.is_file() {
         anyhow::bail!("db_path is not a file");
     }
