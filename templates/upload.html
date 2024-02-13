@@ -54,6 +54,7 @@
 
             for (let i = 0; i < event.target.files.length; i++) {
                 let file = event.target.files[i];
+                let slug = file.name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/-+/g, '-').replace(/^-|-$/g, '');
                 let fileReader = new FileReader();
                 if (file.type.match('image')) {
                     fileReader.onload = function() {
@@ -68,6 +69,7 @@
                             ctx.drawImage(img, 0, 0);
                             let dataUrl = canvas.toDataURL('image/png');
                             let img2 = document.createElement('img');
+                            img2.id = slug;
                             img2.src = dataUrl;
                             img2.classList.add('w-32', 'h-32', 'object-cover', 'rounded-md', 'file-preview');
                             document.getElementById('preview-container').appendChild(img2);
@@ -100,6 +102,7 @@
                             let success = image.length > 100000;
                             if (success) {
                                 let img = document.createElement('img');
+                                img.id = slug;
                                 img.src = image;
                                 img.classList.add('w-32', 'h-32', 'object-cover', 'rounded-md', 'file-preview');
                                 document.getElementById('preview-container').appendChild(img);
@@ -126,10 +129,13 @@
 
             const formData = new FormData();
             const fileInput = document.getElementById('file');
-            const previewElements = document.getElementsByClassName('file-preview');
 
             for (let i = 0; i < fileInput.files.length; i++) {
-                let imgElement = previewElements[i];
+                let slug = fileInput.files[i].name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/-+/g, '-').replace(/^-|-$/g, '');
+                let imgElement = document.getElementById(slug);
+                if (imgElement === null) {
+                    continue;
+                }
                 let blob = dataURLtoBlob(imgElement.src);
                 formData.append('file', fileInput.files[i]);
                 formData.append('preview', blob, 'preview.png');
