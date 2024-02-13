@@ -20,7 +20,7 @@ pub mod client;
 
 pub type Result<T, E = ApiError> = std::result::Result<T, E>;
 
-pub async fn serve(workdir: &str) {
+pub async fn serve(workdir: &str, upload_dir: &str) {
     let tracing_layer = tracing_subscriber::fmt::layer();
     let filter = filter::Targets::new()
         // .with_target("tower_http::trace::on_request", Level::DEBUG)
@@ -33,10 +33,11 @@ pub async fn serve(workdir: &str) {
         .with(filter)
         .init();
 
-    let workdir = get_or_create_workdir_path(workdir).expect("failed to get or create workdir path");
+    let workdir = get_or_create_workdir(workdir).expect("failed to get or create workdir path");
+    let upload_dir = get_or_create_upload_dir(&workdir, upload_dir).expect("failed to get or create upload dir");
     let db_path = get_or_create_db_path(&workdir).expect("failed to get or create db path");
     let thumbnails_dir = get_or_create_thumbnails_dir(&workdir).expect("failed to get or create thumbnails dir");
-    let config: ApiConfig = ApiConfig { workdir, db_path, thumbnails_dir };
+    let config: ApiConfig = ApiConfig { workdir, upload_dir, db_path, thumbnails_dir };
     info!("{:?}", &config);
 
     let db = WalDb::new(config.db_path.clone());
@@ -58,17 +59,31 @@ pub async fn serve(workdir: &str) {
     axum::serve(listener, app).await.expect("error running HTTP server");
 }
 
-fn get_or_create_workdir_path(workdir: &str) -> anyhow::Result<PathBuf> {
-    let workdir = std::path::Path::new(workdir).absolutize_from(std::env::current_dir()?)?;
+fn get_or_create_workdir(workdir: &str) -> anyhow::Result<PathBuf> {
+    let workdir = std::path::Path::new(workdir).absolutize_from(std::env::current_dir()?)?.canonicalize()?;
     if !workdir.exists() {
         std::fs::create_dir_all(&workdir)?;
     }
     if !workdir.is_dir() {
         anyhow::bail!("workdir is not a directory");
     }
-    let workdir = workdir.canonicalize()?;
     info!("workdir: {}", workdir.display());
     Ok(workdir)
+}
+
+fn get_or_create_upload_dir(workdir: &PathBuf, upload_dir: &str) -> anyhow::Result<PathBuf> {
+    let upload_dir = std::path::Path::new(upload_dir).absolutize_from(std::env::current_dir()?)?.canonicalize()?;
+    if !upload_dir.starts_with(workdir) {
+        anyhow::bail!("upload_dir is not a subdirectory of workdir");
+    }
+    if !upload_dir.exists() {
+        std::fs::create_dir_all(&upload_dir)?;
+    }
+    if upload_dir.exists() && !upload_dir.is_dir() {
+        anyhow::bail!("upload_dir is not a directory");
+    }
+    info!("upload_dir: {}", upload_dir.display());
+    Ok(upload_dir)
 }
 
 fn get_or_create_db_path(workdir: &PathBuf) -> anyhow::Result<PathBuf> {
@@ -98,6 +113,7 @@ fn get_or_create_thumbnails_dir(workdir: &PathBuf) -> anyhow::Result<PathBuf> {
 #[derive(Debug)]
 pub struct ApiConfig {
     pub workdir: PathBuf,
+    pub upload_dir: PathBuf,
     pub db_path: PathBuf,
     pub thumbnails_dir: PathBuf,
 }

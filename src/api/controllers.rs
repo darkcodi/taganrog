@@ -122,7 +122,7 @@ async fn upload_media(
         suffix += 1;
         filename = format!("dup{}-{}", suffix, filename);
     }
-    let filepath = ctx.cfg.workdir.join(filename.clone());
+    let filepath = ctx.cfg.upload_dir.join(filename.clone());
     let relative_path = filepath.relative_to(&ctx.cfg.workdir)
         .map_err(|_| ApiError::unprocessable_entity([("filename", "invalid path 2")]))?;
 

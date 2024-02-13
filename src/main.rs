@@ -23,6 +23,14 @@ async fn main() {
             .global(true)
             .env("TAG_WORKDIR")
             .default_value("."))
+        .arg(Arg::new("upload-dir")
+            .required(false)
+            .help("Set the media upload directory (should be a subdirectory of the working directory)")
+            .long("upload-dir")
+            .short('u')
+            .global(true)
+            .env("UPLOAD_DIR")
+            .default_value("."))
         .subcommand_required(true)
         .subcommand(
             Command::new("serve")
@@ -63,7 +71,8 @@ async fn main() {
                 },
                 Some(("api", _)) => {
                     let workdir: &String = matches.get_one("workdir").unwrap();
-                    api::serve(workdir).await
+                    let upload_dir: &String = matches.get_one("upload-dir").unwrap();
+                    api::serve(workdir, upload_dir).await
                 },
                 _ => unreachable!(),
             }
