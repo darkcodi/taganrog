@@ -14,7 +14,7 @@ use crate::utils::normalize_query;
 use crate::utils::str_utils::StringExtensions;
 
 const PLACEHOLDER: &[u8] = include_bytes!("assets/placeholder.svg");
-const MAX_UPLOAD_SIZE_IN_BYTES: usize = 52_428_800; // 50 MB
+const MAX_UPLOAD_SIZE_IN_BYTES: usize = 524_288_000; // 500 MB
 
 pub fn router() -> Router {
     Router::new()
