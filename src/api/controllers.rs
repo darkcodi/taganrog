@@ -99,18 +99,23 @@ async fn upload_media(
         .to_vec();
     let hash = MurMurHasher::hash_bytes(data.as_slice());
     let existing_media = db::get_media_by_id(&ctx, &hash).await?;
-    if existing_media.is_some() {
+    let thumbnail_filename = format!("{}.png", &hash);
+    let thumbnail_filepath = ctx.cfg.thumbnails_dir.join(&thumbnail_filename);
+    let thumbnail_exists = thumbnail_filepath.exists();
+    if existing_media.is_some() && thumbnail_exists {
         return Ok(Json(existing_media.unwrap()));
     }
 
     let thumbnail = files.next_field().await
         .map_err(|x| ApiError::unprocessable_entity([("file", format!("multipart error: {}", x.to_string()))]))?
         .ok_or(ApiError::unprocessable_entity([("file", "missing thumbnail")]))?;
-    let thumbnail_filename = format!("{}.png", &hash);
     let thumbnail_data = thumbnail.bytes().await
         .map_err(|x| ApiError::unprocessable_entity([("file", format!("multipart error: {}", x.to_string()))]))?
         .to_vec();
-    let thumbnail_filepath = ctx.cfg.thumbnails_dir.join(&thumbnail_filename);
+    if existing_media.is_some() {
+        std::fs::write(&thumbnail_filepath, thumbnail_data)?;
+        return Ok(Json(existing_media.unwrap()));
+    }
     let mut filename = filename.clone();
     let mut suffix = 0;
     while ctx.cfg.workdir.join(filename.clone()).exists() {
