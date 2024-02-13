@@ -103,6 +103,14 @@ async fn upload_media(
         return Ok(Json(existing_media.unwrap()));
     }
 
+    let thumbnail = files.next_field().await
+        .map_err(|x| ApiError::unprocessable_entity([("file", format!("multipart error: {}", x.to_string()))]))?
+        .ok_or(ApiError::unprocessable_entity([("file", "missing thumbnail")]))?;
+    let thumbnail_filename = format!("{}.png", &hash);
+    let thumbnail_data = thumbnail.bytes().await
+        .map_err(|x| ApiError::unprocessable_entity([("file", format!("multipart error: {}", x.to_string()))]))?
+        .to_vec();
+    let thumbnail_filepath = ctx.cfg.thumbnails_dir.join(&thumbnail_filename);
     let mut filename = filename.clone();
     let mut suffix = 0;
     while ctx.cfg.workdir.join(filename.clone()).exists() {
@@ -113,6 +121,7 @@ async fn upload_media(
     let relative_path = filepath.relative_to(&ctx.cfg.workdir)
         .map_err(|_| ApiError::unprocessable_entity([("filename", "invalid path 2")]))?;
 
+    std::fs::write(&thumbnail_filepath, thumbnail_data)?;
     std::fs::write(&filepath, data)?;
     let mut media = Media::from_file(&filepath, &relative_path, None)?;
     media.was_uploaded = true;
