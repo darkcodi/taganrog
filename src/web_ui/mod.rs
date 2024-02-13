@@ -162,6 +162,7 @@ pub struct ExtendedMedia {
     pub location: String,
     pub was_uploaded: bool,
     pub tags: Vec<ExtendedTag>,
+    pub is_image: bool,
 }
 
 impl From<Media> for ExtendedMedia {
@@ -174,12 +175,13 @@ impl From<Media> for ExtendedMedia {
         Self {
             id: media.id,
             filename: media.filename,
-            content_type: media.content_type,
             created_at: media.created_at,
             size: media.size,
             location: media.location,
             was_uploaded: media.was_uploaded,
             tags,
+            is_image: media.content_type.starts_with("image"),
+            content_type: media.content_type,
         }
     }
 }

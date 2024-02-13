@@ -19,12 +19,16 @@
             {% if media_exists %}
             <div id="media-main" class="max-w-fit w-full mt-6 flex h-3/4">
                 <div class="flex-1">
-                    <video id="media-player" preload="auto" autoplay="autoplay" loop="loop"
-                            controls
-                            class="w-full h-full object-cover rounded-md focus:outline-none"
-                            src="/media/{{ media.id }}/stream"
-                            style="aspect-ratio:16/9;object-fit:contain;"
-                    ></video>
+                    {% if media.is_image %}
+                        <img class="w-full h-full object-cover rounded-md focus:outline-none" src="/media/{{ media.id }}/stream" style="aspect-ratio:16/9;object-fit:contain;" />
+                    {% else %}
+                        <video id="media-player" preload="auto" autoplay="autoplay" loop="loop"
+                                controls
+                                class="w-full h-full object-cover rounded-md focus:outline-none"
+                                src="/media/{{ media.id }}/stream"
+                                style="aspect-ratio:16/9;object-fit:contain;"
+                        ></video>
+                    {% endif %}
                 </div>
                 <div class="w-96 p-4 bg-gray-100 rounded-md ml-4 flex flex-col justify-between">
                     <div>
