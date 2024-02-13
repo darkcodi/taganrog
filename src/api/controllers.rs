@@ -1,6 +1,8 @@
 use axum::extract::{DefaultBodyLimit, Extension, Multipart, Path, Query};
 use axum::routing::{get, post};
 use axum::{Json, Router};
+use axum::body::Body;
+use axum::response::Response;
 use path_absolutize::Absolutize;
 use relative_path::PathExt;
 use crate::api::error::{ApiError};
@@ -11,6 +13,7 @@ use crate::utils::hash_utils::MurMurHasher;
 use crate::utils::normalize_query;
 use crate::utils::str_utils::StringExtensions;
 
+const PLACEHOLDER: &[u8] = include_bytes!("assets/placeholder.svg");
 const MAX_UPLOAD_SIZE_IN_BYTES: usize = 52_428_800; // 50 MB
 
 pub fn router() -> Router {
@@ -19,6 +22,7 @@ pub fn router() -> Router {
         .route("/api/media", get(get_all_media).post(add_media))
         .route("/api/media/random", get(get_random_media))
         .route("/api/media/:media_id", get(get_media).delete(delete_media))
+        .route("/api/media/:media_id/thumbnail", get(get_media_thumbnail))
         .route("/api/media/:media_id/stream", get(stream_media))
         .route("/api/media/:media_id/add-tag", post(add_tag_to_media))
         .route("/api/media/:media_id/remove-tag", post(delete_tag_from_media))
@@ -164,6 +168,30 @@ async fn delete_media(
     Ok(Json(media))
 }
 
+async fn get_media_thumbnail(
+    ctx: Extension<ApiContext>,
+    Path(media_id): Path<String>,
+) -> Result<axum::http::Response<Body>> {
+    let maybe_media = db::get_media_by_id(&ctx, &media_id).await?;
+    if maybe_media.is_none() {
+        return Err(ApiError::NotFound);
+    }
+
+    let media = maybe_media.unwrap();
+    let full_path = ctx.cfg.thumbnails_dir.join(format!("{}.png", &media.id));
+    if !full_path.exists() {
+        let mut response = Response::<Body>::new(PLACEHOLDER.into());
+        response.headers_mut().insert("Cache-Control", "public, max-age=31536000".parse().unwrap());
+        response.headers_mut().insert("Content-Type", "image/svg+xml".parse().unwrap());
+        return Ok(response);
+    }
+
+    let file = tokio::fs::File::open(&full_path).await?;
+    let stream = tokio_util::io::ReaderStream::new(file);
+    let response = Response::new(Body::from_stream(stream));
+    Ok(response)
+}
+
 async fn add_tag_to_media(
     ctx: Extension<ApiContext>,
     Path(media_id): Path<String>,
@@ -242,7 +270,7 @@ async fn autocomplete_tags(
 async fn stream_media(
     ctx: Extension<ApiContext>,
     Path(media_id): Path<String>,
-) -> Result<axum::http::Response<axum::body::Body>> {
+) -> Result<axum::http::Response<Body>> {
     let maybe_media = db::get_media_by_id(&ctx, &media_id).await?;
     if maybe_media.is_none() {
         return Err(ApiError::NotFound);
@@ -252,7 +280,7 @@ async fn stream_media(
     let full_path = ctx.cfg.workdir.join(&media.location);
     let file = tokio::fs::File::open(&full_path).await?;
     let stream = tokio_util::io::ReaderStream::new(file);
-    let response = axum::http::Response::new(axum::body::Body::from_stream(stream));
+    let response = Response::new(Body::from_stream(stream));
     Ok(response)
 }
 

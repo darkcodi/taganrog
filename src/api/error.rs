@@ -5,7 +5,9 @@ use axum::Json;
 use std::borrow::Cow;
 use std::collections::HashMap;
 use tracing::error;
-use crate::api::{APPLICATION_JSON, CONTENT_TYPE_HEADER};
+
+const CONTENT_TYPE_HEADER: &str = "content-type";
+const APPLICATION_JSON: &str = "application/json";
 
 #[derive(thiserror::Error, Debug)]
 pub enum ApiError {

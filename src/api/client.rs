@@ -69,6 +69,12 @@ impl ApiClient {
         Ok(res)
     }
 
+    pub async fn get_media_thumbnail(&self, media_id: &str) -> anyhow::Result<reqwest::Response> {
+        let url: String = format!("{}/api/media/{}/thumbnail", self.config.api_url, media_id);
+        let res = self.client.get(&url).send().await?;
+        Ok(res)
+    }
+
     pub async fn stream_media(&self, media_id: &str) -> anyhow::Result<reqwest::Response> {
         let url: String = format!("{}/api/media/{}/stream", self.config.api_url, media_id);
         let res = self.client.get(&url).send().await?;

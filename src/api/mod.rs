@@ -18,9 +18,6 @@ mod error;
 mod controllers;
 pub mod client;
 
-pub const CONTENT_TYPE_HEADER: &str = "content-type";
-pub const APPLICATION_JSON: &str = "application/json";
-
 pub type Result<T, E = ApiError> = std::result::Result<T, E>;
 
 pub async fn serve(workdir: &str) {
@@ -38,7 +35,8 @@ pub async fn serve(workdir: &str) {
 
     let workdir = get_or_create_workdir_path(workdir).expect("failed to get or create workdir path");
     let db_path = get_or_create_db_path(&workdir).expect("failed to get or create db path");
-    let config: ApiConfig = ApiConfig { workdir, db_path };
+    let thumbnails_dir = get_or_create_thumbnails_dir(&workdir).expect("failed to get or create thumbnails dir");
+    let config: ApiConfig = ApiConfig { workdir, db_path, thumbnails_dir };
     info!("{:?}", &config);
 
     let db = WalDb::new(config.db_path.clone());
@@ -61,7 +59,6 @@ pub async fn serve(workdir: &str) {
 }
 
 fn get_or_create_workdir_path(workdir: &str) -> anyhow::Result<PathBuf> {
-    info!("workdir: {}", workdir);
     let workdir = std::path::Path::new(workdir).absolutize_from(std::env::current_dir()?)?;
     if !workdir.exists() {
         std::fs::create_dir_all(&workdir)?;
@@ -70,25 +67,39 @@ fn get_or_create_workdir_path(workdir: &str) -> anyhow::Result<PathBuf> {
         anyhow::bail!("workdir is not a directory");
     }
     let workdir = workdir.canonicalize()?;
+    info!("workdir: {}", workdir.display());
     Ok(workdir)
 }
 
 fn get_or_create_db_path(workdir: &PathBuf) -> anyhow::Result<PathBuf> {
-    info!("db_path: {}", workdir.display());
     let db_path = workdir.join("taganrog.db.json");
-    if db_path.exists() && !db_path.is_file() {
-        anyhow::bail!("db_path is not a file");
-    }
     if !db_path.exists() {
         std::fs::write(&db_path, "")?;
     }
+    if db_path.exists() && !db_path.is_file() {
+        anyhow::bail!("db_path is not a file");
+    }
+    info!("db_path: {}", workdir.display());
     Ok(db_path)
+}
+
+fn get_or_create_thumbnails_dir(workdir: &PathBuf) -> anyhow::Result<PathBuf> {
+    let thumbnails_dir = workdir.join("taganrog-thumbnails");
+    if !thumbnails_dir.exists() {
+        std::fs::create_dir_all(&thumbnails_dir)?;
+    }
+    if thumbnails_dir.exists() && !thumbnails_dir.is_dir() {
+        anyhow::bail!("thumbnails_dir is not a directory");
+    }
+    info!("thumbnails_dir: {}", thumbnails_dir.display());
+    Ok(thumbnails_dir)
 }
 
 #[derive(Debug)]
 pub struct ApiConfig {
     pub workdir: PathBuf,
     pub db_path: PathBuf,
+    pub thumbnails_dir: PathBuf,
 }
 
 #[derive(Clone)]

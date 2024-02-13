@@ -1,5 +1,7 @@
+use std::collections::HashMap;
 use std::hash::Hasher;
 use std::iter::once;
+use std::str::FromStr;
 use askama::Template;
 use axum::{routing::get, Router, Json};
 use axum::body::Body;
@@ -65,6 +67,7 @@ pub async fn serve(api_url: &str) {
         .route("/upload/file", post(upload_file))
 
         // api
+        .route("/media/:media_id/thumbnail", get(get_media_thumbnail))
         .route("/media/:media_id/stream", get(stream_media))
         .route("/tags/search", get(search_tags))
         .route("/tags/autocomplete", get(autocomplete_tags))
@@ -408,6 +411,38 @@ async fn delete_media(
     }
 
     StatusCode::OK
+}
+
+async fn get_media_thumbnail(
+    State(api_client): State<ApiClient>,
+    Path(media_id): Path<String>,
+) -> impl IntoResponse {
+    let api_response = api_client.get_media_thumbnail(&media_id).await;
+    match api_response {
+        Ok(api_response) => {
+            if api_response.status().is_success() {
+                let mut api_headers = HashMap::new();
+                for (key, value) in api_response.headers() {
+                    let key_str = key.as_str().to_string();
+                    let value_str = value.to_str().unwrap_or_default().to_string();
+                    let header_key = axum::http::HeaderName::from_str(&key_str);
+                    let header_value = axum::http::HeaderValue::from_str(&value_str);
+                    if header_key.is_ok() && header_value.is_ok() {
+                        api_headers.insert(header_key.unwrap(), header_value.unwrap());
+                    }
+                }
+                let bytes_stream = api_response.bytes_stream();
+                let mut response = Response::new(Body::from_stream(bytes_stream));
+                for (key, value) in api_headers {
+                    response.headers_mut().insert(key, value);
+                }
+                Ok(response)
+            } else {
+                Err(StatusCode::from_u16(api_response.status().as_u16()).unwrap())
+            }
+        }
+        Err(_) => Err(StatusCode::INTERNAL_SERVER_ERROR)
+    }
 }
 
 async fn stream_media(
