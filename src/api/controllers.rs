@@ -269,6 +269,10 @@ async fn search_media(
         let media_vec = db::get_all_media(&ctx, page_size, page_index).await?;
         return Ok(Json(media_vec))
     }
+    if query == "no-thumbnail" {
+        let media_vec = db::get_media_without_thumbnail(&ctx).await?;
+        return Ok(Json(media_vec))
+    }
     let media_vec = db::search_media(&ctx, &query, page_size, page_index).await?;
     Ok(Json(media_vec))
 }

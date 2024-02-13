@@ -241,6 +241,13 @@ pub async fn get_untagged_media(ctx: &ApiContext, page_size: u64, page_index: u6
     Ok(media_vec)
 }
 
+pub async fn get_media_without_thumbnail(ctx: &ApiContext) -> anyhow::Result<Vec<Media>> {
+    let db = ctx.db.read().await;
+    let all_media = db.get_all_media(u64::MAX, 0);
+    let media_vec = all_media.into_iter().filter(|x| !std::path::Path::new(&ctx.cfg.thumbnails_dir).join(format!("{}.png", &x.id)).exists()).collect();
+    Ok(media_vec)
+}
+
 pub async fn get_media_by_id(ctx: &ApiContext, media_id: &String) -> anyhow::Result<Option<Media>> {
     let db = ctx.db.read().await;
     let maybe_media = db.get_media(media_id);
