@@ -173,6 +173,11 @@ async fn delete_media(
         return Err(ApiError::NotFound);
     }
 
+    let thumbnail_path = ctx.cfg.thumbnails_dir.join(format!("{}.png", &media_id));
+    if thumbnail_path.exists() {
+        std::fs::remove_file(&thumbnail_path)?;
+    }
+
     let media = maybe_media.unwrap();
     Ok(Json(media))
 }
