@@ -220,7 +220,7 @@ async fn media_search_more(
         return HtmlTemplate(SearchMoreTemplate::default());
     }
     let page_index = query.p.unwrap_or(0);
-    let page_size = 10;
+    let page_size = 100;
     let api_response = api_client.search_media(&normalized_query, page_size, page_index).await.unwrap();
     let media_vec: Vec<Media> = api_response.json().await.unwrap();
     let mut media_vec = media_vec.into_iter().map(|x| x.into()).collect::<Vec<ExtendedMedia>>();
