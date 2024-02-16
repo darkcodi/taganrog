@@ -453,13 +453,29 @@ async fn stream_media(
 ) -> impl IntoResponse {
     let api_response = api_client.stream_media(&media_id).await;
     match api_response {
-        Ok(response) => {
-            if response.status().is_success() {
-                let bytes_stream = response.bytes_stream();
-                let response = Response::new(axum::body::Body::from_stream(bytes_stream));
+        Ok(api_response) => {
+            if api_response.status().is_success() {
+                // add headers from the api response to the new response
+                let mut api_headers = HashMap::new();
+                for (key, value) in api_response.headers() {
+                    let key_str = key.as_str().to_string();
+                    let value_str = value.to_str().unwrap_or_default().to_string();
+                    let header_key = axum::http::HeaderName::from_str(&key_str);
+                    let header_value = axum::http::HeaderValue::from_str(&value_str);
+                    if header_key.is_ok() && header_value.is_ok() {
+                        api_headers.insert(header_key.unwrap(), header_value.unwrap());
+                    }
+                }
+
+                let bytes_stream = api_response.bytes_stream();
+                let mut response = Response::new(axum::body::Body::from_stream(bytes_stream));
+                for (key, value) in api_headers {
+                    response.headers_mut().insert(key, value);
+                }
+
                 Ok(response)
             } else {
-                Err(StatusCode::from_u16(response.status().as_u16()).unwrap())
+                Err(StatusCode::from_u16(api_response.status().as_u16()).unwrap())
             }
         }
         Err(_) => Err(StatusCode::INTERNAL_SERVER_ERROR)

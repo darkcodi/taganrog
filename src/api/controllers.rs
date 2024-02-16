@@ -302,8 +302,11 @@ async fn stream_media(
     let media = maybe_media.unwrap();
     let full_path = ctx.cfg.workdir.join(&media.location);
     let file = tokio::fs::File::open(&full_path).await?;
+    let total_size = file.metadata().await?.len();
+    let content_range = format!("bytes 0-{}/{}", total_size - 1, total_size);
     let stream = tokio_util::io::ReaderStream::new(file);
-    let response = Response::new(Body::from_stream(stream));
+    let mut response = Response::new(Body::from_stream(stream));
+    response.headers_mut().insert("Content-Range", content_range.parse().unwrap());
     Ok(response)
 }
 
