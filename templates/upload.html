@@ -141,7 +141,7 @@
                 formData.append('preview', blob, 'preview.png');
             }
 
-            await fetch('/upload/file', {
+            await fetch('/upload/files', {
                 method: 'POST',
                 body: formData
             }).then(response => {

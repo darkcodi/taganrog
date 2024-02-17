@@ -1,38 +1,35 @@
-use std::collections::HashMap;
+mod error;
+
 use std::hash::Hasher;
 use std::iter::once;
-use std::str::FromStr;
+use std::sync::Arc;
 use askama::Template;
 use axum::{routing::get, Router, Json};
 use axum::body::Body;
-use axum::extract::{DefaultBodyLimit, Path, Query, State};
+use axum::extract::{DefaultBodyLimit, Multipart, Path, Query, State};
 use axum::http::StatusCode;
 use axum::response::{Html, IntoResponse, Response};
 use axum::routing::{delete, post};
 use axum_macros::FromRef;
 use chrono::{DateTime, Utc};
-use itertools::Itertools;
-use tracing::{info, Level, warn};
+use tracing::{info, Level};
 use tracing_subscriber::util::SubscriberInitExt;
 use serde::{Deserialize, Serialize};
+use tokio::sync::RwLock;
 use tower_http::trace::TraceLayer;
 use tracing_subscriber::filter;
 use tracing_subscriber::layer::SubscriberExt;
-use crate::api::client::{ApiClient, MultipartFile};
-use crate::db::{Media, TagsAutocomplete};
+use crate::client::{TaganrogClient, TaganrogConfig};
+use crate::entities::Media;
 use crate::utils::normalize_query;
 use crate::utils::str_utils::StringExtensions;
 
 // icons
 const FAVICON: &[u8] = include_bytes!("assets/favicon.ico");
-const ICON_DEFAULT: &[u8] = include_bytes!("assets/icons/file.svg");
-const ICON_JPG: &[u8] = include_bytes!("assets/icons/jpg.svg");
-const ICON_MP3: &[u8] = include_bytes!("assets/icons/mp3.svg");
-const ICON_MP4: &[u8] = include_bytes!("assets/icons/mp4.svg");
-const ICON_PNG: &[u8] = include_bytes!("assets/icons/png.svg");
+const DEFAULT_THUMBNAIL: &[u8] = include_bytes!("assets/icons/default_thumbnail.svg");
 const MAX_UPLOAD_SIZE_IN_BYTES: usize = 524_288_000; // 500 MB
 
-pub async fn serve(api_url: &str) {
+pub async fn serve(config: TaganrogConfig) {
     let tracing_layer = tracing_subscriber::fmt::layer();
     let filter = filter::Targets::new()
         // .with_target("tower_http::trace::on_request", Level::DEBUG)
@@ -44,41 +41,43 @@ pub async fn serve(api_url: &str) {
         .with(filter)
         .init();
 
+    info!("{:?}", &config);
+
+    info!("initializing client...");
+    let mut client = TaganrogClient::new(config);
+    client.init().await.expect("failed to initialize client");
+    let media_count = client.get_media_count();
+    info!("media count: {}", media_count);
+
     info!("initializing router...");
     let router = Router::new()
-
         // icons
         .route("/favicon.ico", get(favicon))
-        .route("/icons/file.svg", get(icon_default))
-        .route("/icons/jpg.svg", get(icon_jpg))
-        .route("/icons/mp3.svg", get(icon_mp3))
-        .route("/icons/mp4.svg", get(icon_mp4))
-        .route("/icons/png.svg", get(icon_png))
 
         // pages
         .route("/", get(index))
         .route("/media/random", get(get_random_media))
         .route("/media/:media_id", get(get_media).delete(delete_media))
         .route("/media/:media_id/add-tag", get(add_tag_to_media))
-        .route("/media/:media_id/remove-tag", delete(delete_tag_from_media))
+        .route("/media/:media_id/remove-tag", delete(remove_tag_from_media))
         .route("/search", get(media_search))
         .route("/search/more", get(media_search_more))
         .route("/upload", get(upload_page))
-        .route("/upload/file", post(upload_file))
 
         // api
         .route("/media/:media_id/thumbnail", get(get_media_thumbnail))
         .route("/media/:media_id/stream", get(stream_media))
         .route("/tags/search", get(search_tags))
         .route("/tags/autocomplete", get(autocomplete_tags))
+        .route("/upload/files", post(upload_files))
 
         .with_state(AppState {
-            api_client: ApiClient::new(api_url.to_string()),
+            client: Arc::new(RwLock::new(client)),
         })
         .layer(TraceLayer::new_for_http())
         .layer(DefaultBodyLimit::max(MAX_UPLOAD_SIZE_IN_BYTES));
 
-    let addr = "[::]:1775";
+    let addr = "[::]:1698";
     let listener = tokio::net::TcpListener::bind(addr).await.expect("failed to bind to address");
     info!("listening on {}", &addr);
     axum::serve(listener, router).await.expect("error running HTTP server");
@@ -86,7 +85,7 @@ pub async fn serve(api_url: &str) {
 
 #[derive(Clone, FromRef)]
 struct AppState {
-    api_client: ApiClient,
+    client: Arc<RwLock<TaganrogClient>>,
 }
 
 struct HtmlTemplate<T>(T);
@@ -117,11 +116,6 @@ async fn index() -> impl IntoResponse {
 }
 
 async fn favicon() -> impl IntoResponse { Response::<Body>::new(FAVICON.into()) }
-async fn icon_default() -> impl IntoResponse { icon_response(ICON_DEFAULT) }
-async fn icon_jpg() -> impl IntoResponse { icon_response(ICON_JPG) }
-async fn icon_mp3() -> impl IntoResponse { icon_response(ICON_MP3) }
-async fn icon_mp4() -> impl IntoResponse { icon_response(ICON_MP4) }
-async fn icon_png() -> impl IntoResponse { icon_response(ICON_PNG) }
 
 fn icon_response(icon: &'static [u8]) -> Response<Body> {
     let mut response = Response::<Body>::new(icon.into());
@@ -133,7 +127,7 @@ fn icon_response(icon: &'static [u8]) -> Response<Body> {
 #[derive(Deserialize)]
 struct SearchQuery {
     q: Option<String>,
-    p: Option<u64>,
+    p: Option<usize>,
 }
 
 #[derive(Default, Template)]
@@ -148,7 +142,7 @@ pub struct SearchMoreTemplate {
     query: String,
     query_tags: Vec<String>,
     media_vec: Vec<ExtendedMedia>,
-    next_page: u64,
+    next_page: usize,
     has_next: bool,
 }
 
@@ -212,7 +206,7 @@ async fn media_search(Query(query): Query<SearchQuery>) -> impl IntoResponse {
 }
 
 async fn media_search_more(
-    State(api_client): State<ApiClient>,
+    State(state): State<AppState>,
     Query(query): Query<SearchQuery>,
 ) -> impl IntoResponse {
     let normalized_query = normalize_query(&query.q.unwrap_or_default());
@@ -221,10 +215,18 @@ async fn media_search_more(
     }
     let page_index = query.p.unwrap_or(0);
     let page_size = 100;
-    let api_response = api_client.search_media(&normalized_query, page_size, page_index).await.unwrap();
-    let media_vec: Vec<Media> = api_response.json().await.unwrap();
+
+    let client = state.client.read().await;
+    let media_vec = match normalized_query.as_str() {
+        "all" => client.get_all_media(page_size, page_index),
+        "null" => client.get_untagged_media(page_size, page_index),
+        "no-thumbnail" => client.get_media_without_thumbnail(page_size, page_index),
+        _ => client.search_media(&normalized_query, page_size, page_index),
+    };
+    drop(client);
+
     let mut media_vec = media_vec.into_iter().map(|x| x.into()).collect::<Vec<ExtendedMedia>>();
-    let has_next = media_vec.len() as u64 == page_size;
+    let has_next = media_vec.len() == page_size;
 
     // order tags in each media by the order they appear in the query
     let query_tags = extract_tags(&normalized_query);
@@ -270,7 +272,7 @@ pub struct AddTagToMediaTemplate {
 }
 
 async fn add_tag_to_media(
-    State(api_client): State<ApiClient>,
+    State(state): State<AppState>,
     Path(media_id): Path<String>,
     Query(query): Query<TagBody>,
 ) -> impl IntoResponse {
@@ -279,20 +281,34 @@ async fn add_tag_to_media(
         return HtmlTemplate(AddTagToMediaTemplate::default());
     }
     let normalized_query = normalize_query(&query.q.unwrap_or_default());
-    let api_response = api_client.get_media(&media_id).await.unwrap();
-    let media: Media = api_response.json().await.unwrap();
+
+    let client = state.client.read().await;
+    let maybe_media = client.get_media_by_id(&media_id);
+    drop(client);
+
+    if maybe_media.is_none() {
+        return HtmlTemplate(AddTagToMediaTemplate::default());
+    }
+    let media = maybe_media.unwrap();
     if media.tags.contains(&tag) {
         return HtmlTemplate(AddTagToMediaTemplate::default());
     }
-    let api_response = api_client.add_tag_to_media(&media_id, &tag).await.unwrap();
-    let media: Media = api_response.json().await.unwrap();
+
+    let mut client = state.client.write().await;
+    client.add_tag_to_media(&media_id, &tag).await.unwrap();
+    drop(client);
+
+    let client = state.client.read().await;
+    let media: Media = client.get_media_by_id(&media_id).unwrap();
+    drop(client);
+
     let tag_color = get_bg_color(&tag);
     let tag: ExtendedTag = ExtendedTag { name: tag, is_in_query: false, bg_color: tag_color.clone(), fg_color: get_fg_color(&tag_color) };
     HtmlTemplate(AddTagToMediaTemplate { media, tag, query: normalized_query })
 }
 
-async fn delete_tag_from_media(
-    State(api_client): State<ApiClient>,
+async fn remove_tag_from_media(
+    State(state): State<AppState>,
     Path(media_id): Path<String>,
     Query(query): Query<TagBody>,
 ) -> impl IntoResponse {
@@ -300,8 +316,17 @@ async fn delete_tag_from_media(
     if tag.is_empty() {
         return Response::new(Body::empty());
     }
-    let api_response = api_client.delete_tag_from_media(&media_id, &tag).await.unwrap();
-    let _: Media = api_response.json().await.unwrap();
+
+    let client = state.client.read().await;
+    let maybe_media = client.get_media_by_id(&media_id);
+    drop(client);
+
+    if maybe_media.is_none() {
+        return Response::new(Body::empty());
+    }
+
+    let mut client = state.client.write().await;
+    client.remove_tag_from_media(&media_id, &tag).await.unwrap();
     Response::new(Body::empty())
 }
 
@@ -313,16 +338,16 @@ struct AutocompleteObject {
 }
 
 async fn autocomplete_tags(
-    State(api_client): State<ApiClient>,
+    State(state): State<AppState>,
     Query(query): Query<SearchQuery>,
 ) -> Json<Vec<AutocompleteObject>> {
     let normalized_query = normalize_query(&query.q.unwrap_or_default());
     if normalized_query.is_empty() {
         return Json(vec![]);
     }
-    let page = query.p.unwrap_or(0);
-    let api_response = api_client.autocomplete_tags(&normalized_query, page).await.unwrap();
-    let autocomplete: Vec<TagsAutocomplete> = api_response.json().await.unwrap();
+    let page = query.p.unwrap_or(10);
+    let client = state.client.read().await;
+    let autocomplete = client.autocomplete_tags(&normalized_query, page);
     let autocomplete = autocomplete.iter().map(|x| {
         let query = normalized_query.clone();
         let suggestion = x.head.iter().map(|x| x.as_str())
@@ -338,16 +363,17 @@ async fn autocomplete_tags(
 }
 
 async fn search_tags(
-    State(api_client): State<ApiClient>,
+    State(state): State<AppState>,
     Query(query): Query<SearchQuery>,
 ) -> Json<Vec<AutocompleteObject>> {
-    let mut normalized_query = normalize_query(&query.q.unwrap_or_default());
+    let normalized_query = normalize_query(&query.q.unwrap_or_default());
     if normalized_query.is_empty() || normalized_query.contains(" ") {
         return Json(vec![]);
     }
-    let page = query.p.unwrap_or(0);
-    let api_response = api_client.autocomplete_tags(&normalized_query, page).await.unwrap();
-    let autocomplete: Vec<TagsAutocomplete> = api_response.json().await.unwrap();
+    let page = query.p.unwrap_or(10);
+    let client = state.client.read().await;
+    let autocomplete = client.autocomplete_tags(&normalized_query, page);
+    drop(client);
     let autocomplete = autocomplete.iter().map(|x| {
         let query = normalized_query.clone();
         let suggestion = x.head.iter().map(|x| x.as_str())
@@ -371,13 +397,13 @@ pub struct MediaPageTemplate {
 }
 
 async fn get_media(
-    State(api_client): State<ApiClient>,
+    State(state): State<AppState>,
     Query(query): Query<SearchQuery>,
     Path(media_id): Path<String>,
 ) -> impl IntoResponse {
     let query = normalize_query(&query.q.unwrap_or_default());
-    let api_response = api_client.get_media(&media_id).await.unwrap();
-    if let Ok(media) = api_response.json::<Media>().await {
+    let client = state.client.read().await;
+    if let Some(media) = client.get_media_by_id(&media_id) {
         let extended_media: ExtendedMedia = media.into();
         HtmlTemplate(MediaPageTemplate { query, media: extended_media, media_exists: true })
     } else {
@@ -386,100 +412,72 @@ async fn get_media(
 }
 
 async fn get_random_media(
-    State(api_client): State<ApiClient>,
+    State(state): State<AppState>,
 ) -> impl IntoResponse {
-    let api_response = api_client.get_random_media().await;
-    match api_response {
-        Ok(response) => {
-            if response.status().is_success() {
-                let media: Media = response.json().await.unwrap();
-                let extended_media: ExtendedMedia = media.into();
-                HtmlTemplate(MediaPageTemplate { query: "".to_string(), media: extended_media, media_exists: true })
-            } else {
-                HtmlTemplate(MediaPageTemplate { query: "".to_string(), media: ExtendedMedia::default(), media_exists: false })
-            }
-        }
-        Err(_) => HtmlTemplate(MediaPageTemplate { query: "".to_string(), media: ExtendedMedia::default(), media_exists: false })
+    let client = state.client.read().await;
+    match client.get_random_media() {
+        Some(media) => HtmlTemplate(MediaPageTemplate { query: "".to_string(), media: media.into(), media_exists: true }),
+        None => HtmlTemplate(MediaPageTemplate { query: "".to_string(), media: ExtendedMedia::default(), media_exists: false })
     }
 }
 
 async fn delete_media(
-    State(api_client): State<ApiClient>,
+    State(state): State<AppState>,
     Path(media_id): Path<String>,
 ) -> impl IntoResponse {
-    let api_response = api_client.delete_media(&media_id).await;
-    if api_response.is_err() || !api_response.unwrap().status().is_success() {
+    let mut client = state.client.write().await;
+    let media_result = client.delete_media(&media_id).await;
+    if media_result.is_err() {
         return StatusCode::INTERNAL_SERVER_ERROR;
+    }
+    let maybe_media = media_result.unwrap();
+    if maybe_media.is_none() {
+        return StatusCode::NOT_FOUND;
     }
 
     StatusCode::OK
 }
 
 async fn get_media_thumbnail(
-    State(api_client): State<ApiClient>,
+    State(state): State<AppState>,
     Path(media_id): Path<String>,
 ) -> impl IntoResponse {
-    let api_response = api_client.get_media_thumbnail(&media_id).await;
-    match api_response {
-        Ok(api_response) => {
-            if api_response.status().is_success() {
-                let mut api_headers = HashMap::new();
-                for (key, value) in api_response.headers() {
-                    let key_str = key.as_str().to_string();
-                    let value_str = value.to_str().unwrap_or_default().to_string();
-                    let header_key = axum::http::HeaderName::from_str(&key_str);
-                    let header_value = axum::http::HeaderValue::from_str(&value_str);
-                    if header_key.is_ok() && header_value.is_ok() {
-                        api_headers.insert(header_key.unwrap(), header_value.unwrap());
-                    }
-                }
-                let bytes_stream = api_response.bytes_stream();
-                let mut response = Response::new(Body::from_stream(bytes_stream));
-                for (key, value) in api_headers {
-                    response.headers_mut().insert(key, value);
-                }
-                Ok(response)
-            } else {
-                Err(StatusCode::from_u16(api_response.status().as_u16()).unwrap())
-            }
-        }
-        Err(_) => Err(StatusCode::INTERNAL_SERVER_ERROR)
+    let client = state.client.read().await;
+    let thumbnail_path = client.get_thumbnail_path(&media_id);
+    drop(client);
+    if !thumbnail_path.exists() {
+        let mut response = Response::new(Body::from(DEFAULT_THUMBNAIL));
+        response.headers_mut().insert("Cache-Control", "no-store".parse().unwrap());
+        response.headers_mut().insert("Content-Type", "image/svg+xml".parse().unwrap());
+        return response;
     }
+    let bytes = std::fs::read(&thumbnail_path).unwrap();
+    let mut response = Response::new(Body::from(bytes));
+    response.headers_mut().insert("Cache-Control", "public, max-age=31536000".parse().unwrap());
+    response.headers_mut().insert("Content-Type", "image/jpeg".parse().unwrap());
+    response
 }
 
 async fn stream_media(
-    State(api_client): State<ApiClient>,
+    State(state): State<AppState>,
     Path(media_id): Path<String>,
 ) -> impl IntoResponse {
-    let api_response = api_client.stream_media(&media_id).await;
-    match api_response {
-        Ok(api_response) => {
-            if api_response.status().is_success() {
-                // add headers from the api response to the new response
-                let mut api_headers = HashMap::new();
-                for (key, value) in api_response.headers() {
-                    let key_str = key.as_str().to_string();
-                    let value_str = value.to_str().unwrap_or_default().to_string();
-                    let header_key = axum::http::HeaderName::from_str(&key_str);
-                    let header_value = axum::http::HeaderValue::from_str(&value_str);
-                    if header_key.is_ok() && header_value.is_ok() {
-                        api_headers.insert(header_key.unwrap(), header_value.unwrap());
-                    }
-                }
-
-                let bytes_stream = api_response.bytes_stream();
-                let mut response = Response::new(axum::body::Body::from_stream(bytes_stream));
-                for (key, value) in api_headers {
-                    response.headers_mut().insert(key, value);
-                }
-
-                Ok(response)
-            } else {
-                Err(StatusCode::from_u16(api_response.status().as_u16()).unwrap())
-            }
-        }
-        Err(_) => Err(StatusCode::INTERNAL_SERVER_ERROR)
+    let client = state.client.read().await;
+    let media = client.get_media_by_id(&media_id);
+    if media.is_none() {
+        return Response::new(Body::empty());
     }
+    let maybe_media_path = client.get_media_path(&media_id);
+    if maybe_media_path.is_none() {
+        return Response::new(Body::empty());
+    }
+    drop(client);
+    let media_path = maybe_media_path.unwrap();
+    let bytes = std::fs::read(&media_path).unwrap();
+    let mut response = Response::new(Body::from(bytes));
+    response.headers_mut().insert("Cache-Control", "public, max-age=31536000".parse().unwrap());
+    response.headers_mut().insert("Content-Type", media.unwrap().content_type.parse().unwrap());
+    response
 }
 
 #[derive(Default, Template)]
@@ -490,24 +488,50 @@ async fn upload_page() -> impl IntoResponse {
     HtmlTemplate(UploadTemplate::default())
 }
 
-async fn upload_file(
-    State(api_client): State<ApiClient>,
-    mut multipart: axum::extract::Multipart,
+async fn upload_files(
+    State(state): State<AppState>,
+    mut multipart: Multipart,
 ) -> impl IntoResponse {
-    let mut files = Vec::new();
     while let Ok(file) = read_multipart_file(&mut multipart).await {
-        files.push(file);
-    }
-    for file in files {
-        let api_response = api_client.upload_media(file).await;
-        if api_response.is_err() || !api_response.unwrap().status().is_success() {
+        let filename = file.file_name;
+        if filename.chars().any(|x| !x.is_ascii_alphanumeric() && x != '.' && x != '-' && x != '_') {
             return StatusCode::INTERNAL_SERVER_ERROR;
+        }
+
+        let data = file.bytes;
+        let mut client = state.client.write().await;
+        let media_upload_result = client.upload_media(data, filename).await;
+        drop(client);
+        if media_upload_result.is_err() {
+            return StatusCode::INTERNAL_SERVER_ERROR;
+        }
+
+        let media = media_upload_result.unwrap().safe_unwrap();
+        let thumbnail_data = file.preview_bytes;
+        let client = state.client.read().await;
+        let thumbnail_path = client.get_thumbnail_path(&media.id);
+        drop(client);
+        if !thumbnail_path.exists() {
+            let thumbnail_save_result = std::fs::write(&thumbnail_path, thumbnail_data);
+            if thumbnail_save_result.is_err() {
+                return StatusCode::INTERNAL_SERVER_ERROR;
+            }
         }
     }
     StatusCode::OK
 }
 
-async fn read_multipart_file(multipart: &mut axum::extract::Multipart) -> anyhow::Result<MultipartFile> {
+#[derive(Default, Debug, Serialize)]
+pub struct MultipartFile {
+    pub file_name: String,
+    pub content_type: String,
+    pub bytes: Vec<u8>,
+    pub preview_file_name: String,
+    pub preview_content_type: String,
+    pub preview_bytes: Vec<u8>,
+}
+
+async fn read_multipart_file(multipart: &mut Multipart) -> anyhow::Result<MultipartFile> {
     let mut result = MultipartFile::default();
     {
         let file = multipart.next_field().await?.ok_or(anyhow::anyhow!("No file was uploaded"))?;

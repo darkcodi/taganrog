@@ -1,5 +1,6 @@
 use clap::{Arg, Command};
-use taganrog::{api, cli, web_ui};
+use taganrog::{cli, web_ui};
+use taganrog::client::TaganrogConfig;
 
 #[tokio::main]
 async fn main() {
@@ -7,14 +8,6 @@ async fn main() {
         .version("0.1")
         .author("Ivan Yaremenchuk")
         .about("Taganrog All-In-One binary: CLI, daemon (API), Web UI")
-        .arg(Arg::new("api-url")
-            .required(false)
-            .help("Specify the API URL")
-            .long("api-url")
-            .short('a')
-            .global(true)
-            .env("API_URL")
-            .default_value("http://localhost:1698"))
         .arg(Arg::new("workdir")
             .required(false)
             .help("Set the tag working directory (where the database is stored)")
@@ -36,7 +29,6 @@ async fn main() {
             Command::new("serve")
                 .about("Serve commands (api, web-ui) using the axum framework")
                 .subcommand(Command::new("web-ui").about("Serve the web UI"))
-                .subcommand(Command::new("api").about("Serve the API")),
         )
         .subcommand(
             Command::new("add")
@@ -66,21 +58,20 @@ async fn main() {
         Some(("serve", serve_matches)) => {
             match serve_matches.subcommand() {
                 Some(("web-ui", _)) => {
-                    let api_url: &String = matches.get_one("api-url").unwrap();
-                    web_ui::serve(api_url).await
-                },
-                Some(("api", _)) => {
                     let workdir: &String = matches.get_one("workdir").unwrap();
                     let upload_dir: &String = matches.get_one("upload-dir").unwrap();
-                    api::serve(workdir, upload_dir).await
+                    let config: TaganrogConfig = TaganrogConfig::new(workdir, upload_dir).expect("failed to initialize config");
+                    web_ui::serve(config).await
                 },
                 _ => unreachable!(),
             }
         },
         Some(("add", add_matches)) => {
-            let api_url: &String = matches.get_one("api-url").unwrap();
+            let workdir: &String = matches.get_one("workdir").unwrap();
+            let upload_dir: &String = matches.get_one("upload-dir").unwrap();
+            let config: TaganrogConfig = TaganrogConfig::new(workdir, upload_dir).expect("failed to initialize config");
             let filepath: &String = add_matches.get_one("filepath").unwrap();
-            cli::add_media(api_url, filepath).await
+            cli::add_media(config, filepath).await
         },
         Some(("remove", remove_matches)) => {
         },
