@@ -1,5 +1,3 @@
-mod error;
-
 use std::hash::Hasher;
 use std::iter::once;
 use std::sync::Arc;
@@ -117,13 +115,6 @@ async fn index() -> impl IntoResponse {
 
 async fn favicon() -> impl IntoResponse { Response::<Body>::new(FAVICON.into()) }
 
-fn icon_response(icon: &'static [u8]) -> Response<Body> {
-    let mut response = Response::<Body>::new(icon.into());
-    response.headers_mut().insert("Cache-Control", "public, max-age=31536000".parse().unwrap());
-    response.headers_mut().insert("Content-Type", "image/svg+xml".parse().unwrap());
-    response
-}
-
 #[derive(Deserialize)]
 struct SearchQuery {
     q: Option<String>,
@@ -140,7 +131,6 @@ pub struct SearchTemplate {
 #[template(path = "search_more.html")]
 pub struct SearchMoreTemplate {
     query: String,
-    query_tags: Vec<String>,
     media_vec: Vec<ExtendedMedia>,
     next_page: usize,
     has_next: bool,
@@ -242,15 +232,14 @@ async fn media_search_more(
 
     HtmlTemplate(SearchMoreTemplate {
         query: normalized_query,
-        query_tags,
         media_vec,
         next_page: page_index + 1,
         has_next,
     })
 }
 
-fn extract_tags(query: &String) -> Vec<String> {
-    let query_tags = query.split(" ")
+fn extract_tags(query: &str) -> Vec<String> {
+    let query_tags = query.split(' ')
         .map(|x| x.slugify().to_string())
         .filter(|x| !x.is_empty())
         .collect::<Vec<String>>();
@@ -259,7 +248,6 @@ fn extract_tags(query: &String) -> Vec<String> {
 
 #[derive(Debug, Default, Deserialize)]
 pub struct TagBody {
-    q: Option<String>,
     tag: Option<String>,
 }
 
@@ -268,7 +256,6 @@ pub struct TagBody {
 pub struct AddTagToMediaTemplate {
     media: Media,
     tag: ExtendedTag,
-    query: String,
 }
 
 async fn add_tag_to_media(
@@ -280,8 +267,6 @@ async fn add_tag_to_media(
     if tag.is_empty() {
         return HtmlTemplate(AddTagToMediaTemplate::default());
     }
-    let normalized_query = normalize_query(&query.q.unwrap_or_default());
-
     let client = state.client.read().await;
     let maybe_media = client.get_media_by_id(&media_id);
     drop(client);
@@ -304,7 +289,7 @@ async fn add_tag_to_media(
 
     let tag_color = get_bg_color(&tag);
     let tag: ExtendedTag = ExtendedTag { name: tag, is_in_query: false, bg_color: tag_color.clone(), fg_color: get_fg_color(&tag_color) };
-    HtmlTemplate(AddTagToMediaTemplate { media, tag, query: normalized_query })
+    HtmlTemplate(AddTagToMediaTemplate { media, tag })
 }
 
 async fn remove_tag_from_media(
@@ -367,7 +352,7 @@ async fn search_tags(
     Query(query): Query<SearchQuery>,
 ) -> Json<Vec<AutocompleteObject>> {
     let normalized_query = normalize_query(&query.q.unwrap_or_default());
-    if normalized_query.is_empty() || normalized_query.contains(" ") {
+    if normalized_query.is_empty() || normalized_query.contains(' ') {
         return Json(vec![]);
     }
     let page = query.p.unwrap_or(10);
@@ -473,7 +458,7 @@ async fn stream_media(
     }
     drop(client);
     let media_path = maybe_media_path.unwrap();
-    let bytes = std::fs::read(&media_path).unwrap();
+    let bytes = std::fs::read(media_path).unwrap();
     let mut response = Response::new(Body::from(bytes));
     response.headers_mut().insert("Cache-Control", "public, max-age=31536000".parse().unwrap());
     response.headers_mut().insert("Content-Type", media.unwrap().content_type.parse().unwrap());

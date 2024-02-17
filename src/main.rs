@@ -73,15 +73,15 @@ async fn main() {
             let filepath: &String = add_matches.get_one("filepath").unwrap();
             cli::add_media(config, filepath).await
         },
-        Some(("remove", remove_matches)) => {
+        Some(("remove", _)) => {
         },
-        Some(("tag", tag_matches)) => {
+        Some(("tag", _)) => {
             // let filepath: &String = tag_matches.get_one("filepath").unwrap();
             // let tags: Vec<&String> = tag_matches.get_many("tag").unwrap().collect();
             // println!("filepath: {}", filepath);
             // println!("tags: {:?}", tags);
         },
-        Some(("untag", untag_matches)) => {
+        Some(("untag", _)) => {
         },
         _ => {
             eprintln!("Invalid subcommand");
