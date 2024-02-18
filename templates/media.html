@@ -55,7 +55,7 @@
                         <ul>
                             <div id="tag-adder"
                                  hx-get="/media/{{ media.id }}/add-tag?q={{ query }}"
-                                 hx-vals="js:{tag: document.querySelector('#tag-search .aa-Input').value}"
+                                 hx-vals="js:{tags: document.querySelector('#tag-search .aa-Input').value}"
                                  hx-trigger="click"
                                  hx-target="#next-tag-stub"
                                  hx-swap="outerHTML">
@@ -67,7 +67,7 @@
                                 >
                                     <a href="/search?q={{ tag.name }}">#{{ tag.name }}</a>
                                     <span class="cursor-pointer hover:text-red-500"
-                                        hx-delete="/media/{{ media.id }}/remove-tag?tag={{ tag.name }}"
+                                        hx-delete="/media/{{ media.id }}/remove-tag?tags={{ tag.name }}"
                                         hx-trigger="click"
                                         hx-target="#li-{{ tag.name }}"
                                         hx-swap="outerHTML">X</span>
@@ -123,7 +123,7 @@
                         {
                             sourceId: 'tag-search',
                             getItems() {
-                                return fetch(`/tags/search?q=${encodeURIComponent(query)}`)
+                                return fetch(`/tags/autocomplete?q=${encodeURIComponent(query)}`)
                                     .then((response) => response.json())
                                     .then((data) => {
                                         return data.map((item) => {

@@ -65,7 +65,6 @@ pub async fn serve(config: TaganrogConfig) {
         // api
         .route("/media/:media_id/thumbnail", get(get_media_thumbnail))
         .route("/media/:media_id/stream", get(stream_media))
-        .route("/tags/search", get(search_tags))
         .route("/tags/autocomplete", get(autocomplete_tags))
         .route("/upload/files", post(upload_files))
 
@@ -248,23 +247,24 @@ fn extract_tags(query: &str) -> Vec<String> {
 
 #[derive(Debug, Default, Deserialize)]
 pub struct TagBody {
-    tag: Option<String>,
+    tags: Option<String>,
 }
 
 #[derive(Default, Template)]
 #[template(path = "add_tag_to_media.html")]
 pub struct AddTagToMediaTemplate {
     media: Media,
-    tag: ExtendedTag,
+    added_tags: Vec<ExtendedTag>,
 }
 
 async fn add_tag_to_media(
     State(state): State<AppState>,
     Path(media_id): Path<String>,
-    Query(query): Query<TagBody>,
+    Query(tag_body): Query<TagBody>,
 ) -> impl IntoResponse {
-    let tag = query.tag.unwrap_or_default();
-    if tag.is_empty() {
+    let tags_str = normalize_query(&tag_body.tags.unwrap_or_default());
+    let tags_str = tags_str.trim_end();
+    if tags_str.is_empty() {
         return HtmlTemplate(AddTagToMediaTemplate::default());
     }
     let client = state.client.read().await;
@@ -275,33 +275,36 @@ async fn add_tag_to_media(
         return HtmlTemplate(AddTagToMediaTemplate::default());
     }
     let media = maybe_media.unwrap();
-    if media.tags.contains(&tag) {
+    let tags = extract_tags(tags_str);
+    let new_tags = tags.iter().filter(|x| !media.tags.contains(x)).cloned().collect::<Vec<String>>();
+    if new_tags.is_empty() {
         return HtmlTemplate(AddTagToMediaTemplate::default());
     }
 
     let mut client = state.client.write().await;
-    client.add_tag_to_media(&media_id, &tag).await.unwrap();
+    for tag in &new_tags {
+        client.add_tag_to_media(&media_id, tag).await.unwrap();
+    }
     drop(client);
 
-    let client = state.client.read().await;
-    let media: Media = client.get_media_by_id(&media_id).unwrap();
-    drop(client);
-
-    let tag_color = get_bg_color(&tag);
-    let tag: ExtendedTag = ExtendedTag { name: tag, is_in_query: false, bg_color: tag_color.clone(), fg_color: get_fg_color(&tag_color) };
-    HtmlTemplate(AddTagToMediaTemplate { media, tag })
+    let added_tags = new_tags.iter().map(|x| {
+        let bg_color = get_bg_color(x);
+        let fg_color = get_fg_color(&bg_color);
+        ExtendedTag { name: x.clone(), is_in_query: false, bg_color, fg_color }
+    }).collect::<Vec<ExtendedTag>>();
+    HtmlTemplate(AddTagToMediaTemplate { media, added_tags })
 }
 
 async fn remove_tag_from_media(
     State(state): State<AppState>,
     Path(media_id): Path<String>,
-    Query(query): Query<TagBody>,
+    Query(tag_body): Query<TagBody>,
 ) -> impl IntoResponse {
-    let tag = query.tag.unwrap_or_default();
-    if tag.is_empty() {
+    let tags_str = normalize_query(&tag_body.tags.unwrap_or_default());
+    let tags_str = tags_str.trim_end();
+    if tags_str.is_empty() {
         return Response::new(Body::empty());
     }
-
     let client = state.client.read().await;
     let maybe_media = client.get_media_by_id(&media_id);
     drop(client);
@@ -309,9 +312,17 @@ async fn remove_tag_from_media(
     if maybe_media.is_none() {
         return Response::new(Body::empty());
     }
+    let media = maybe_media.unwrap();
+    let tags = extract_tags(tags_str);
+    let removed_tags = tags.iter().filter(|x| media.tags.contains(x)).cloned().collect::<Vec<String>>();
+    if removed_tags.is_empty() {
+        return Response::new(Body::empty());
+    }
 
     let mut client = state.client.write().await;
-    client.remove_tag_from_media(&media_id, &tag).await.unwrap();
+    for tag in &removed_tags {
+        client.remove_tag_from_media(&media_id, tag).await.unwrap();
+    }
     Response::new(Body::empty())
 }
 
@@ -333,32 +344,6 @@ async fn autocomplete_tags(
     let page = query.p.unwrap_or(10);
     let client = state.client.read().await;
     let autocomplete = client.autocomplete_tags(&normalized_query, page);
-    let autocomplete = autocomplete.iter().map(|x| {
-        let query = normalized_query.clone();
-        let suggestion = x.head.iter().map(|x| x.as_str())
-            .chain(once(x.last.as_str()))
-            .collect::<Vec<&str>>().join(" ");
-        let highlighted_suggestion = match suggestion.starts_with(&query) {
-            true => query.clone() + "<mark>" + &suggestion[normalized_query.len()..] + "</mark>",
-            false => suggestion.clone(),
-        };
-        AutocompleteObject { query, suggestion, highlighted_suggestion }
-    }).collect::<Vec<AutocompleteObject>>();
-    Json(autocomplete)
-}
-
-async fn search_tags(
-    State(state): State<AppState>,
-    Query(query): Query<SearchQuery>,
-) -> Json<Vec<AutocompleteObject>> {
-    let normalized_query = normalize_query(&query.q.unwrap_or_default());
-    if normalized_query.is_empty() || normalized_query.contains(' ') {
-        return Json(vec![]);
-    }
-    let page = query.p.unwrap_or(10);
-    let client = state.client.read().await;
-    let autocomplete = client.autocomplete_tags(&normalized_query, page);
-    drop(client);
     let autocomplete = autocomplete.iter().map(|x| {
         let query = normalized_query.clone();
         let suggestion = x.head.iter().map(|x| x.as_str())

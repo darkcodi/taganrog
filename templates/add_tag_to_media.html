@@ -1,13 +1,15 @@
-{% if tag.name != "" %}
-    <li id="li-{{ tag.name }}" class="rounded px-2 py-1 mb-2 flex justify-between items-center"
-        style="background-color: {{ tag.bg_color }}; color: {{ tag.fg_color }};"
-    >
-        <a href="/search?q={{ tag.name }}">#{{ tag.name }}</a>
-        <span class="cursor-pointer hover:text-red-500"
-              hx-delete="/media/{{ media.id }}/remove-tag?tag={{ tag.name }}"
-              hx-trigger="click"
-              hx-target="#li-{{ tag.name }}"
-              hx-swap="outerHTML">X</span>
-    </li>
-{% endif %}
+{% for tag in added_tags %}
+    {% if tag.name != "" %}
+        <li id="li-{{ tag.name }}" class="rounded px-2 py-1 mb-2 flex justify-between items-center"
+            style="background-color: {{ tag.bg_color }}; color: {{ tag.fg_color }};"
+        >
+            <a href="/search?q={{ tag.name }}">#{{ tag.name }}</a>
+            <span class="cursor-pointer hover:text-red-500"
+                  hx-delete="/media/{{ media.id }}/remove-tag?tags={{ tag.name }}"
+                  hx-trigger="click"
+                  hx-target="#li-{{ tag.name }}"
+                  hx-swap="outerHTML">X</span>
+        </li>
+    {% endif %}
+{% endfor %}
 <div id="next-tag-stub"></div>
