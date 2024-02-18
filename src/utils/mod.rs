@@ -1,7 +1,6 @@
 use itertools::Itertools;
 use crate::utils::str_utils::StringExtensions;
 
-pub mod vec_utils;
 pub mod hash_utils;
 pub mod str_utils;
 
