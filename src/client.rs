@@ -1,3 +1,4 @@
+use std::collections::HashSet;
 use std::path::PathBuf;
 use dashmap::DashMap;
 use indicium::simple::{AutocompleteType, EddieMetric, SearchIndex, SearchType, StrsimMetric};
@@ -88,7 +89,8 @@ impl TaganrogConfig {
 
 pub struct TaganrogClient {
     cfg: TaganrogConfig,
-    map: DashMap<String, Media>,
+    media_map: DashMap<String, Media>,
+    tags_map: DashMap<String, HashSet<String>>,
     index: SearchIndex<String>,
 }
 
@@ -96,7 +98,8 @@ impl TaganrogClient {
     pub fn new(cfg: TaganrogConfig) -> Self {
         Self {
             cfg,
-            map: DashMap::new(),
+            media_map: DashMap::new(),
+            tags_map: DashMap::new(),
             index: SearchIndex::new(
                 SearchType::Live,
                 AutocompleteType::Context,
@@ -138,7 +141,21 @@ impl TaganrogClient {
     }
 
     pub fn get_media_count(&self) -> usize {
-        self.map.len()
+        self.media_map.len()
+    }
+
+    pub fn get_query_count(&self, tags: &[String]) -> usize {
+        if tags.is_empty() { return 0; }
+
+        // tag_map contains media_ids for each tag
+        // we want to find the intersection of all media_ids for these tags
+        // start with a tag that has the least media_ids
+        let mut result = self.tags_map.get(&tags[0]).map(|x| x.value().clone()).unwrap_or_default();
+        for tag in tags.iter().skip(1) {
+            let media_ids = self.tags_map.get(tag).map(|x| x.value().clone()).unwrap_or_default();
+            result.retain(|x| media_ids.contains(x));
+        }
+        result.len()
     }
 
     async fn write_wal(&mut self, operation: DbOperation) -> anyhow::Result<()> {
@@ -152,25 +169,25 @@ impl TaganrogClient {
     }
 
     pub fn get_media_by_id(&self, media_id: &String) -> Option<Media> {
-        let maybe_media = self.map.get(media_id).map(|x| x.value().clone());
+        let maybe_media = self.media_map.get(media_id).map(|x| x.value().clone());
         maybe_media
     }
 
     pub fn get_random_media(&self) -> Option<Media> {
-        let media_vec = self.map.iter().map(|x| x.value().clone()).collect::<Vec<Media>>();
+        let media_vec = self.media_map.iter().map(|x| x.value().clone()).collect::<Vec<Media>>();
         let maybe_media = media_vec.choose(&mut rand::thread_rng()).map(|x| x.clone());
         maybe_media
     }
 
     pub fn get_all_media(&self, page_size: usize, page_index: usize) -> Vec<Media> {
-        let media_vec = self.map.iter()
+        let media_vec = self.media_map.iter()
             .skip(page_index * page_size).take(page_size)
             .map(|x| x.value().clone()).collect();
         media_vec
     }
 
     pub fn get_media_without_thumbnail(&self, page_size: usize, page_index: usize) -> Vec<Media> {
-        let media_vec = self.map.iter()
+        let media_vec = self.media_map.iter()
             .filter(|x| !std::path::Path::new(&self.cfg.thumbnails_dir).join(format!("{}.png", &x.value().id)).exists())
             .skip(page_index * page_size).take(page_size)
             .map(|x| x.value().clone()).collect();
@@ -178,7 +195,7 @@ impl TaganrogClient {
     }
 
     pub fn get_untagged_media(&self, page_size: usize, page_index: usize) -> Vec<Media> {
-        let media_vec = self.map.iter()
+        let media_vec = self.media_map.iter()
             .filter(|x| x.value().tags.is_empty())
             .skip(page_index * page_size).take(page_size)
             .map(|x| x.value().clone()).collect();
@@ -191,7 +208,7 @@ impl TaganrogClient {
         let media_ids = self.index.search_with(&SearchType::Live, &max_results, &query);
         let media_vec = media_ids.into_iter()
             .take(max_results).skip(skip_results)
-            .map(|x| self.map.get(x).map(|x| x.value().clone())).flatten().collect();
+            .map(|x| self.media_map.get(x).map(|x| x.value().clone())).flatten().collect();
         media_vec
     }
 
@@ -208,16 +225,16 @@ impl TaganrogClient {
 
     fn create_media_no_wal(&mut self, media: Media) -> InsertResult<Media> {
         let id = media.id.clone();
-        if self.map.contains_key(&id) {
+        if self.media_map.contains_key(&id) {
             return InsertResult::Existing(media);
         }
-        self.map.insert(id.clone(), media.clone());
+        self.media_map.insert(id.clone(), media.clone());
         self.index.insert(&id, &media);
         InsertResult::New(media)
     }
 
     fn delete_media_no_wal(&mut self, media_id: &String) -> Option<Media> {
-        let maybe_media = self.map.remove(media_id);
+        let maybe_media = self.media_map.remove(media_id);
         if let Some((id, media)) = maybe_media {
             self.index.remove(&id, &media);
             return Some(media);
@@ -226,12 +243,13 @@ impl TaganrogClient {
     }
 
     fn add_tag_to_media_no_wal(&mut self, media_id: &String, tag: &String) -> bool {
-        let maybe_media = self.map.get_mut(media_id);
+        let maybe_media = self.media_map.get_mut(media_id);
         if let Some(mut kvp) = maybe_media {
             let media = kvp.value_mut();
             if !media.tags.contains(tag) {
                 media.tags.push(tag.clone());
                 self.index.insert(media_id, media);
+                self.tags_map.entry(tag.clone()).or_default().value_mut().insert(media_id.clone());
                 return true;
             }
         }
@@ -239,13 +257,14 @@ impl TaganrogClient {
     }
 
     fn remove_tag_from_media_no_wal(&mut self, media_id: &String, tag: &String) -> bool {
-        let maybe_media = self.map.get_mut(media_id);
+        let maybe_media = self.media_map.get_mut(media_id);
         if let Some(mut kvp) = maybe_media {
             let media = kvp.value_mut();
             if media.tags.contains(tag) {
                 self.index.remove(media_id, media);
                 media.tags.retain(|x| x != tag);
                 self.index.insert(media_id, media);
+                self.tags_map.entry(tag.clone()).or_default().value_mut().remove(media_id);
                 return true;
             }
         }
@@ -260,8 +279,8 @@ impl TaganrogClient {
             return Err(anyhow::anyhow!("Filename contains invalid characters"));
         }
         let hash = MurMurHasher::hash_bytes(&content);
-        if self.map.contains_key(&hash) {
-            return Ok(InsertResult::Existing(self.map.get(&hash).map(|x| x.value().clone()).unwrap()));
+        if self.media_map.contains_key(&hash) {
+            return Ok(InsertResult::Existing(self.media_map.get(&hash).map(|x| x.value().clone()).unwrap()));
         }
         let mut unique_filename = filename.clone();
         let mut suffix = 0;
@@ -310,8 +329,8 @@ impl TaganrogClient {
 
         let file_bytes = std::fs::read(&abs_path)?;
         let hash = MurMurHasher::hash_bytes(&file_bytes);
-        if self.map.contains_key(&hash) {
-            return Ok(InsertResult::Existing(self.map.get(&hash).map(|x| x.value().clone()).unwrap()));
+        if self.media_map.contains_key(&hash) {
+            return Ok(InsertResult::Existing(self.media_map.get(&hash).map(|x| x.value().clone()).unwrap()));
         }
         let metadata = std::fs::metadata(&abs_path)?;
         let content_type = infer::get(&file_bytes).map(|x| x.mime_type()).unwrap_or("application/octet-stream").to_string();

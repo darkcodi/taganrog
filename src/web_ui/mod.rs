@@ -10,6 +10,7 @@ use axum::response::{Html, IntoResponse, Response};
 use axum::routing::{delete, post};
 use axum_macros::FromRef;
 use chrono::{DateTime, Utc};
+use itertools::Itertools;
 use tracing::{info, Level};
 use tracing_subscriber::util::SubscriberInitExt;
 use serde::{Deserialize, Serialize};
@@ -331,6 +332,7 @@ struct AutocompleteObject {
     query: String,
     suggestion: String,
     highlighted_suggestion: String,
+    media_count: usize,
 }
 
 async fn autocomplete_tags(
@@ -346,15 +348,16 @@ async fn autocomplete_tags(
     let autocomplete = client.autocomplete_tags(&normalized_query, page);
     let autocomplete = autocomplete.iter().map(|x| {
         let query = normalized_query.clone();
-        let suggestion = x.head.iter().map(|x| x.as_str())
-            .chain(once(x.last.as_str()))
-            .collect::<Vec<&str>>().join(" ");
+        let tags = x.head.iter().map(|x| x.as_str()).chain(once(x.last.as_str()))
+            .map(|x| x.to_string()).collect::<Vec<String>>();
+        let suggestion = tags.join(" ");
         let highlighted_suggestion = match suggestion.starts_with(&query) {
             true => query.clone() + "<mark>" + &suggestion[normalized_query.len()..] + "</mark>",
             false => suggestion.clone(),
         };
-        AutocompleteObject { query, suggestion, highlighted_suggestion }
-    }).collect::<Vec<AutocompleteObject>>();
+        let count = client.get_query_count(&tags);
+        AutocompleteObject { query, suggestion, highlighted_suggestion, media_count: count }
+    }).sorted_by_key(|x| x.media_count).rev().collect::<Vec<AutocompleteObject>>();
     Json(autocomplete)
 }
 

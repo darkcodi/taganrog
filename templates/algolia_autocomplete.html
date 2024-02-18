@@ -16,6 +16,7 @@
                                     return {
                                         ...item,
                                         suggestion: item.suggestion,
+                                        media_count: item.media_count,
                                         _highlightResult: {
                                             highlighted_suggestion: {
                                                 value: item.highlighted_suggestion
@@ -36,15 +37,14 @@
                     getItemInputValue: ({ item }) => item.suggestion,
                     templates: {
                         item({ item, components, html }) {
-                            return html`<div className="aa-ItemWrapper">
-                                  <div className="aa-ItemContent">
-                                    <div className="aa-ItemContentBody">
-                                      <div className="aa-ItemContentTitle">
-                                        ${components.Highlight({ hit: item, attribute: 'highlighted_suggestion' })}
-                                      </div>
-                                    </div>
-                                  </div>
-                                </div>`
+                            return html`<div class="aa-ItemContent">
+                                <div class="aa-ItemContentTitle">
+                                    ${components.Highlight({ hit: item, attribute: 'highlighted_suggestion' })}
+                                </div>
+                                <div class="aa-ItemContentDescription">
+                                    <span class="float-right">${item.media_count}</span>
+                                </div>
+                            </div>`;
                         },
                     },
                 },
