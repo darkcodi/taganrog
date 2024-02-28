@@ -1,5 +1,5 @@
 use std::collections::HashSet;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use dashmap::DashMap;
 use itertools::Itertools;
 use path_absolutize::Absolutize;
@@ -14,8 +14,8 @@ use crate::utils::hash_utils::MurMurHasher;
 enum DbOperation {
     CreateMedia { media: Media },
     DeleteMedia { media_id: MediaId },
-    AddTagToMedia { media_id: MediaId, tag: Tag },
-    RemoveTagFromMedia { media_id: MediaId, tag: Tag },
+    AddTag { media_id: MediaId, tag: Tag },
+    RemoveTag { media_id: MediaId, tag: Tag },
 }
 
 #[derive(Debug)]
@@ -29,14 +29,14 @@ pub struct TaganrogConfig {
 impl TaganrogConfig {
     pub fn new(workdir: &str, upload_dir: &str) -> anyhow::Result<Self> {
         let workdir = Self::get_or_create_workdir(workdir)?;
-        let upload_dir = Self::get_or_create_upload_dir(&workdir, &upload_dir)?;
+        let upload_dir = Self::get_or_create_upload_dir(&workdir, upload_dir)?;
         let db_path = Self::get_or_create_db_path(&workdir)?;
         let thumbnails_dir = Self::get_or_create_thumbnails_dir(&workdir)?;
         Ok(Self { workdir, upload_dir, db_path, thumbnails_dir })
     }
 
     fn get_or_create_workdir(workdir: &str) -> anyhow::Result<PathBuf> {
-        let workdir = std::path::Path::new(workdir).absolutize_from(std::env::current_dir()?)?.canonicalize()?;
+        let workdir = Path::new(workdir).absolutize_from(std::env::current_dir()?)?.canonicalize()?;
         if !workdir.exists() {
             std::fs::create_dir_all(&workdir)?;
         }
@@ -48,7 +48,7 @@ impl TaganrogConfig {
     }
 
     fn get_or_create_upload_dir(workdir: &PathBuf, upload_dir: &str) -> anyhow::Result<PathBuf> {
-        let upload_dir = std::path::Path::new(upload_dir).absolutize_from(std::env::current_dir()?)?.canonicalize()?;
+        let upload_dir = Path::new(upload_dir).absolutize_from(std::env::current_dir()?)?.canonicalize()?;
         if !upload_dir.starts_with(workdir) {
             anyhow::bail!("upload_dir is not a subdirectory of workdir");
         }
@@ -62,7 +62,7 @@ impl TaganrogConfig {
         Ok(upload_dir)
     }
 
-    fn get_or_create_db_path(workdir: &PathBuf) -> anyhow::Result<PathBuf> {
+    fn get_or_create_db_path(workdir: &Path) -> anyhow::Result<PathBuf> {
         let db_path = workdir.join("taganrog.db.json");
         if !db_path.exists() {
             std::fs::write(&db_path, "")?;
@@ -74,7 +74,7 @@ impl TaganrogConfig {
         Ok(db_path)
     }
 
-    fn get_or_create_thumbnails_dir(workdir: &PathBuf) -> anyhow::Result<PathBuf> {
+    fn get_or_create_thumbnails_dir(workdir: &Path) -> anyhow::Result<PathBuf> {
         let thumbnails_dir = workdir.join("taganrog-thumbnails");
         if !thumbnails_dir.exists() {
             std::fs::create_dir_all(&thumbnails_dir)?;
@@ -113,8 +113,8 @@ impl TaganrogClient {
             match operation {
                 DbOperation::CreateMedia { media } => { self.create_media_no_wal(media); }
                 DbOperation::DeleteMedia { media_id } => { self.delete_media_no_wal(&media_id); }
-                DbOperation::AddTagToMedia { media_id, tag } => { self.add_tag_to_media_no_wal(&media_id, &tag); }
-                DbOperation::RemoveTagFromMedia { media_id, tag } => { self.remove_tag_from_media_no_wal(&media_id, &tag); }
+                DbOperation::AddTag { media_id, tag } => { self.add_tag_to_media_no_wal(&media_id, &tag); }
+                DbOperation::RemoveTag { media_id, tag } => { self.remove_tag_from_media_no_wal(&media_id, &tag); }
             }
         }
         info!("DB Imported!");
@@ -161,7 +161,7 @@ impl TaganrogClient {
 
     pub fn get_random_media(&self) -> Option<Media> {
         let media_vec = self.media_map.iter().map(|x| x.value().clone()).collect::<Vec<Media>>();
-        let maybe_media = media_vec.choose(&mut rand::thread_rng()).map(|x| x.clone());
+        let maybe_media = media_vec.choose(&mut rand::thread_rng()).cloned();
         maybe_media
     }
 
@@ -174,7 +174,7 @@ impl TaganrogClient {
 
     pub fn get_media_without_thumbnail(&self, page_size: usize, page_index: usize) -> Vec<Media> {
         let media_vec = self.media_map.iter()
-            .filter(|x| !std::path::Path::new(&self.cfg.thumbnails_dir).join(format!("{}.png", &x.value().id)).exists())
+            .filter(|x| !Path::new(&self.cfg.thumbnails_dir).join(format!("{}.png", &x.value().id)).exists())
             .skip(page_index * page_size).take(page_size)
             .map(|x| x.value().clone()).collect();
         media_vec
@@ -188,7 +188,7 @@ impl TaganrogClient {
         media_vec
     }
 
-    pub fn search_media(&self, query: &String, page_size: usize, page_index: usize) -> Vec<Media> {
+    pub fn search_media(&self, query: &str, page_size: usize, page_index: usize) -> Vec<Media> {
         if query.is_empty() {
             return vec![];
         }
@@ -211,7 +211,7 @@ impl TaganrogClient {
         media_vec
     }
 
-    pub fn autocomplete_tags(&self, query: &String, max_items: usize) -> Vec<TagsAutocomplete> {
+    pub fn autocomplete_tags(&self, query: &str, max_items: usize) -> Vec<TagsAutocomplete> {
         if query.is_empty() {
             return vec![];
         }
@@ -265,12 +265,7 @@ impl TaganrogClient {
     }
 
     fn delete_media_no_wal(&mut self, media_id: &MediaId) -> Option<Media> {
-        let maybe_media = self.media_map.remove(media_id);
-        if maybe_media.is_none() {
-            return None;
-        }
-        let media = maybe_media.unwrap().1;
-        Some(media)
+        self.media_map.remove(media_id).map(|x| x.1)
     }
 
     fn add_tag_to_media_no_wal(&mut self, media_id: &MediaId, tag: &Tag) -> bool {
@@ -397,7 +392,7 @@ impl TaganrogClient {
     pub async fn add_tag_to_media(&mut self, media_id: &MediaId, tag: &Tag) -> anyhow::Result<bool> {
         let result = self.add_tag_to_media_no_wal(media_id, tag);
         if result {
-            self.write_wal(DbOperation::AddTagToMedia { media_id: media_id.clone(), tag: tag.clone() }).await?;
+            self.write_wal(DbOperation::AddTag { media_id: media_id.clone(), tag: tag.clone() }).await?;
         }
         Ok(result)
     }
@@ -405,19 +400,18 @@ impl TaganrogClient {
     pub async fn remove_tag_from_media(&mut self, media_id: &MediaId, tag: &Tag) -> anyhow::Result<bool> {
         let result = self.remove_tag_from_media_no_wal(media_id, tag);
         if result {
-            self.write_wal(DbOperation::RemoveTagFromMedia { media_id: media_id.clone(), tag: tag.clone() }).await?;
+            self.write_wal(DbOperation::RemoveTag { media_id: media_id.clone(), tag: tag.clone() }).await?;
         }
         Ok(result)
     }
 
     pub fn get_media_path(&self, media_id: &MediaId) -> Option<PathBuf> {
         let media = self.get_media_by_id(media_id)?;
-        let media_path = self.cfg.workdir.join(&media.location);
+        let media_path = self.cfg.workdir.join(media.location);
         Some(media_path)
     }
 
     pub fn get_thumbnail_path(&self, media_id: &MediaId) -> PathBuf {
-        let thumbnail_path = self.cfg.thumbnails_dir.join(format!("{}.png", media_id));
-        thumbnail_path
+        self.cfg.thumbnails_dir.join(format!("{}.png", media_id))
     }
 }
