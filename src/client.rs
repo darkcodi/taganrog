@@ -205,6 +205,7 @@ impl TaganrogClient {
         }
         let intersection = self.get_media_intersection(&exact_match_tags);
         let media_vec = intersection.iter()
+            .sorted_by_key(|x| self.media_map.get(*x).unwrap().created_at).rev()
             .skip(page_index * page_size).take(page_size)
             .map(|x| self.get_media_by_id(x).unwrap())
             .collect();
