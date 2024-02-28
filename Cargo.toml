@@ -17,7 +17,6 @@ chrono = { version = "0.4", features = ["serde"] }
 clap = { version = "4.4", features = ["derive", "env"] }
 dashmap = "5.5.3"
 fastmurmur3 = "0.2"
-indicium = "0.6.0"
 infer = { version = "0.15", default-features = false }
 itertools = "0.12"
 path-absolutize = "3.1"

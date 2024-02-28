@@ -1,5 +1,4 @@
 use chrono::{DateTime, Utc};
-use indicium::simple::Indexable;
 
 pub enum InsertResult<T> {
     Existing(T),
@@ -15,26 +14,24 @@ impl<T> InsertResult<T> {
     }
 }
 
+pub type MediaId = String;
+pub type Tag = String;
+
 #[derive(serde::Serialize, serde::Deserialize, Clone, Debug, PartialEq, Eq)]
 pub struct TagsAutocomplete {
-    pub head: Vec<String>,
-    pub last: String,
+    pub head: Vec<Tag>,
+    pub last: Tag,
+    pub media_count: usize,
 }
 
 #[derive(serde::Serialize, serde::Deserialize, Default, Clone, Debug, PartialEq, Eq)]
 pub struct Media {
-    pub id: String,
+    pub id: MediaId,
     pub filename: String,
     pub content_type: String,
     pub created_at: DateTime<Utc>,
     pub size: i64,
     pub location: String,
     pub was_uploaded: bool,
-    pub tags: Vec<String>,
-}
-
-impl Indexable for Media {
-    fn strings(&self) -> Vec<String> {
-        self.tags.clone()
-    }
+    pub tags: Vec<Tag>,
 }

@@ -355,8 +355,7 @@ async fn autocomplete_tags(
             true => query.clone() + "<mark>" + &suggestion[normalized_query.len()..] + "</mark>",
             false => suggestion.clone(),
         };
-        let count = client.get_query_count(&tags);
-        AutocompleteObject { query, suggestion, highlighted_suggestion, media_count: count }
+        AutocompleteObject { query, suggestion, highlighted_suggestion, media_count: x.media_count }
     }).sorted_by_key(|x| x.media_count).rev().collect::<Vec<AutocompleteObject>>();
     Json(autocomplete)
 }

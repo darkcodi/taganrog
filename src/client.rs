@@ -1,21 +1,21 @@
 use std::collections::HashSet;
 use std::path::PathBuf;
 use dashmap::DashMap;
-use indicium::simple::{AutocompleteType, EddieMetric, SearchIndex, SearchType, StrsimMetric};
+use itertools::Itertools;
 use path_absolutize::Absolutize;
 use serde::{Deserialize, Serialize};
 use tracing::info;
 use rand::seq::SliceRandom;
 use relative_path::PathExt;
-use crate::entities::{InsertResult, Media, TagsAutocomplete};
+use crate::entities::*;
 use crate::utils::hash_utils::MurMurHasher;
 
 #[derive(Debug, Serialize, Deserialize)]
 enum DbOperation {
     CreateMedia { media: Media },
-    DeleteMedia { media_id: String },
-    AddTagToMedia { media_id: String, tag: String },
-    RemoveTagFromMedia { media_id: String, tag: String },
+    DeleteMedia { media_id: MediaId },
+    AddTagToMedia { media_id: MediaId, tag: Tag },
+    RemoveTagFromMedia { media_id: MediaId, tag: Tag },
 }
 
 #[derive(Debug)]
@@ -89,9 +89,8 @@ impl TaganrogConfig {
 
 pub struct TaganrogClient {
     cfg: TaganrogConfig,
-    media_map: DashMap<String, Media>,
-    tags_map: DashMap<String, HashSet<String>>,
-    index: SearchIndex<String>,
+    media_map: DashMap<MediaId, Media>,
+    tags_map: DashMap<Tag, HashSet<MediaId>>,
 }
 
 impl TaganrogClient {
@@ -100,24 +99,6 @@ impl TaganrogClient {
             cfg,
             media_map: DashMap::new(),
             tags_map: DashMap::new(),
-            index: SearchIndex::new(
-                SearchType::Live,
-                AutocompleteType::Context,
-                Some(StrsimMetric::Levenshtein),
-                Some(EddieMetric::Levenshtein),
-                3,
-                0.3,
-                Some(vec!['\t', '\n', '\r', ' ', '!', '"', '&', '(', ')', '*', '+', ',', '.', '/', ':', ';', '<', '=', '>', '?', '[', '\\', ']', '^', '`', '{', '|', '}', '~', ' ', '¡', '«', '»', '¿', '×', '÷', 'ˆ', '‘', '’', '“', '”', '„', '‹', '›', '—', ]),
-                false,
-                0,
-                30,
-                Some(30),
-                None,
-                10,
-                20,
-                40_960,
-                None,
-            ),
         }
     }
 
@@ -144,8 +125,13 @@ impl TaganrogClient {
         self.media_map.len()
     }
 
-    pub fn get_query_count(&self, tags: &[String]) -> usize {
-        if tags.is_empty() { return 0; }
+    pub fn get_query_count(&self, tags: &[Tag]) -> usize {
+        let intersection = self.get_media_intersection(tags);
+        intersection.len()
+    }
+
+    fn get_media_intersection(&self, tags: &[Tag]) -> HashSet<MediaId> {
+        if tags.is_empty() { return HashSet::new(); }
 
         // tag_map contains media_ids for each tag
         // we want to find the intersection of all media_ids for these tags
@@ -155,7 +141,7 @@ impl TaganrogClient {
             let media_ids = self.tags_map.get(tag).map(|x| x.value().clone()).unwrap_or_default();
             result.retain(|x| media_ids.contains(x));
         }
-        result.len()
+        result
     }
 
     async fn write_wal(&mut self, operation: DbOperation) -> anyhow::Result<()> {
@@ -168,7 +154,7 @@ impl TaganrogClient {
         Ok(())
     }
 
-    pub fn get_media_by_id(&self, media_id: &String) -> Option<Media> {
+    pub fn get_media_by_id(&self, media_id: &MediaId) -> Option<Media> {
         let maybe_media = self.media_map.get(media_id).map(|x| x.value().clone());
         maybe_media
     }
@@ -203,24 +189,70 @@ impl TaganrogClient {
     }
 
     pub fn search_media(&self, query: &String, page_size: usize, page_index: usize) -> Vec<Media> {
-        let skip_results = page_size * page_index;
-        let max_results = skip_results + page_size;
-        let media_ids = self.index.search_with(&SearchType::Live, &max_results, &query);
-        let media_vec = media_ids.into_iter()
-            .take(max_results).skip(skip_results)
-            .map(|x| self.media_map.get(x).map(|x| x.value().clone())).flatten().collect();
+        if query.is_empty() {
+            return vec![];
+        }
+        let query_arr = query.split(' ').collect::<Vec<&str>>();
+        if query_arr.is_empty() {
+            return vec![];
+        }
+        let exact_match_tags = query_arr.iter()
+            .map(|x| x.to_string())
+            .collect::<Vec<Tag>>();
+        let has_unknown_tag = exact_match_tags.iter().any(|x| !self.tags_map.contains_key(x));
+        if has_unknown_tag {
+            return vec![];
+        }
+        let intersection = self.get_media_intersection(&exact_match_tags);
+        let media_vec = intersection.iter()
+            .skip(page_index * page_size).take(page_size)
+            .map(|x| self.get_media_by_id(x).unwrap())
+            .collect();
         media_vec
     }
 
     pub fn autocomplete_tags(&self, query: &String, max_items: usize) -> Vec<TagsAutocomplete> {
-        let autocomplete = self.index.autocomplete_with(&AutocompleteType::Context, &max_items, query);
-        let res = autocomplete.into_iter().map(|str| {
-            let mut split = str.split(' ').map(|x| x.to_string()).collect::<Vec<String>>();
-            let last = split.pop().unwrap();
-            let head = split;
-            TagsAutocomplete { head, last }
-        }).collect();
-        res
+        if query.is_empty() {
+            return vec![];
+        }
+        let query_arr = query.split(' ').collect::<Vec<&str>>();
+        if query_arr.is_empty() {
+            return vec![];
+        }
+        let exact_match_tags = query_arr.iter()
+            .take(query_arr.len() - 1)
+            .map(|x| x.to_string())
+            .collect::<Vec<Tag>>();
+        let has_unknown_tag = exact_match_tags.iter().any(|x| !self.tags_map.contains_key(x));
+        if has_unknown_tag {
+            return vec![];
+        }
+        let last_tag = query_arr.last().unwrap().to_string();
+        let possible_last_tags = self.tags_map.iter()
+            .filter(|x| x.key().starts_with(&last_tag))
+            .filter(|x| !exact_match_tags.contains(x.key()))
+            .map(|x| x.key().clone())
+            .collect::<Vec<Tag>>();
+        let matching_media_ids = if exact_match_tags.is_empty() {
+            self.media_map.iter().map(|x| x.key().clone()).collect()
+        } else {
+            self.get_media_intersection(&exact_match_tags)
+        };
+        let autocomplete = possible_last_tags.iter()
+            .map(|x| {
+                let media_ids = self.tags_map.get(x).map(|x| x.value().clone()).unwrap_or_default();
+                let count = media_ids.intersection(&matching_media_ids).count();
+                TagsAutocomplete {
+                    head: exact_match_tags.clone(),
+                    last: x.clone(),
+                    media_count: count,
+                }
+            })
+            .sorted_by_key(|x| x.media_count).rev()
+            .take(max_items)
+            .filter(|x| x.media_count > 0)
+            .collect();
+        autocomplete
     }
 
     fn create_media_no_wal(&mut self, media: Media) -> InsertResult<Media> {
@@ -229,26 +261,24 @@ impl TaganrogClient {
             return InsertResult::Existing(media);
         }
         self.media_map.insert(id.clone(), media.clone());
-        self.index.insert(&id, &media);
         InsertResult::New(media)
     }
 
-    fn delete_media_no_wal(&mut self, media_id: &String) -> Option<Media> {
+    fn delete_media_no_wal(&mut self, media_id: &MediaId) -> Option<Media> {
         let maybe_media = self.media_map.remove(media_id);
-        if let Some((id, media)) = maybe_media {
-            self.index.remove(&id, &media);
-            return Some(media);
+        if maybe_media.is_none() {
+            return None;
         }
-        None
+        let media = maybe_media.unwrap().1;
+        Some(media)
     }
 
-    fn add_tag_to_media_no_wal(&mut self, media_id: &String, tag: &String) -> bool {
+    fn add_tag_to_media_no_wal(&mut self, media_id: &MediaId, tag: &Tag) -> bool {
         let maybe_media = self.media_map.get_mut(media_id);
         if let Some(mut kvp) = maybe_media {
             let media = kvp.value_mut();
             if !media.tags.contains(tag) {
                 media.tags.push(tag.clone());
-                self.index.insert(media_id, media);
                 self.tags_map.entry(tag.clone()).or_default().value_mut().insert(media_id.clone());
                 return true;
             }
@@ -256,15 +286,14 @@ impl TaganrogClient {
         false
     }
 
-    fn remove_tag_from_media_no_wal(&mut self, media_id: &String, tag: &String) -> bool {
+    fn remove_tag_from_media_no_wal(&mut self, media_id: &MediaId, tag: &Tag) -> bool {
         let maybe_media = self.media_map.get_mut(media_id);
         if let Some(mut kvp) = maybe_media {
             let media = kvp.value_mut();
             if media.tags.contains(tag) {
-                self.index.remove(media_id, media);
                 media.tags.retain(|x| x != tag);
-                self.index.insert(media_id, media);
-                self.tags_map.entry(tag.clone()).or_default().value_mut().remove(media_id);
+                let mut entry = self.tags_map.entry(tag.clone()).or_default();
+                entry.value_mut().remove(media_id);
                 return true;
             }
         }
@@ -357,7 +386,7 @@ impl TaganrogClient {
         Ok(result)
     }
 
-    pub async fn delete_media(&mut self, media_id: &String) -> anyhow::Result<Option<Media>> {
+    pub async fn delete_media(&mut self, media_id: &MediaId) -> anyhow::Result<Option<Media>> {
         let maybe_media = self.delete_media_no_wal(media_id);
         if let Some(media) = &maybe_media {
             self.write_wal(DbOperation::DeleteMedia { media_id: media.id.clone() }).await?;
@@ -365,7 +394,7 @@ impl TaganrogClient {
         Ok(maybe_media)
     }
 
-    pub async fn add_tag_to_media(&mut self, media_id: &String, tag: &String) -> anyhow::Result<bool> {
+    pub async fn add_tag_to_media(&mut self, media_id: &MediaId, tag: &Tag) -> anyhow::Result<bool> {
         let result = self.add_tag_to_media_no_wal(media_id, tag);
         if result {
             self.write_wal(DbOperation::AddTagToMedia { media_id: media_id.clone(), tag: tag.clone() }).await?;
@@ -373,7 +402,7 @@ impl TaganrogClient {
         Ok(result)
     }
 
-    pub async fn remove_tag_from_media(&mut self, media_id: &String, tag: &String) -> anyhow::Result<bool> {
+    pub async fn remove_tag_from_media(&mut self, media_id: &MediaId, tag: &Tag) -> anyhow::Result<bool> {
         let result = self.remove_tag_from_media_no_wal(media_id, tag);
         if result {
             self.write_wal(DbOperation::RemoveTagFromMedia { media_id: media_id.clone(), tag: tag.clone() }).await?;
@@ -381,13 +410,13 @@ impl TaganrogClient {
         Ok(result)
     }
 
-    pub fn get_media_path(&self, media_id: &String) -> Option<PathBuf> {
+    pub fn get_media_path(&self, media_id: &MediaId) -> Option<PathBuf> {
         let media = self.get_media_by_id(media_id)?;
         let media_path = self.cfg.workdir.join(&media.location);
         Some(media_path)
     }
 
-    pub fn get_thumbnail_path(&self, media_id: &String) -> PathBuf {
+    pub fn get_thumbnail_path(&self, media_id: &MediaId) -> PathBuf {
         let thumbnail_path = self.cfg.thumbnails_dir.join(format!("{}.png", media_id));
         thumbnail_path
     }
