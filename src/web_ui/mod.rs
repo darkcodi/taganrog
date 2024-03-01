@@ -60,7 +60,6 @@ pub async fn serve(config: TaganrogConfig) {
         .route("/media/:media_id/add-tag", get(add_tag_to_media))
         .route("/media/:media_id/remove-tag", delete(remove_tag_from_media))
         .route("/search", get(media_search))
-        .route("/search/more", get(media_search_more))
         .route("/upload", get(upload_page))
 
         // api
@@ -125,15 +124,20 @@ struct SearchQuery {
 #[template(path = "search.html")]
 pub struct SearchTemplate {
     query: String,
+    media_vec: Vec<ExtendedMedia>,
+    current_page_number: usize,
+    max_page_number: usize,
+    page_navigation: Vec<usize>,
+    min_page_navigation: usize,
+    max_page_navigation: usize,
+    has_pages_before: bool,
+    has_pages_after: bool,
 }
 
-#[derive(Default, Template)]
-#[template(path = "search_more.html")]
-pub struct SearchMoreTemplate {
-    query: String,
-    media_vec: Vec<ExtendedMedia>,
-    next_page: usize,
-    has_next: bool,
+impl SearchTemplate {
+    pub fn is_current_page(&self, page: &&usize) -> bool {
+        self.current_page_number == **page
+    }
 }
 
 #[derive(Debug, Default, Serialize)]
@@ -191,23 +195,20 @@ impl From<String> for ExtendedTag {
     }
 }
 
-async fn media_search(Query(query): Query<SearchQuery>) -> impl IntoResponse {
-    HtmlTemplate(SearchTemplate { query: normalize_query(&query.q.unwrap_or_default()) })
-}
-
-async fn media_search_more(
+async fn media_search(
     State(state): State<AppState>,
     Query(query): Query<SearchQuery>,
 ) -> impl IntoResponse {
     let normalized_query = normalize_query(&query.q.unwrap_or_default());
     if normalized_query.is_empty() {
-        return HtmlTemplate(SearchMoreTemplate::default());
+        return HtmlTemplate(SearchTemplate::default());
     }
-    let page_index = query.p.unwrap_or(0);
-    let page_size = 100;
+    let page_number = query.p.unwrap_or(1).max(1);
+    let page_index = page_number - 1;
+    let page_size = 10;
 
     let client = state.client.read().await;
-    let media_vec = match normalized_query.as_str() {
+    let media_page = match normalized_query.as_str() {
         "all" => client.get_all_media(page_size, page_index),
         "null" => client.get_untagged_media(page_size, page_index),
         "no-thumbnail" => client.get_media_without_thumbnail(page_size, page_index),
@@ -215,8 +216,8 @@ async fn media_search_more(
     };
     drop(client);
 
-    let mut media_vec = media_vec.into_iter().map(|x| x.into()).collect::<Vec<ExtendedMedia>>();
-    let has_next = media_vec.len() == page_size;
+    let page_number = media_page.page_index + 1;
+    let mut media_vec = media_page.media_vec.into_iter().map(|x| x.into()).collect::<Vec<ExtendedMedia>>();
 
     // order tags in each media by the order they appear in the query
     let query_tags = extract_tags(&normalized_query);
@@ -230,11 +231,25 @@ async fn media_search_more(
         });
     });
 
-    HtmlTemplate(SearchMoreTemplate {
+    const PAGES_BEFORE: usize = 3;
+    const PAGES_AFTER: usize = 3;
+    let pages_navigation = (page_number.saturating_sub(PAGES_BEFORE)..=page_number.saturating_add(PAGES_AFTER))
+        .filter(|x| *x > 0 && *x <= media_page.total_pages).collect::<Vec<usize>>();
+    let min_page_navigation = pages_navigation.first().cloned().unwrap_or(0);
+    let max_page_navigation = pages_navigation.last().cloned().unwrap_or(0);
+    let has_more_pages_before = min_page_navigation > 2;
+    let has_more_pages_after = max_page_navigation + 1 < media_page.total_pages;
+
+    HtmlTemplate(SearchTemplate {
         query: normalized_query,
         media_vec,
-        next_page: page_index + 1,
-        has_next,
+        current_page_number: page_number,
+        max_page_number: media_page.total_pages,
+        page_navigation: pages_navigation,
+        min_page_navigation,
+        max_page_navigation,
+        has_pages_before: has_more_pages_before,
+        has_pages_after: has_more_pages_after,
     })
 }
 

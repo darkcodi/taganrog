@@ -7,6 +7,7 @@ use serde::{Deserialize, Serialize};
 use tracing::info;
 use rand::seq::SliceRandom;
 use relative_path::PathExt;
+use tokio::time::Instant;
 use crate::entities::*;
 use crate::utils::hash_utils::MurMurHasher;
 
@@ -165,43 +166,82 @@ impl TaganrogClient {
         maybe_media
     }
 
-    pub fn get_all_media(&self, page_size: usize, page_index: usize) -> Vec<Media> {
-        let media_vec = self.media_map.iter()
+    pub fn get_all_media(&self, page_size: usize, page_index: usize) -> MediaPage {
+        let start = Instant::now();
+        let media_page = self.media_map.iter()
+            .map(|x| x.value().clone())
             .skip(page_index * page_size).take(page_size)
-            .map(|x| x.value().clone()).collect();
-        media_vec
+            .collect();
+        let total_count = self.media_map.len();
+        let total_pages = (total_count as f64 / page_size as f64).ceil() as usize;
+        let elapsed = start.elapsed();
+        MediaPage {
+            media_vec: media_page,
+            page_index: page_index,
+            page_size,
+            total_count,
+            total_pages,
+            elapsed: elapsed.as_millis() as u64,
+        }
     }
 
-    pub fn get_media_without_thumbnail(&self, page_size: usize, page_index: usize) -> Vec<Media> {
-        let media_vec = self.media_map.iter()
+    pub fn get_media_without_thumbnail(&self, page_size: usize, page_index: usize) -> MediaPage {
+        let start = Instant::now();
+        let media = self.media_map.iter()
             .filter(|x| !Path::new(&self.cfg.thumbnails_dir).join(format!("{}.png", &x.value().id)).exists())
+            .map(|x| x.key().clone()).collect::<Vec<MediaId>>();
+        let media_vec = media.iter()
             .skip(page_index * page_size).take(page_size)
-            .map(|x| x.value().clone()).collect();
-        media_vec
+            .map(|x| self.get_media_by_id(x).unwrap()).collect();
+        let total_count = media.len();
+        let total_pages = (total_count as f64 / page_size as f64).ceil() as usize;
+        let elapsed = start.elapsed();
+        MediaPage {
+            media_vec,
+            page_index: page_index,
+            page_size,
+            total_count,
+            total_pages,
+            elapsed: elapsed.as_millis() as u64,
+        }
     }
 
-    pub fn get_untagged_media(&self, page_size: usize, page_index: usize) -> Vec<Media> {
-        let media_vec = self.media_map.iter()
+    pub fn get_untagged_media(&self, page_size: usize, page_index: usize) -> MediaPage {
+        let start = Instant::now();
+        let media = self.media_map.iter()
             .filter(|x| x.value().tags.is_empty())
+            .map(|x| x.key().clone()).collect::<Vec<MediaId>>();
+        let media_vec = media.iter()
             .skip(page_index * page_size).take(page_size)
-            .map(|x| x.value().clone()).collect();
-        media_vec
+            .map(|x| self.get_media_by_id(x).unwrap()).collect();
+        let total_count = self.media_map.iter().filter(|x| x.value().tags.is_empty()).count();
+        let total_pages = (total_count as f64 / page_size as f64).ceil() as usize;
+        let elapsed = start.elapsed();
+        MediaPage {
+            media_vec,
+            page_index: page_index,
+            page_size,
+            total_count,
+            total_pages,
+            elapsed: elapsed.as_millis() as u64,
+        }
     }
 
-    pub fn search_media(&self, query: &str, page_size: usize, page_index: usize) -> Vec<Media> {
+    pub fn search_media(&self, query: &str, page_size: usize, page_index: usize) -> MediaPage {
+        let start = Instant::now();
         if query.is_empty() {
-            return vec![];
+            return MediaPage::default();
         }
         let query_arr = query.split(' ').collect::<Vec<&str>>();
         if query_arr.is_empty() {
-            return vec![];
+            return MediaPage::default();
         }
         let exact_match_tags = query_arr.iter()
             .map(|x| x.to_string())
             .collect::<Vec<Tag>>();
         let has_unknown_tag = exact_match_tags.iter().any(|x| !self.tags_map.contains_key(x));
         if has_unknown_tag {
-            return vec![];
+            return MediaPage::default();
         }
         let intersection = self.get_media_intersection(&exact_match_tags);
         let media_vec = intersection.iter()
@@ -209,7 +249,17 @@ impl TaganrogClient {
             .skip(page_index * page_size).take(page_size)
             .map(|x| self.get_media_by_id(x).unwrap())
             .collect();
-        media_vec
+        let elapsed = start.elapsed();
+        let total_count = intersection.len();
+        let total_pages = (total_count as f64 / page_size as f64).ceil() as usize;
+        MediaPage {
+            media_vec,
+            page_index: page_index,
+            page_size,
+            total_count,
+            total_pages,
+            elapsed: elapsed.as_millis() as u64,
+        }
     }
 
     pub fn autocomplete_tags(&self, query: &str, max_items: usize) -> Vec<TagsAutocomplete> {

@@ -35,3 +35,13 @@ pub struct Media {
     pub was_uploaded: bool,
     pub tags: Vec<Tag>,
 }
+
+#[derive(serde::Serialize, serde::Deserialize, Clone, Debug, PartialEq, Eq, Default)]
+pub struct MediaPage {
+    pub media_vec: Vec<Media>,
+    pub page_index: usize,
+    pub page_size: usize,
+    pub total_count: usize,
+    pub total_pages: usize,
+    pub elapsed: u64,
+}
