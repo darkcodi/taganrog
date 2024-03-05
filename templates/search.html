@@ -53,38 +53,38 @@
                 {% endfor %}
                 <div class="flex justify-center mt-4">
                     {% if min_page_navigation > 1 %}
-                        <a class="inline-flex items-center justify-center whitespace-nowrap rounded-md text-sm font-medium ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 h-10 px-4 py-2 bg-gray-100 hover:bg-gray-200 transition-colors text-black"
+                        <a class="mx-1 inline-flex items-center justify-center whitespace-nowrap rounded-md text-sm font-medium ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 h-10 px-4 py-2 bg-gray-100 hover:bg-gray-200 transition-colors text-black"
                             href="/search?q={{ query }}&p=1">
                             1
                         </a>
                     {% endif %}
                     {% if has_pages_before %}
-                        <a class="inline-flex items-center justify-center whitespace-nowrap rounded-md text-sm font-medium ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 h-10 px-4 py-2 bg-gray-100 hover:bg-gray-200 transition-colors text-black"
+                        <a class="mx-1 inline-flex items-center justify-center whitespace-nowrap rounded-md text-sm font-medium ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 h-10 px-4 py-2 bg-gray-100 hover:bg-gray-200 transition-colors text-black"
                            href="/search?q={{ query }}&p={{ min_page_navigation }}">
                             ...
                         </a>
                     {% endif %}
                     {% for page in page_navigation %}
                         {% if self.is_current_page(page) %}
-                            <a class="inline-flex items-center justify-center whitespace-nowrap rounded-md text-sm !font-bold ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 h-10 px-4 py-2 bg-gray-100 hover:bg-gray-200 transition-colors text-black"
+                            <a class="mx-1 inline-flex items-center justify-center whitespace-nowrap rounded-md text-sm !font-bold ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 h-10 px-4 py-2 bg-gray-100 hover:bg-gray-200 transition-colors text-black"
                                href="/search?q={{ query }}&p={{ page }}">
                                     {{ page }}
                             </a>
                         {% else %}
-                            <a class="inline-flex items-center justify-center whitespace-nowrap rounded-md text-sm font-medium ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 h-10 px-4 py-2 bg-gray-100 hover:bg-gray-200 transition-colors text-black"
+                            <a class="mx-1 inline-flex items-center justify-center whitespace-nowrap rounded-md text-sm font-medium ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 h-10 px-4 py-2 bg-gray-100 hover:bg-gray-200 transition-colors text-black"
                                href="/search?q={{ query }}&p={{ page }}">
                                 {{ page }}
                             </a>
                         {% endif %}
                     {% endfor %}
                     {% if has_pages_after %}
-                        <a class="inline-flex items-center justify-center whitespace-nowrap rounded-md text-sm font-medium ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 h-10 px-4 py-2 bg-gray-100 hover:bg-gray-200 transition-colors text-black"
+                        <a class="mx-1 inline-flex items-center justify-center whitespace-nowrap rounded-md text-sm font-medium ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 h-10 px-4 py-2 bg-gray-100 hover:bg-gray-200 transition-colors text-black"
                            href="/search?q={{ query }}&p={{ max_page_navigation }}">
                             ...
                         </a>
                     {% endif %}
                     {% if max_page_navigation < max_page_number %}
-                        <a class="inline-flex items-center justify-center whitespace-nowrap rounded-md text-sm font-medium ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 h-10 px-4 py-2 bg-gray-100 hover:bg-gray-200 transition-colors text-black"
+                        <a class="mx-1 inline-flex items-center justify-center whitespace-nowrap rounded-md text-sm font-medium ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 h-10 px-4 py-2 bg-gray-100 hover:bg-gray-200 transition-colors text-black"
                            href="/search?q={{ query }}&p={{ max_page_number }}">
                             {{ max_page_number }}
                         </a>
