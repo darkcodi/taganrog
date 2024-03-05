@@ -205,16 +205,16 @@ async fn media_search(
     }
     let page_number = query.p.unwrap_or(1).max(1);
     let page_index = page_number - 1;
-    let page_size = 10;
+    const DEFAULT_PAGE_SIZE: usize = 6;
 
     let client = state.client.read().await;
     let media_page = match normalized_query.as_str() {
-        "all" => client.get_all_media(page_size, page_index),
-        "null" => client.get_untagged_media(page_size, page_index),
-        "untagged" => client.get_untagged_media(page_size, page_index),
-        "no-tags" => client.get_untagged_media(page_size, page_index),
-        "no-thumbnail" => client.get_media_without_thumbnail(page_size, page_index),
-        _ => client.search_media(&normalized_query, page_size, page_index),
+        "all" => client.get_all_media(DEFAULT_PAGE_SIZE, page_index),
+        "null" => client.get_untagged_media(DEFAULT_PAGE_SIZE, page_index),
+        "untagged" => client.get_untagged_media(DEFAULT_PAGE_SIZE, page_index),
+        "no-tags" => client.get_untagged_media(DEFAULT_PAGE_SIZE, page_index),
+        "no-thumbnail" => client.get_media_without_thumbnail(DEFAULT_PAGE_SIZE, page_index),
+        _ => client.search_media(&normalized_query, DEFAULT_PAGE_SIZE, page_index),
     };
     drop(client);
 
