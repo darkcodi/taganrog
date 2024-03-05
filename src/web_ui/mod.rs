@@ -132,6 +132,7 @@ pub struct SearchTemplate {
     max_page_navigation: usize,
     has_pages_before: bool,
     has_pages_after: bool,
+    time_elapsed_ms: u128,
 }
 
 impl SearchTemplate {
@@ -199,6 +200,7 @@ async fn media_search(
     State(state): State<AppState>,
     Query(query): Query<SearchQuery>,
 ) -> impl IntoResponse {
+    let start = std::time::Instant::now();
     let normalized_query = normalize_query(&query.q.unwrap_or_default());
     if normalized_query.is_empty() {
         return HtmlTemplate(SearchTemplate::default());
@@ -241,6 +243,7 @@ async fn media_search(
     let max_page_navigation = pages_navigation.last().cloned().unwrap_or(0);
     let has_more_pages_before = min_page_navigation > 2;
     let has_more_pages_after = max_page_navigation + 1 < media_page.total_pages;
+    let time_elapsed_ms = start.elapsed().as_millis();
 
     HtmlTemplate(SearchTemplate {
         query: normalized_query,
@@ -252,6 +255,7 @@ async fn media_search(
         max_page_navigation,
         has_pages_before: has_more_pages_before,
         has_pages_after: has_more_pages_after,
+        time_elapsed_ms,
     })
 }
 
