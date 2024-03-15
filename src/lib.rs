@@ -9,3 +9,4 @@ pub mod cli;
 pub mod utils;
 pub mod client;
 pub mod entities;
+pub mod config;

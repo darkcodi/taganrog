@@ -11,14 +11,12 @@ use axum::routing::{delete, post};
 use axum_macros::FromRef;
 use chrono::{DateTime, Utc};
 use itertools::Itertools;
-use tracing::{info, Level};
-use tracing_subscriber::util::SubscriberInitExt;
+use tracing::{info};
 use serde::{Deserialize, Serialize};
 use tokio::sync::RwLock;
 use tower_http::trace::TraceLayer;
-use tracing_subscriber::filter;
-use tracing_subscriber::layer::SubscriberExt;
-use crate::client::{TaganrogClient, TaganrogConfig};
+use crate::client::TaganrogClient;
+use crate::config::AppConfig;
 use crate::entities::Media;
 use crate::utils::normalize_query;
 use crate::utils::str_utils::StringExtensions;
@@ -28,20 +26,7 @@ const FAVICON: &[u8] = include_bytes!("assets/favicon.ico");
 const DEFAULT_THUMBNAIL: &[u8] = include_bytes!("assets/icons/default_thumbnail.svg");
 const MAX_UPLOAD_SIZE_IN_BYTES: usize = 524_288_000; // 500 MB
 
-pub async fn serve(config: TaganrogConfig) {
-    let tracing_layer = tracing_subscriber::fmt::layer();
-    let filter = filter::Targets::new()
-        // .with_target("tower_http::trace::on_request", Level::DEBUG)
-        .with_target("tower_http::trace::on_response", Level::DEBUG)
-        .with_target("tower_http::trace::make_span", Level::DEBUG)
-        .with_default(Level::INFO);
-    tracing_subscriber::registry()
-        .with(tracing_layer)
-        .with(filter)
-        .init();
-
-    info!("{:?}", &config);
-
+pub async fn serve(config: AppConfig) {
     info!("initializing client...");
     let mut client = TaganrogClient::new(config);
     client.init().await.expect("failed to initialize client");

@@ -1,34 +1,61 @@
 use clap::{Arg, Command};
-use taganrog::{cli, web_ui};
-use taganrog::client::TaganrogConfig;
+use tracing::{error, info};
+use taganrog::{cli, config, web_ui};
 
 #[tokio::main]
 async fn main() {
     let app = Command::new("tgk")
         .version("0.1")
         .author("Ivan Yaremenchuk")
-        .about("Taganrog All-In-One binary: CLI, daemon (API), Web UI")
-        .arg(Arg::new("workdir")
+        .about("Taganrog All-In-One binary: CLI, Web UI")
+        .arg(Arg::new("config-path")
             .required(false)
-            .help("Set the tag working directory (where the database is stored)")
+            .help("Set the config file path. Configuration file is optional. Default: $HOME/taganrog.config.toml")
+            .long("config-path")
+            .short('c')
+            .global(true)
+            .env("TAG_CONFIG"))
+        .arg(Arg::new("work-dir")
+            .required(false)
+            .help("Override working directory, where the database is stored. Only files in this directory and its subdirectories can be tagged. Default: $HOME")
             .long("workdir")
             .short('w')
             .global(true)
-            .env("TAG_WORKDIR")
-            .default_value("."))
+            .env("TAG_WORK_DIR"))
         .arg(Arg::new("upload-dir")
             .required(false)
-            .help("Set the media upload directory (should be a subdirectory of the working directory)")
+            .help("Override media upload directory, which is used only by Web UI. It should be a subdirectory of the working directory. Default: $WORKDIR/taganrog-uploads")
             .long("upload-dir")
             .short('u')
             .global(true)
-            .env("UPLOAD_DIR")
-            .default_value("."))
+            .env("TAG_UPLOAD_DIR"))
+        .arg(Arg::new("verbose")
+            .required(false)
+            .num_args(0)
+            .help("Print debug information")
+            .long("verbose")
+            .short('v')
+            .global(true)
+            .env("TAG_VERBOSE"))
         .subcommand_required(true)
         .subcommand(
-            Command::new("serve")
-                .about("Serve commands (api, web-ui) using the axum framework")
-                .subcommand(Command::new("web-ui").about("Serve the web UI"))
+            Command::new("config")
+                .about("Manage file configuration")
+                .subcommand(
+                    Command::new("get")
+                        .about("Get a configuration value")
+                        .arg(Arg::new("key").required(true).help("Key of the configuration value"))
+                )
+                .subcommand(
+                    Command::new("set")
+                        .about("Set a configuration value")
+                        .arg(Arg::new("key").required(true).help("Key of the configuration value"))
+                        .arg(Arg::new("value").required(true).help("Value of the configuration value"))
+                )
+        )
+        .subcommand(
+            Command::new("web-ui")
+                .about("Serve a web-ui using the Axum framework")
         )
         .subcommand(
             Command::new("add")
@@ -54,22 +81,32 @@ async fn main() {
         );
 
     let matches = app.get_matches();
+    config::configure_logging(&matches);
+    let config = config::get_app_config(&matches);
+    info!("{:?}", &config);
+
     match matches.subcommand() {
-        Some(("serve", serve_matches)) => {
-            match serve_matches.subcommand() {
-                Some(("web-ui", _)) => {
-                    let workdir: &String = matches.get_one("workdir").unwrap();
-                    let upload_dir: &String = matches.get_one("upload-dir").unwrap();
-                    let config: TaganrogConfig = TaganrogConfig::new(workdir, upload_dir).expect("failed to initialize config");
-                    web_ui::serve(config).await
+        Some(("config", config_matches)) => {
+            match config_matches.subcommand() {
+                Some(("get", get_matches)) => {
+                    let key: &String = get_matches.get_one("key").unwrap();
+                    cli::get_config_value(config, key)
                 },
-                _ => unreachable!(),
+                Some(("set", set_matches)) => {
+                    let key: &String = set_matches.get_one("key").unwrap();
+                    let value: &String = set_matches.get_one("value").unwrap();
+                    cli::set_config_value(config, key, value)
+                },
+                _ => {
+                    error!("Invalid subcommand");
+                    std::process::exit(1);
+                }
             }
         },
+        Some(("web-ui", _)) => {
+            web_ui::serve(config).await
+        },
         Some(("add", add_matches)) => {
-            let workdir: &String = matches.get_one("workdir").unwrap();
-            let upload_dir: &String = matches.get_one("upload-dir").unwrap();
-            let config: TaganrogConfig = TaganrogConfig::new(workdir, upload_dir).expect("failed to initialize config");
             let filepath: &String = add_matches.get_one("filepath").unwrap();
             cli::add_media(config, filepath).await
         },
@@ -84,7 +121,7 @@ async fn main() {
         Some(("untag", _)) => {
         },
         _ => {
-            eprintln!("Invalid subcommand");
+            error!("Invalid subcommand");
             std::process::exit(1);
         }
     }

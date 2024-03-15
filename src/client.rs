@@ -8,6 +8,7 @@ use tracing::info;
 use rand::seq::SliceRandom;
 use relative_path::PathExt;
 use tokio::time::Instant;
+use crate::config::AppConfig;
 use crate::entities::*;
 use crate::utils::hash_utils::MurMurHasher;
 
@@ -19,83 +20,14 @@ enum DbOperation {
     RemoveTag { media_id: MediaId, tag: Tag },
 }
 
-#[derive(Debug)]
-pub struct TaganrogConfig {
-    pub workdir: PathBuf,
-    pub upload_dir: PathBuf,
-    pub db_path: PathBuf,
-    pub thumbnails_dir: PathBuf,
-}
-
-impl TaganrogConfig {
-    pub fn new(workdir: &str, upload_dir: &str) -> anyhow::Result<Self> {
-        let workdir = Self::get_or_create_workdir(workdir)?;
-        let upload_dir = Self::get_or_create_upload_dir(&workdir, upload_dir)?;
-        let db_path = Self::get_or_create_db_path(&workdir)?;
-        let thumbnails_dir = Self::get_or_create_thumbnails_dir(&workdir)?;
-        Ok(Self { workdir, upload_dir, db_path, thumbnails_dir })
-    }
-
-    fn get_or_create_workdir(workdir: &str) -> anyhow::Result<PathBuf> {
-        let workdir = Path::new(workdir).absolutize_from(std::env::current_dir()?)?.canonicalize()?;
-        if !workdir.exists() {
-            std::fs::create_dir_all(&workdir)?;
-        }
-        if !workdir.is_dir() {
-            anyhow::bail!("workdir is not a directory");
-        }
-        info!("workdir: {}", workdir.display());
-        Ok(workdir)
-    }
-
-    fn get_or_create_upload_dir(workdir: &PathBuf, upload_dir: &str) -> anyhow::Result<PathBuf> {
-        let upload_dir = Path::new(upload_dir).absolutize_from(std::env::current_dir()?)?.canonicalize()?;
-        if !upload_dir.starts_with(workdir) {
-            anyhow::bail!("upload_dir is not a subdirectory of workdir");
-        }
-        if !upload_dir.exists() {
-            std::fs::create_dir_all(&upload_dir)?;
-        }
-        if upload_dir.exists() && !upload_dir.is_dir() {
-            anyhow::bail!("upload_dir is not a directory");
-        }
-        info!("upload_dir: {}", upload_dir.display());
-        Ok(upload_dir)
-    }
-
-    fn get_or_create_db_path(workdir: &Path) -> anyhow::Result<PathBuf> {
-        let db_path = workdir.join("taganrog.db.json");
-        if !db_path.exists() {
-            std::fs::write(&db_path, "")?;
-        }
-        if db_path.exists() && !db_path.is_file() {
-            anyhow::bail!("db_path is not a file");
-        }
-        info!("db_path: {}", workdir.display());
-        Ok(db_path)
-    }
-
-    fn get_or_create_thumbnails_dir(workdir: &Path) -> anyhow::Result<PathBuf> {
-        let thumbnails_dir = workdir.join("taganrog-thumbnails");
-        if !thumbnails_dir.exists() {
-            std::fs::create_dir_all(&thumbnails_dir)?;
-        }
-        if thumbnails_dir.exists() && !thumbnails_dir.is_dir() {
-            anyhow::bail!("thumbnails_dir is not a directory");
-        }
-        info!("thumbnails_dir: {}", thumbnails_dir.display());
-        Ok(thumbnails_dir)
-    }
-}
-
 pub struct TaganrogClient {
-    cfg: TaganrogConfig,
+    cfg: AppConfig,
     media_map: DashMap<MediaId, Media>,
     tags_map: DashMap<Tag, HashSet<MediaId>>,
 }
 
 impl TaganrogClient {
-    pub fn new(cfg: TaganrogConfig) -> Self {
+    pub fn new(cfg: AppConfig) -> Self {
         Self {
             cfg,
             media_map: DashMap::new(),
