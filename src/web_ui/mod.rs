@@ -11,7 +11,7 @@ use axum::routing::{delete, post};
 use axum_macros::FromRef;
 use chrono::{DateTime, Utc};
 use itertools::Itertools;
-use tracing::{info};
+use log::info;
 use serde::{Deserialize, Serialize};
 use tokio::sync::RwLock;
 use tower_http::trace::TraceLayer;

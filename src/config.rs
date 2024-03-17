@@ -1,12 +1,9 @@
 use std::path::{Path, PathBuf};
 use clap::ArgMatches;
 use home::home_dir;
+use log::{debug, error, LevelFilter};
 use path_absolutize::Absolutize;
 use serde::{Deserialize, Serialize};
-use tracing::{debug, error, Level};
-use tracing_subscriber::filter;
-use tracing_subscriber::layer::SubscriberExt;
-use tracing_subscriber::util::SubscriberInitExt;
 use crate::utils::str_utils::StringExtensions;
 
 #[derive(Debug, Default, Serialize, Deserialize)]
@@ -96,22 +93,53 @@ impl AppConfig {
     }
 }
 
-pub fn configure_logging(matches: &ArgMatches) {
+pub fn configure_console_logging(matches: &ArgMatches) {
     let is_verbose = matches.get_one("verbose").map(|x: &bool| x.to_owned()).unwrap_or_default();
+    let min_level = if is_verbose { LevelFilter::Debug } else { LevelFilter::Info };
 
-    let tracing_layer = tracing_subscriber::fmt::layer();
-    let default_level = if is_verbose { Level::DEBUG } else { Level::INFO };
-    let mut filter = filter::Targets::new().with_default(default_level);
-    if is_verbose {
-        filter = filter
-            // .with_target("tower_http::trace::on_request", Level::DEBUG)
-            .with_target("tower_http::trace::on_response", Level::DEBUG)
-            .with_target("tower_http::trace::make_span", Level::DEBUG);
-    }
-    tracing_subscriber::registry()
-        .with(tracing_layer)
-        .with(filter)
-        .init();
+    let stdout_config = fern::Dispatch::new()
+        .format(|out, message, _| {
+            out.finish(format_args!(
+                "{}",
+                message
+            ))
+        })
+        .level(min_level)
+        .filter(|metadata| metadata.level() != log::Level::Error)
+        .chain(std::io::stdout());
+
+    let stderr_config = fern::Dispatch::new()
+        .level(LevelFilter::Error)
+        .chain(std::io::stderr());
+
+    fern::Dispatch::new()
+        .chain(stdout_config)
+        .chain(stderr_config)
+        .apply()
+        .expect("Failed to configure logging");
+}
+
+pub fn configure_api_logging(matches: &ArgMatches) {
+    let is_verbose = matches.get_one("verbose").map(|x: &bool| x.to_owned()).unwrap_or_default();
+    let min_level = if is_verbose { LevelFilter::Debug } else { LevelFilter::Info };
+
+    fern::Dispatch::new()
+        // Perform allocation-free log formatting
+        .format(|out, message, record| {
+            out.finish(format_args!(
+                "[{} {} {}] {}",
+                humantime::format_rfc3339(std::time::SystemTime::now()),
+                record.level(),
+                record.target(),
+                message
+            ))
+        })
+        .level(min_level)
+        .level_for("tower_http::trace::on_response", LevelFilter::Debug)
+        .level_for("tower_http::trace::make_span", LevelFilter::Debug)
+        .chain(std::io::stdout())
+        .apply()
+        .expect("Failed to configure logging");
 }
 
 pub fn get_app_config(matches: &ArgMatches) -> AppConfig {
@@ -152,12 +180,7 @@ fn get_home_dir() -> PathBuf {
 fn get_config_path(home_dir: &Path, matches: &ArgMatches) -> PathBuf {
     let maybe_config_path: Option<String> = matches.get_one("config-path").and_then(|x: &String| x.empty_to_none());
     if let Some(config_path) = &maybe_config_path {
-        let path_buf_result = PathBuf::try_from(config_path);
-        if path_buf_result.is_err() {
-            error!("Failed to convert config path to PathBuf: {}", path_buf_result.err().unwrap());
-            std::process::exit(1);
-        }
-        let config_path = path_buf_result.unwrap();
+        let config_path = PathBuf::from(config_path);
         debug!("TAG_CONFIG: {}", config_path.display().to_string());
         config_path
     } else {

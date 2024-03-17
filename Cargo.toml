@@ -21,9 +21,11 @@ chrono = { version = "0.4", features = ["serde"] }
 clap = { version = "4.4", features = ["derive", "env"] }
 dashmap = "5.5.3"
 fastmurmur3 = "0.2"
+fern = "0.6"
 home = "0.5"
 infer = { version = "0.15", default-features = false }
 itertools = "0.12"
+log = "0.4"
 path-absolutize = "3.1"
 rand = "0.8"
 relative-path = "1.9"
@@ -34,7 +36,6 @@ tokio = { version = "1.35", features = ["full", "fs"] }
 tokio-util = "0.7.10"
 tower = "0.4"
 tower-http = { version = "0.5", features = ["trace", "cors"] }
-tracing = "0.1"
-tracing-subscriber = { version = "0.3", features = ["env-filter"] }
 twox-hash = "1.6.3"
 uuid = { version = "1.7", features = ["serde", "v4", "fast-rng"] }
+humantime = "2.1.0"

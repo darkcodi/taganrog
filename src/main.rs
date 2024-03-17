@@ -1,5 +1,5 @@
 use clap::{Arg, Command};
-use tracing::{error, info};
+use log::{error, info};
 use taganrog::{cli, config, web_ui};
 
 #[tokio::main]
@@ -81,12 +81,11 @@ async fn main() {
         );
 
     let matches = app.get_matches();
-    config::configure_logging(&matches);
-    let config = config::get_app_config(&matches);
-    info!("{:?}", &config);
 
     match matches.subcommand() {
         Some(("config", config_matches)) => {
+            config::configure_console_logging(&matches);
+            let config = config::get_app_config(&matches);
             match config_matches.subcommand() {
                 Some(("get", get_matches)) => {
                     let key: &String = get_matches.get_one("key").unwrap();
@@ -104,9 +103,13 @@ async fn main() {
             }
         },
         Some(("web-ui", _)) => {
+            config::configure_api_logging(&matches);
+            let config = config::get_app_config(&matches);
             web_ui::serve(config).await
         },
         Some(("add", add_matches)) => {
+            config::configure_console_logging(&matches);
+            let config = config::get_app_config(&matches);
             let filepath: &String = add_matches.get_one("filepath").unwrap();
             cli::add_media(config, filepath).await
         },
@@ -115,8 +118,6 @@ async fn main() {
         Some(("tag", _)) => {
             // let filepath: &String = tag_matches.get_one("filepath").unwrap();
             // let tags: Vec<&String> = tag_matches.get_many("tag").unwrap().collect();
-            // println!("filepath: {}", filepath);
-            // println!("tags: {:?}", tags);
         },
         Some(("untag", _)) => {
         },
