@@ -113,7 +113,11 @@ async fn main() {
             let filepath: &String = add_matches.get_one("filepath").unwrap();
             cli::add_media(config, filepath).await
         },
-        Some(("remove", _)) => {
+        Some(("remove", remove_matches)) => {
+            config::configure_console_logging(&matches);
+            let config = config::get_app_config(&matches);
+            let filepath: &String = remove_matches.get_one("filepath").unwrap();
+            cli::remove_media(config, filepath).await
         },
         Some(("tag", _)) => {
             // let filepath: &String = tag_matches.get_one("filepath").unwrap();

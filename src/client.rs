@@ -321,7 +321,7 @@ impl TaganrogClient {
         Ok(result)
     }
 
-    pub async fn create_media_from_file(&mut self, abs_path: PathBuf) -> anyhow::Result<InsertResult<Media>> {
+    pub async fn create_media_from_file(&mut self, abs_path: &PathBuf) -> anyhow::Result<Media> {
         let abs_path = abs_path.absolutize()?;
         let rel_path = abs_path.relative_to(&self.cfg.workdir)?;
         if rel_path.starts_with(".") {
@@ -337,7 +337,7 @@ impl TaganrogClient {
         let file_bytes = std::fs::read(&abs_path)?;
         let hash = MurMurHasher::hash_bytes(&file_bytes);
         if self.media_map.contains_key(&hash) {
-            return Ok(InsertResult::Existing(self.media_map.get(&hash).map(|x| x.value().clone()).unwrap()));
+            return Ok(self.media_map.get(&hash).map(|x| x.value().clone()).unwrap());
         }
         let metadata = std::fs::metadata(&abs_path)?;
         let content_type = infer::get(&file_bytes).map(|x| x.mime_type()).unwrap_or("application/octet-stream").to_string();
@@ -357,6 +357,14 @@ impl TaganrogClient {
             tags: vec![],
         };
 
+        Ok(media)
+    }
+
+    pub async fn add_media(&mut self, media: Media) -> anyhow::Result<InsertResult<Media>> {
+        let hash = media.id.clone();
+        if self.media_map.contains_key(&hash) {
+            return Ok(InsertResult::Existing(self.media_map.get(&hash).map(|x| x.value().clone()).unwrap()));
+        }
         let result = self.create_media_no_wal(media.clone());
         if let InsertResult::New(media) = &result {
             self.write_wal(DbOperation::CreateMedia { media: media.clone() }).await?;

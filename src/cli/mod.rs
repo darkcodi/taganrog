@@ -6,35 +6,26 @@ use crate::config::AppConfig;
 use crate::entities::InsertResult;
 
 pub async fn add_media(config: AppConfig, filepath: &str) {
-    let canonical_filepath_result = std::fs::canonicalize(filepath);
-    if canonical_filepath_result.is_err() {
-        let err = canonical_filepath_result.err().unwrap();
-        if err.kind() == std::io::ErrorKind::NotFound {
-            error!("File not found: {}", filepath);
-            std::process::exit(1);
-        } else {
-            error!("IO Error: {}", err);
-            std::process::exit(1);
-        }
-    }
-
-    let canonical_filepath = canonical_filepath_result.unwrap();
-    info!("File: {:?}", canonical_filepath);
-
+    let canonical_filepath = canonicalize(filepath);
     let mut client = TaganrogClient::new(config);
     let init_result = client.init().await;
     if init_result.is_err() {
         error!("Failed to initialize client: {}", init_result.err().unwrap());
         std::process::exit(1);
     }
-
-    let create_result = client.create_media_from_file(canonical_filepath).await;
-    if create_result.is_err() {
-        error!("Failed to create media: {}", create_result.err().unwrap());
+    let media_result = client.create_media_from_file(&canonical_filepath).await;
+    if media_result.is_err() {
+        error!("Failed to create media: {}", media_result.err().unwrap());
         std::process::exit(1);
     }
-    let media = create_result.unwrap();
-    match media {
+    let media = media_result.unwrap();
+    let add_result = client.add_media(media).await;
+    if add_result.is_err() {
+        error!("Failed to create media: {}", add_result.err().unwrap());
+        std::process::exit(1);
+    }
+    let insert_result = add_result.unwrap();
+    match insert_result {
         InsertResult::Existing(existing_media) => {
             info!("Media already exists: {:?}", existing_media);
             std::process::exit(0);
@@ -44,6 +35,36 @@ pub async fn add_media(config: AppConfig, filepath: &str) {
             std::process::exit(0);
         }
     }
+}
+
+pub async fn remove_media(config: AppConfig, filepath: &str) {
+    let canonical_filepath = canonicalize(filepath);
+    let mut client = TaganrogClient::new(config);
+    let init_result = client.init().await;
+    if init_result.is_err() {
+        error!("Failed to initialize client: {}", init_result.err().unwrap());
+        std::process::exit(1);
+    }
+    let media_result = client.create_media_from_file(&canonical_filepath).await;
+    if media_result.is_err() {
+        error!("Failed to create media: {}", media_result.err().unwrap());
+        std::process::exit(1);
+    }
+    let media = media_result.unwrap();
+    let media_id = media.id.clone();
+    let delete_result = client.delete_media(&media_id).await;
+    if delete_result.is_err() {
+        error!("Failed to delete media: {}", delete_result.err().unwrap());
+        std::process::exit(1);
+    }
+    let maybe_media = delete_result.unwrap();
+    if maybe_media.is_none() {
+        error!("Media not found: {:?}", &canonical_filepath);
+        std::process::exit(1);
+    }
+    let media = maybe_media.unwrap();
+    info!("Media deleted: {:?}", media);
+    std::process::exit(0);
 }
 
 pub fn get_config_value(config: AppConfig, key: &str) {
@@ -104,4 +125,22 @@ pub fn set_config_value(mut config: AppConfig, key: &str, value: &str) {
             std::process::exit(1);
         }
     }
+}
+
+fn canonicalize(filepath: &str) -> PathBuf {
+    let canonical_filepath_result = std::fs::canonicalize(filepath);
+    if canonical_filepath_result.is_err() {
+        let err = canonical_filepath_result.err().unwrap();
+        if err.kind() == std::io::ErrorKind::NotFound {
+            error!("File not found: {}", filepath);
+            std::process::exit(1);
+        } else {
+            error!("IO Error: {}", err);
+            std::process::exit(1);
+        }
+    }
+
+    let canonical_filepath = canonical_filepath_result.unwrap();
+    info!("File: {:?}", canonical_filepath);
+    canonical_filepath
 }
