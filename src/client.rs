@@ -2,7 +2,7 @@ use std::collections::HashSet;
 use std::path::{Path, PathBuf};
 use dashmap::DashMap;
 use itertools::Itertools;
-use log::info;
+use log::{debug, info};
 use path_absolutize::Absolutize;
 use serde::{Deserialize, Serialize};
 use rand::seq::SliceRandom;
@@ -36,7 +36,7 @@ impl TaganrogClient {
     }
 
     pub async fn init(&mut self) -> anyhow::Result<()> {
-        info!("Starting DB import from WAL...");
+        debug!("Starting DB import from WAL...");
         let file_str = tokio::fs::read_to_string(&self.cfg.db_path).await?;
         for line in file_str.split('\n') {
             if line.is_empty() {
@@ -50,7 +50,7 @@ impl TaganrogClient {
                 DbOperation::RemoveTag { media_id, tag } => { self.remove_tag_from_media_no_wal(&media_id, &tag); }
             }
         }
-        info!("DB Imported!");
+        debug!("DB Imported!");
         Ok(())
     }
 
