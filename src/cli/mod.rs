@@ -5,10 +5,8 @@ use crate::config;
 use crate::config::AppConfig;
 use crate::entities::{InsertResult, Media};
 
-pub async fn add_media(config: &AppConfig, filepath: &str) -> Result<InsertResult<Media>, TaganrogError> {
+pub async fn add_media(client: &mut TaganrogClient, filepath: &str) -> Result<InsertResult<Media>, TaganrogError> {
     let canonical_filepath = canonicalize(filepath);
-    let mut client = TaganrogClient::new(config.clone());
-    client.init().await?;
     let media_result = client.create_media_from_file(&canonical_filepath).await;
     if media_result.is_err() {
         error!("Failed to create media: {}", media_result.err().unwrap());
@@ -24,10 +22,8 @@ pub async fn add_media(config: &AppConfig, filepath: &str) -> Result<InsertResul
     Ok(insert_result)
 }
 
-pub async fn remove_media(config: &AppConfig, filepath: &str) -> Result<Option<Media>, TaganrogError> {
+pub async fn remove_media(client: &mut TaganrogClient, filepath: &str) -> Result<Option<Media>, TaganrogError> {
     let canonical_filepath = canonicalize(filepath);
-    let mut client = TaganrogClient::new(config.clone());
-    client.init().await?;
     let media_result = client.create_media_from_file(&canonical_filepath).await;
     if media_result.is_err() {
         error!("Failed to create media: {}", media_result.err().unwrap());

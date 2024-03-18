@@ -1,6 +1,8 @@
 use clap::{Arg, Command};
 use log::{debug, error, info};
 use taganrog::{cli, config, web_ui};
+use taganrog::client::TaganrogClient;
+use taganrog::config::AppConfig;
 use taganrog::entities::{InsertResult};
 
 #[tokio::main]
@@ -112,17 +114,18 @@ async fn main() {
             config::configure_console_logging(&matches);
             let config = config::get_app_config(&matches);
             let filepath_vec: Vec<&String> = add_matches.get_many("filepath").unwrap().collect();
-            debug!("Filepath vec: {:?}", filepath_vec);
+            let mut client = create_taganrog_client(config).await;
             for filepath in filepath_vec {
-                let result = cli::add_media(&config, filepath).await;
-                if result.is_err() {
-                    error!("Failed to add media: {}", result.err().unwrap());
-                    std::process::exit(1);
-                } else {
-                    let insert_result = result.unwrap();
-                    match insert_result {
-                        InsertResult::Existing(existing_media) => { info!("Media already exists: {:?}", existing_media); }
-                        InsertResult::New(new_media) => { info!("Added media: {:?}", new_media); }
+                match cli::add_media(&mut client, filepath).await {
+                    Ok(insert_result) => {
+                        match insert_result {
+                            InsertResult::Existing(existing_media) => { info!("Media already exists: {:?}", existing_media); }
+                            InsertResult::New(new_media) => { info!("Added media: {:?}", new_media); }
+                        }
+                    },
+                    Err(e) => {
+                        error!("Failed to add media: {}", e);
+                        std::process::exit(1);
                     }
                 }
             }
@@ -131,17 +134,18 @@ async fn main() {
             config::configure_console_logging(&matches);
             let config = config::get_app_config(&matches);
             let filepath_vec: Vec<&String> = remove_matches.get_many("filepath").unwrap().collect();
-            debug!("Filepath vec: {:?}", filepath_vec);
+            let mut client = create_taganrog_client(config).await;
             for filepath in filepath_vec {
-                let result = cli::remove_media(&config, filepath).await;
-                if result.is_err() {
-                    error!("Failed to remove media: {}", result.err().unwrap());
-                    std::process::exit(1);
-                } else {
-                    let maybe_media = result.unwrap();
-                    match maybe_media {
-                        Some(media) => { info!("Removed media: {:?}", media); }
-                        None => { info!("Media not found"); }
+                match cli::remove_media(&mut client, filepath).await {
+                    Ok(maybe_media) => {
+                        match maybe_media {
+                            Some(media) => { info!("Removed media: {:?}", media); }
+                            None => { info!("Media not found"); }
+                        }
+                    },
+                    Err(e) => {
+                        error!("Failed to remove media: {}", e);
+                        std::process::exit(1);
                     }
                 }
             }
@@ -157,4 +161,14 @@ async fn main() {
             std::process::exit(1);
         }
     }
+}
+
+async fn create_taganrog_client(config: AppConfig) -> TaganrogClient {
+    let mut client = TaganrogClient::new(config.clone());
+    let init_result = client.init().await;
+    if init_result.is_err() {
+        error!("Failed to initialize client: {}", init_result.err().unwrap());
+        std::process::exit(1);
+    }
+    client
 }
