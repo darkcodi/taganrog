@@ -1,5 +1,5 @@
 use clap::{Arg, Command};
-use log::{debug, error, info};
+use log::{error, info};
 use taganrog::{cli, config, web_ui};
 use taganrog::client::TaganrogClient;
 use taganrog::config::AppConfig;

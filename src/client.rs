@@ -29,10 +29,26 @@ pub struct TaganrogClient {
 
 #[derive(Error, Debug)]
 pub enum TaganrogError {
-    #[error("Failed to read DB init file: {0}")]
-    DbInitReadError(std::io::Error),
-    #[error("Failed to parse DB operation: {0}")]
-    DbInitParseError(serde_json::Error),
+    #[error("Failed to read/write DB file: {0}")]
+    DbIOError(std::io::Error),
+    #[error("Failed to serialize/deserialize DB operation: {0}")]
+    DbSerializationError(serde_json::Error),
+    #[error("Path is not within workdir")]
+    PathNotWithinWorkdir,
+    #[error("File not found")]
+    FileNotFound,
+    #[error("Path is a directory")]
+    PathIsDirectory,
+    #[error("Absolutize error")]
+    AbsolutizeError,
+    #[error("Relative path error")]
+    RelativePathError,
+    #[error("File read error: {0}")]
+    FileReadError(std::io::Error),
+    #[error("File metadata error: {0}")]
+    FileMetadataError(std::io::Error),
+    #[error("Filename is invalid")]
+    InvalidFilename(String),
 }
 
 impl TaganrogClient {
@@ -47,13 +63,13 @@ impl TaganrogClient {
     pub async fn init(&mut self) -> Result<(), TaganrogError> {
         debug!("Starting DB import from WAL...");
         let file_str = tokio::fs::read_to_string(&self.cfg.db_path).await
-            .map_err(TaganrogError::DbInitReadError)?;
+            .map_err(TaganrogError::DbIOError)?;
         for line in file_str.split('\n') {
             if line.is_empty() {
                 continue;
             }
             let operation: DbOperation = serde_json::from_str(line)
-                .map_err(TaganrogError::DbInitParseError)?;
+                .map_err(TaganrogError::DbSerializationError)?;
             match operation {
                 DbOperation::CreateMedia { media } => { self.create_media_no_wal(media); }
                 DbOperation::DeleteMedia { media_id } => { self.delete_media_no_wal(&media_id); }
@@ -88,12 +104,15 @@ impl TaganrogClient {
         result
     }
 
-    async fn write_wal(&mut self, operation: DbOperation) -> anyhow::Result<()> {
+    async fn write_wal(&mut self, operation: DbOperation) -> Result<(), TaganrogError> {
         info!("Writing to WAL: {:?}", operation);
-        let serialized_operation = serde_json::to_string(&operation)?;
+        let serialized_operation = serde_json::to_string(&operation)
+            .map_err(TaganrogError::DbSerializationError)?;
         let line = format!("{}\n", serialized_operation);
-        let mut file = tokio::fs::OpenOptions::new().append(true).open(&self.cfg.db_path).await?;
-        tokio::io::AsyncWriteExt::write_all(&mut file, line.as_bytes()).await?;
+        let mut file = tokio::fs::OpenOptions::new().append(true).open(&self.cfg.db_path).await
+            .map_err(TaganrogError::DbIOError)?;
+        tokio::io::AsyncWriteExt::write_all(&mut file, line.as_bytes()).await
+            .map_err(TaganrogError::DbIOError)?;
         info!("WAL written!");
         Ok(())
     }
@@ -289,12 +308,12 @@ impl TaganrogClient {
         false
     }
 
-    pub async fn upload_media(&mut self, content: Vec<u8>, filename: String) -> anyhow::Result<InsertResult<Media>> {
+    pub async fn upload_media(&mut self, content: Vec<u8>, filename: String) -> Result<InsertResult<Media>, TaganrogError> {
         if filename.is_empty() {
-            return Err(anyhow::anyhow!("Filename is empty"));
+            return Err(TaganrogError::InvalidFilename(filename));
         }
         if filename.contains('/') || filename.contains('\\') {
-            return Err(anyhow::anyhow!("Filename contains invalid characters"));
+            return Err(TaganrogError::InvalidFilename(filename));
         }
         let hash = MurMurHasher::hash_bytes(&content);
         if self.media_map.contains_key(&hash) {
@@ -307,8 +326,10 @@ impl TaganrogClient {
             unique_filename = format!("dup{}-{}", suffix, filename);
         }
         let abs_path = self.cfg.upload_dir.join(&unique_filename);
-        tokio::fs::write(&abs_path, &content).await?;
-        let rel_path = abs_path.relative_to(&self.cfg.workdir)?;
+        tokio::fs::write(&abs_path, &content).await
+            .map_err(TaganrogError::DbIOError)?;
+        let rel_path = abs_path.relative_to(&self.cfg.workdir)
+            .map_err(|_| TaganrogError::RelativePathError)?;
         let content_type = infer::get(&content).map(|x| x.mime_type()).unwrap_or("application/octet-stream").to_string();
         let size = content.len() as i64;
         let location = rel_path.to_string();
@@ -332,25 +353,29 @@ impl TaganrogClient {
         Ok(result)
     }
 
-    pub async fn create_media_from_file(&mut self, abs_path: &PathBuf) -> anyhow::Result<Media> {
-        let abs_path = abs_path.absolutize()?;
-        let rel_path = abs_path.relative_to(&self.cfg.workdir)?;
+    pub async fn create_media_from_file(&mut self, abs_path: &PathBuf) -> Result<Media, TaganrogError> {
+        let abs_path = abs_path.absolutize()
+            .map_err(|_| TaganrogError::AbsolutizeError)?;
+        let rel_path = abs_path.relative_to(&self.cfg.workdir)
+            .map_err(|_| TaganrogError::RelativePathError)?;
         if rel_path.starts_with(".") {
-            return Err(anyhow::anyhow!("Path is not within workdir"));
+            return Err(TaganrogError::PathNotWithinWorkdir);
         }
         if !abs_path.exists() {
-            return Err(anyhow::anyhow!("File does not exist"));
+            return Err(TaganrogError::FileNotFound);
         }
         if abs_path.is_dir() {
-            return Err(anyhow::anyhow!("Path is a directory"));
+            return Err(TaganrogError::PathIsDirectory);
         }
 
-        let file_bytes = std::fs::read(&abs_path)?;
+        let file_bytes = std::fs::read(&abs_path)
+            .map_err(TaganrogError::FileReadError)?;
         let hash = MurMurHasher::hash_bytes(&file_bytes);
         if self.media_map.contains_key(&hash) {
             return Ok(self.media_map.get(&hash).map(|x| x.value().clone()).unwrap());
         }
-        let metadata = std::fs::metadata(&abs_path)?;
+        let metadata = std::fs::metadata(&abs_path)
+            .map_err(TaganrogError::FileMetadataError)?;
         let content_type = infer::get(&file_bytes).map(|x| x.mime_type()).unwrap_or("application/octet-stream").to_string();
         let size = metadata.len() as i64;
         let location = rel_path.to_string();
@@ -371,7 +396,7 @@ impl TaganrogClient {
         Ok(media)
     }
 
-    pub async fn add_media(&mut self, media: Media) -> anyhow::Result<InsertResult<Media>> {
+    pub async fn add_media(&mut self, media: Media) -> Result<InsertResult<Media>, TaganrogError> {
         let hash = media.id.clone();
         if self.media_map.contains_key(&hash) {
             return Ok(InsertResult::Existing(self.media_map.get(&hash).map(|x| x.value().clone()).unwrap()));
@@ -383,7 +408,7 @@ impl TaganrogClient {
         Ok(result)
     }
 
-    pub async fn delete_media(&mut self, media_id: &MediaId) -> anyhow::Result<Option<Media>> {
+    pub async fn delete_media(&mut self, media_id: &MediaId) -> Result<Option<Media>, TaganrogError> {
         let maybe_media = self.delete_media_no_wal(media_id);
         if let Some(media) = &maybe_media {
             self.write_wal(DbOperation::DeleteMedia { media_id: media.id.clone() }).await?;
@@ -391,7 +416,7 @@ impl TaganrogClient {
         Ok(maybe_media)
     }
 
-    pub async fn add_tag_to_media(&mut self, media_id: &MediaId, tag: &Tag) -> anyhow::Result<bool> {
+    pub async fn add_tag_to_media(&mut self, media_id: &MediaId, tag: &Tag) -> Result<bool, TaganrogError> {
         let result = self.add_tag_to_media_no_wal(media_id, tag);
         if result {
             self.write_wal(DbOperation::AddTag { media_id: media_id.clone(), tag: tag.clone() }).await?;
@@ -399,7 +424,7 @@ impl TaganrogClient {
         Ok(result)
     }
 
-    pub async fn remove_tag_from_media(&mut self, media_id: &MediaId, tag: &Tag) -> anyhow::Result<bool> {
+    pub async fn remove_tag_from_media(&mut self, media_id: &MediaId, tag: &Tag) -> Result<bool, TaganrogError> {
         let result = self.remove_tag_from_media_no_wal(media_id, tag);
         if result {
             self.write_wal(DbOperation::RemoveTag { media_id: media_id.clone(), tag: tag.clone() }).await?;

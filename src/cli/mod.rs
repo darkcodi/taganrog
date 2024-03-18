@@ -7,36 +7,16 @@ use crate::entities::{InsertResult, Media};
 
 pub async fn add_media(client: &mut TaganrogClient, filepath: &str) -> Result<InsertResult<Media>, TaganrogError> {
     let canonical_filepath = canonicalize(filepath);
-    let media_result = client.create_media_from_file(&canonical_filepath).await;
-    if media_result.is_err() {
-        error!("Failed to create media: {}", media_result.err().unwrap());
-        std::process::exit(1);
-    }
-    let media = media_result.unwrap();
-    let add_result = client.add_media(media).await;
-    if add_result.is_err() {
-        error!("Failed to create media: {}", add_result.err().unwrap());
-        std::process::exit(1);
-    }
-    let insert_result = add_result.unwrap();
+    let media = client.create_media_from_file(&canonical_filepath).await?;
+    let insert_result = client.add_media(media).await?;
     Ok(insert_result)
 }
 
 pub async fn remove_media(client: &mut TaganrogClient, filepath: &str) -> Result<Option<Media>, TaganrogError> {
     let canonical_filepath = canonicalize(filepath);
-    let media_result = client.create_media_from_file(&canonical_filepath).await;
-    if media_result.is_err() {
-        error!("Failed to create media: {}", media_result.err().unwrap());
-        std::process::exit(1);
-    }
-    let media = media_result.unwrap();
+    let media = client.create_media_from_file(&canonical_filepath).await?;
     let media_id = media.id.clone();
-    let delete_result = client.delete_media(&media_id).await;
-    if delete_result.is_err() {
-        error!("Failed to delete media: {}", delete_result.err().unwrap());
-        std::process::exit(1);
-    }
-    let maybe_media = delete_result.unwrap();
+    let maybe_media = client.delete_media(&media_id).await?;
     Ok(maybe_media)
 }
 
