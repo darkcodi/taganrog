@@ -150,11 +150,47 @@ async fn main() {
                 }
             }
         },
-        Some(("tag", _)) => {
-            // let filepath: &String = tag_matches.get_one("filepath").unwrap();
-            // let tags: Vec<&String> = tag_matches.get_many("tag").unwrap().collect();
+        Some(("tag", tag_matches)) => {
+            let filepath: &String = tag_matches.get_one("filepath").unwrap();
+            let tags: Vec<&String> = tag_matches.get_many("tag").unwrap().collect();
+            let config = config::get_app_config(&matches);
+            let mut client = create_taganrog_client(config).await;
+            for tag in tags {
+                match cli::tag_media(&mut client, filepath, tag).await {
+                    Ok(was_added) => {
+                        if was_added {
+                            info!("Tagged media: {}", filepath);
+                        } else {
+                            info!("Media already has tag: {}", filepath);
+                        }
+                    },
+                    Err(e) => {
+                        error!("Failed to tag media: {}", e);
+                        std::process::exit(1);
+                    }
+                }
+            }
         },
-        Some(("untag", _)) => {
+        Some(("untag", untag_matches)) => {
+            let filepath: &String = untag_matches.get_one("filepath").unwrap();
+            let tags: Vec<&String> = untag_matches.get_many("tag").unwrap().collect();
+            let config = config::get_app_config(&matches);
+            let mut client = create_taganrog_client(config).await;
+            for tag in tags {
+                match cli::untag_media(&mut client, filepath, tag).await {
+                    Ok(was_removed) => {
+                        if was_removed {
+                            info!("Untagged media: {}", filepath);
+                        } else {
+                            info!("Media does not have tag: {}", filepath);
+                        }
+                    },
+                    Err(e) => {
+                        error!("Failed to untag media: {}", e);
+                        std::process::exit(1);
+                    }
+                }
+            }
         },
         _ => {
             error!("Invalid subcommand");

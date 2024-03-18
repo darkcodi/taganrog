@@ -20,6 +20,20 @@ pub async fn remove_media(client: &mut TaganrogClient, filepath: &str) -> Result
     Ok(maybe_media)
 }
 
+pub async fn tag_media(client: &mut TaganrogClient, filepath: &str, tag: &String) -> Result<bool, TaganrogError> {
+    let canonical_filepath = canonicalize(filepath);
+    let media = client.create_media_from_file(&canonical_filepath).await?;
+    let was_added = client.add_tag_to_media(&media.id, tag).await?;
+    Ok(was_added)
+}
+
+pub async fn untag_media(client: &mut TaganrogClient, filepath: &str, tag: &String) -> Result<bool, TaganrogError> {
+    let canonical_filepath = canonicalize(filepath);
+    let media = client.create_media_from_file(&canonical_filepath).await?;
+    let was_removed = client.remove_tag_from_media(&media.id, tag).await?;
+    Ok(was_removed)
+}
+
 pub fn get_config_value(config: AppConfig, key: &str) {
     match key {
         "work-dir" => {
