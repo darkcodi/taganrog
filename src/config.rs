@@ -4,9 +4,10 @@ use home::home_dir;
 use log::{debug, error, LevelFilter};
 use path_absolutize::Absolutize;
 use serde::{Deserialize, Serialize};
+use thiserror::Error;
 use crate::utils::str_utils::StringExtensions;
 
-#[derive(Debug, Default, Serialize, Deserialize)]
+#[derive(Debug, Default, Clone, Serialize, Deserialize)]
 pub struct ConfigBuilder {
     pub workdir: Option<String>,
     pub upload_dir: Option<String>,
@@ -21,7 +22,7 @@ impl ConfigBuilder {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct AppConfig {
     pub config_path: PathBuf,
     pub file_config: ConfigBuilder,
@@ -33,15 +34,38 @@ pub struct AppConfig {
     pub thumbnails_dir: PathBuf,
 }
 
-impl AppConfig {
-    pub fn new(config_path: PathBuf, file_config: ConfigBuilder, final_config: ConfigBuilder) -> anyhow::Result<Self> {
-        let workdir = final_config.workdir.ok_or_else(|| anyhow::anyhow!("workdir is not set"))?;
-        let upload_dir = final_config.upload_dir.ok_or_else(|| anyhow::anyhow!("upload_dir is not set"))?;
+#[derive(Error, Debug)]
+pub enum ConfigError {
+    #[error("Failed to get home directory")]
+    HomeDirNotFound,
+    #[error("Failed to get current directory")]
+    CurrentDirNotFound,
+    #[error("Failed to read/write config file: {0}")]
+    ConfigFileIO(#[from] std::io::Error),
+    #[error("Failed to serialize/deserialize config file: {0}")]
+    ConfigFileSerialization(#[from] serde_json::Error),
+    #[error("Failed to canonicalize path: {0}")]
+    PathCanonicalization(std::io::Error),
+    #[error("Validation error: {0}")]
+    Validation(String),
+}
 
-        let workdir = Self::get_or_create_workdir(&workdir)?;
-        let upload_dir = Self::get_or_create_upload_dir(&workdir, &upload_dir)?;
-        let db_path = Self::get_or_create_db_path(&workdir)?;
-        let thumbnails_dir = Self::get_or_create_thumbnails_dir(&workdir)?;
+impl AppConfig {
+    pub fn new(config_path: PathBuf, file_config: ConfigBuilder, final_config: ConfigBuilder) -> Result<Self, ConfigError> {
+        let workdir = final_config.workdir
+            .ok_or_else(|| ConfigError::Validation("workdir is not set".to_string()))?;
+        let upload_dir = final_config.upload_dir
+            .ok_or_else(|| ConfigError::Validation("upload_dir is not set".to_string()))?;
+
+        let workdir = Self::get_or_create_workdir(&workdir)
+            .map_err(|x| ConfigError::Validation(x.to_string()))?;
+        let upload_dir = Self::get_or_create_upload_dir(&workdir, &upload_dir)
+            .map_err(|x| ConfigError::Validation(x.to_string()))?;
+        let db_path = Self::get_or_create_db_path(&workdir)
+            .map_err(|x| ConfigError::Validation(x.to_string()))?;
+        let thumbnails_dir = Self::get_or_create_thumbnails_dir(&workdir)
+            .map_err(|x| ConfigError::Validation(x.to_string()))?;
+
         Ok(Self { config_path, file_config, workdir, upload_dir, db_path, thumbnails_dir })
     }
 
@@ -143,10 +167,22 @@ pub fn configure_api_logging(matches: &ArgMatches) {
 }
 
 pub fn get_app_config(matches: &ArgMatches) -> AppConfig {
-    let home_dir = get_home_dir();
+    let appconfig_result = try_get_app_config(matches);
+    if let Err(e) = &appconfig_result {
+        error!("Failed to get app config: {}", e);
+        std::process::exit(1);
+    }
+    let app_config = appconfig_result.unwrap();
+    debug!("{:?}", &app_config);
+
+    app_config
+}
+
+fn try_get_app_config(matches: &ArgMatches) -> Result<AppConfig, ConfigError> {
+    let home_dir = get_home_dir()?;
     let config_path = get_config_path(&home_dir, matches);
-    let env_config = read_env_config(matches);
-    let file_config = read_file_config(&config_path).unwrap_or_default();
+    let env_config = read_env_config(matches)?;
+    let file_config = read_file_config(&config_path)?;
 
     let mut final_config = env_config.merge(&file_config);
     if final_config.workdir.is_none() {
@@ -160,21 +196,20 @@ pub fn get_app_config(matches: &ArgMatches) -> AppConfig {
     }
     debug!("Final config: {:?}", &final_config);
 
-    AppConfig::new(config_path, file_config, final_config).expect("Failed to create AppConfig")
+    let app_config = AppConfig::new(config_path, file_config, final_config)?;
+    Ok(app_config)
 }
 
-fn get_home_dir() -> PathBuf {
+fn get_home_dir() -> Result<PathBuf, ConfigError> {
     let maybe_homedir_path = home_dir();
     if maybe_homedir_path.is_none() {
-        error!("Failed to get home directory: homedir is None");
-        std::process::exit(1);
+        return Err(ConfigError::HomeDirNotFound);
     }
     let homedir_path = maybe_homedir_path.unwrap();
     if homedir_path.as_os_str().is_empty() {
-        error!("Failed to get home directory: homedir is empty");
-        std::process::exit(1);
+        return Err(ConfigError::HomeDirNotFound);
     }
-    homedir_path
+    Ok(homedir_path)
 }
 
 fn get_config_path(home_dir: &Path, matches: &ArgMatches) -> PathBuf {
@@ -190,105 +225,59 @@ fn get_config_path(home_dir: &Path, matches: &ArgMatches) -> PathBuf {
     }
 }
 
-pub fn read_file_config(config_path: &Path) -> Option<ConfigBuilder> {
+pub fn read_file_config(config_path: &Path) -> Result<ConfigBuilder, ConfigError> {
     if !config_path.exists() {
         debug!("Config file not found: {}", config_path.display());
-        return None;
+        return Ok(ConfigBuilder::default());
     }
 
-    let file_content_result = std::fs::read_to_string(config_path);
-    if file_content_result.is_err() {
-        error!("Failed to read config file: {}", file_content_result.err().unwrap());
-        std::process::exit(1);
-    }
-
-    let file_content = file_content_result.unwrap();
-    let config_result = serde_json::from_str(&file_content);
-    if config_result.is_err() {
-        error!("Failed to deserialize config file: {}", config_result.err().unwrap());
-        std::process::exit(1);
-    }
-
-    let mut config: ConfigBuilder = config_result.unwrap();
-
+    let file_content = std::fs::read_to_string(config_path)?;
+    let mut config: ConfigBuilder = serde_json::from_str(&file_content)?;
     let work_dir = config.workdir.as_ref().and_then(|x: &String| x.empty_to_none());
     if let Some(work_dir) = work_dir {
-        let canonical_workdir_result = Path::new(&work_dir).absolutize_from(config_path).and_then(|x| x.canonicalize());
-        if canonical_workdir_result.is_err() {
-            error!("Config file has invalid work directory: {}", canonical_workdir_result.err().unwrap());
-            std::process::exit(1);
-        }
-        let canonical_workdir = canonical_workdir_result.unwrap().display().to_string();
-        config.workdir = Some(canonical_workdir);
+        config.workdir = Some(absolute_from(&work_dir, config_path)?);
     } else {
         config.workdir = None;
     }
 
     let upload_dir = config.upload_dir.as_ref().and_then(|x: &String| x.empty_to_none());
     if let Some(upload_dir) = upload_dir {
-        let canonical_upload_dir_result = Path::new(&upload_dir).absolutize_from(config_path).and_then(|x| x.canonicalize());
-        if canonical_upload_dir_result.is_err() {
-            error!("Config file has invalid upload directory: {}", canonical_upload_dir_result.err().unwrap());
-            std::process::exit(1);
-        }
-        let upload_dir = canonical_upload_dir_result.unwrap().display().to_string();
-        config.upload_dir = Some(upload_dir);
+        config.upload_dir = Some(absolute_from(&upload_dir, config_path)?);
     } else {
         config.upload_dir = None;
     }
 
     debug!("File config: {:?}", &config);
-    Some(config)
+    Ok(config)
 }
 
-pub fn write_file_config(config_path: &Path, config: &ConfigBuilder) {
-    let config_json_result = serde_json::to_string_pretty(config);
-    if config_json_result.is_err() {
-        error!("Failed to serialize config to JSON: {}", config_json_result.err().unwrap());
-        std::process::exit(1);
-    }
-
-    let config_json = config_json_result.unwrap();
-    let write_result = std::fs::write(config_path, config_json);
-    if write_result.is_err() {
-        error!("Failed to write config to file: {}", write_result.err().unwrap());
-        std::process::exit(1);
-    }
+pub fn write_file_config(config_path: &Path, config: &ConfigBuilder) -> Result<(), ConfigError> {
+    let config_json = serde_json::to_string_pretty(config)?;
+    std::fs::write(config_path, config_json)?;
+    Ok(())
 }
 
-fn read_env_config(matches: &ArgMatches) -> ConfigBuilder {
-    let current_dir_result = std::env::current_dir();
-    if current_dir_result.is_err() {
-        error!("Failed to get current directory: {}", current_dir_result.err().unwrap());
-        std::process::exit(1);
-    }
+fn read_env_config(matches: &ArgMatches) -> Result<ConfigBuilder, ConfigError> {
+    let current_dir = std::env::current_dir().map_err(|_| ConfigError::CurrentDirNotFound)?;
 
     let mut config = ConfigBuilder::default();
-    let current_dir = current_dir_result.unwrap();
     let work_dir = matches.get_one("work-dir").and_then(|x: &String| x.empty_to_none());
     if let Some(work_dir) = work_dir {
-        let canonical_workdir_result = Path::new(&work_dir).absolutize_from(&current_dir).and_then(|x| x.canonicalize());
-        if canonical_workdir_result.is_err() {
-            error!("Failed to canonicalize work directory: {}", canonical_workdir_result.err().unwrap());
-            std::process::exit(1);
-        }
-        let canonical_workdir = canonical_workdir_result.unwrap().display().to_string();
-        debug!("TAG_WORK_DIR: {}", canonical_workdir);
-        config.workdir = Some(canonical_workdir);
+        config.workdir = Some(absolute_from(&work_dir, &current_dir)?);
     }
 
     let upload_dir = matches.get_one("upload-dir").and_then(|x: &String| x.empty_to_none());
     if let Some(upload_dir) = upload_dir {
-        let canonical_upload_dir_result = Path::new(&upload_dir).absolutize_from(&current_dir).and_then(|x| x.canonicalize());
-        if canonical_upload_dir_result.is_err() {
-            error!("Failed to canonicalize upload directory: {}", canonical_upload_dir_result.err().unwrap());
-            std::process::exit(1);
-        }
-        let upload_dir = canonical_upload_dir_result.unwrap().display().to_string();
-        debug!("TAG_UPLOAD_DIR: {}", upload_dir);
-        config.upload_dir = Some(upload_dir);
+        config.upload_dir = Some(absolute_from(&upload_dir, &current_dir)?);
     }
 
     debug!("Env config: {:?}", &config);
-    config
+    Ok(config)
+}
+
+fn absolute_from(path: &str, base: &Path) -> Result<String, ConfigError> {
+    let canonical_path = Path::new(path).absolutize_from(base).and_then(|x| x.canonicalize())
+        .map(|x| x.display().to_string())
+        .map_err(ConfigError::PathCanonicalization)?;
+    Ok(canonical_path)
 }

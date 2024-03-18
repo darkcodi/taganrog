@@ -1,18 +1,14 @@
 use std::path::PathBuf;
 use log::{error, info};
-use crate::client::TaganrogClient;
+use crate::client::{TaganrogClient, TaganrogError};
 use crate::config;
 use crate::config::AppConfig;
-use crate::entities::InsertResult;
+use crate::entities::{InsertResult, Media};
 
-pub async fn add_media(config: AppConfig, filepath: &str) {
+pub async fn add_media(config: &AppConfig, filepath: &str) -> Result<InsertResult<Media>, TaganrogError> {
     let canonical_filepath = canonicalize(filepath);
-    let mut client = TaganrogClient::new(config);
-    let init_result = client.init().await;
-    if init_result.is_err() {
-        error!("Failed to initialize client: {}", init_result.err().unwrap());
-        std::process::exit(1);
-    }
+    let mut client = TaganrogClient::new(config.clone());
+    client.init().await?;
     let media_result = client.create_media_from_file(&canonical_filepath).await;
     if media_result.is_err() {
         error!("Failed to create media: {}", media_result.err().unwrap());
@@ -25,26 +21,13 @@ pub async fn add_media(config: AppConfig, filepath: &str) {
         std::process::exit(1);
     }
     let insert_result = add_result.unwrap();
-    match insert_result {
-        InsertResult::Existing(existing_media) => {
-            info!("Media already exists: {:?}", existing_media);
-            std::process::exit(0);
-        }
-        InsertResult::New(new_media) => {
-            info!("Media created: {:?}", new_media);
-            std::process::exit(0);
-        }
-    }
+    Ok(insert_result)
 }
 
-pub async fn remove_media(config: AppConfig, filepath: &str) {
+pub async fn remove_media(config: &AppConfig, filepath: &str) -> Result<Option<Media>, TaganrogError> {
     let canonical_filepath = canonicalize(filepath);
-    let mut client = TaganrogClient::new(config);
-    let init_result = client.init().await;
-    if init_result.is_err() {
-        error!("Failed to initialize client: {}", init_result.err().unwrap());
-        std::process::exit(1);
-    }
+    let mut client = TaganrogClient::new(config.clone());
+    client.init().await?;
     let media_result = client.create_media_from_file(&canonical_filepath).await;
     if media_result.is_err() {
         error!("Failed to create media: {}", media_result.err().unwrap());
@@ -58,13 +41,7 @@ pub async fn remove_media(config: AppConfig, filepath: &str) {
         std::process::exit(1);
     }
     let maybe_media = delete_result.unwrap();
-    if maybe_media.is_none() {
-        error!("Media not found: {:?}", &canonical_filepath);
-        std::process::exit(1);
-    }
-    let media = maybe_media.unwrap();
-    info!("Media deleted: {:?}", media);
-    std::process::exit(0);
+    Ok(maybe_media)
 }
 
 pub fn get_config_value(config: AppConfig, key: &str) {
@@ -99,7 +76,11 @@ pub fn set_config_value(mut config: AppConfig, key: &str, value: &str) {
             }
             let path_str = path.display().to_string();
             config.file_config.workdir = Some(path_str);
-            config::write_file_config(&config.config_path, &config.file_config);
+            let write_result = config::write_file_config(&config.config_path, &config.file_config);
+            if write_result.is_err() {
+                error!("Failed to write config: {}", write_result.err().unwrap());
+                std::process::exit(1);
+            }
             info!("Workdir set to: {:?}", value);
             std::process::exit(0);
         },
@@ -116,7 +97,11 @@ pub fn set_config_value(mut config: AppConfig, key: &str, value: &str) {
             }
             let path_str = path.display().to_string();
             config.file_config.upload_dir = Some(path_str);
-            config::write_file_config(&config.config_path, &config.file_config);
+            let write_result = config::write_file_config(&config.config_path, &config.file_config);
+            if write_result.is_err() {
+                error!("Failed to write config: {}", write_result.err().unwrap());
+                std::process::exit(1);
+            }
             info!("Upload dir set to: {:?}", value);
             std::process::exit(0);
         },

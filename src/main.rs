@@ -1,6 +1,7 @@
 use clap::{Arg, Command};
-use log::{error, info};
+use log::{debug, error, info};
 use taganrog::{cli, config, web_ui};
+use taganrog::entities::{InsertResult};
 
 #[tokio::main]
 async fn main() {
@@ -60,12 +61,12 @@ async fn main() {
         .subcommand(
             Command::new("add")
                 .about("Add a file to the database")
-                .arg(Arg::new("filepath").required(true).help("Path of the file to add")),
+                .arg(Arg::new("filepath").required(true).help("File(s) to add").num_args(1..).value_delimiter(' ')),
         )
         .subcommand(
             Command::new("remove")
                 .about("Remove a file from the database")
-                .arg(Arg::new("filepath").required(true).help("Path of the file to remove")),
+                .arg(Arg::new("filepath").required(true).help("File(s) to remove").num_args(1..).value_delimiter(' ')),
         )
         .subcommand(
             Command::new("tag")
@@ -110,14 +111,40 @@ async fn main() {
         Some(("add", add_matches)) => {
             config::configure_console_logging(&matches);
             let config = config::get_app_config(&matches);
-            let filepath: &String = add_matches.get_one("filepath").unwrap();
-            cli::add_media(config, filepath).await
+            let filepath_vec: Vec<&String> = add_matches.get_many("filepath").unwrap().collect();
+            debug!("Filepath vec: {:?}", filepath_vec);
+            for filepath in filepath_vec {
+                let result = cli::add_media(&config, filepath).await;
+                if result.is_err() {
+                    error!("Failed to add media: {}", result.err().unwrap());
+                    std::process::exit(1);
+                } else {
+                    let insert_result = result.unwrap();
+                    match insert_result {
+                        InsertResult::Existing(existing_media) => { info!("Media already exists: {:?}", existing_media); }
+                        InsertResult::New(new_media) => { info!("Added media: {:?}", new_media); }
+                    }
+                }
+            }
         },
         Some(("remove", remove_matches)) => {
             config::configure_console_logging(&matches);
             let config = config::get_app_config(&matches);
-            let filepath: &String = remove_matches.get_one("filepath").unwrap();
-            cli::remove_media(config, filepath).await
+            let filepath_vec: Vec<&String> = remove_matches.get_many("filepath").unwrap().collect();
+            debug!("Filepath vec: {:?}", filepath_vec);
+            for filepath in filepath_vec {
+                let result = cli::remove_media(&config, filepath).await;
+                if result.is_err() {
+                    error!("Failed to remove media: {}", result.err().unwrap());
+                    std::process::exit(1);
+                } else {
+                    let maybe_media = result.unwrap();
+                    match maybe_media {
+                        Some(media) => { info!("Removed media: {:?}", media); }
+                        None => { info!("Media not found"); }
+                    }
+                }
+            }
         },
         Some(("tag", _)) => {
             // let filepath: &String = tag_matches.get_one("filepath").unwrap();

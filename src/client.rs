@@ -7,6 +7,7 @@ use path_absolutize::Absolutize;
 use serde::{Deserialize, Serialize};
 use rand::seq::SliceRandom;
 use relative_path::PathExt;
+use thiserror::Error;
 use tokio::time::Instant;
 use crate::config::AppConfig;
 use crate::entities::*;
@@ -26,6 +27,14 @@ pub struct TaganrogClient {
     tags_map: DashMap<Tag, HashSet<MediaId>>,
 }
 
+#[derive(Error, Debug)]
+pub enum TaganrogError {
+    #[error("Failed to read DB init file: {0}")]
+    DbInitReadError(std::io::Error),
+    #[error("Failed to parse DB operation: {0}")]
+    DbInitParseError(serde_json::Error),
+}
+
 impl TaganrogClient {
     pub fn new(cfg: AppConfig) -> Self {
         Self {
@@ -35,14 +44,16 @@ impl TaganrogClient {
         }
     }
 
-    pub async fn init(&mut self) -> anyhow::Result<()> {
+    pub async fn init(&mut self) -> Result<(), TaganrogError> {
         debug!("Starting DB import from WAL...");
-        let file_str = tokio::fs::read_to_string(&self.cfg.db_path).await?;
+        let file_str = tokio::fs::read_to_string(&self.cfg.db_path).await
+            .map_err(TaganrogError::DbInitReadError)?;
         for line in file_str.split('\n') {
             if line.is_empty() {
                 continue;
             }
-            let operation: DbOperation = serde_json::from_str(line)?;
+            let operation: DbOperation = serde_json::from_str(line)
+                .map_err(TaganrogError::DbInitParseError)?;
             match operation {
                 DbOperation::CreateMedia { media } => { self.create_media_no_wal(media); }
                 DbOperation::DeleteMedia { media_id } => { self.delete_media_no_wal(&media_id); }
