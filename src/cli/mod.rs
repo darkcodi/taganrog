@@ -3,7 +3,8 @@ use log::{error, info};
 use crate::client::{TaganrogClient, TaganrogError};
 use crate::config;
 use crate::config::AppConfig;
-use crate::entities::{InsertResult, Media};
+use crate::entities::{InsertResult, Media, MediaPage, TagsAutocomplete};
+use crate::utils::normalize_query;
 
 pub async fn add_media(client: &mut TaganrogClient, filepath: &str) -> Result<InsertResult<Media>, TaganrogError> {
     let canonical_filepath = canonicalize(filepath);
@@ -32,6 +33,23 @@ pub async fn untag_media(client: &mut TaganrogClient, filepath: &str, tag: &Stri
     let media = client.create_media_from_file(&canonical_filepath).await?;
     let was_removed = client.remove_tag_from_media(&media.id, tag).await?;
     Ok(was_removed)
+}
+
+pub async fn list_tags(client: &TaganrogClient, tag_name: String, max_items: usize) -> Vec<TagsAutocomplete> {
+    let normalized_query = normalize_query(&tag_name);
+    if normalized_query.is_empty() {
+        return client.get_all_tags();
+    }
+    client.autocomplete_tags(&normalized_query, max_items)
+}
+
+pub async fn search_media(client: &TaganrogClient, tags: Vec<String>, page_size: usize, page_index: usize) -> MediaPage {
+    let query = tags.join(" ");
+    let normalized_query = normalize_query(&query);
+    if normalized_query.is_empty() {
+        return client.get_all_media(page_size, page_index);
+    }
+    client.search_media(&normalized_query, page_size, page_index)
 }
 
 pub fn get_config_value(config: AppConfig, key: &str) {

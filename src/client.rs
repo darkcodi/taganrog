@@ -224,6 +224,22 @@ impl TaganrogClient {
         }
     }
 
+    pub fn get_all_tags(&self) -> Vec<TagsAutocomplete> {
+        self.tags_map.iter()
+            .map(|x| {
+                let media_count = x.value().len();
+                TagsAutocomplete {
+                    head: vec![],
+                    last: x.key().clone(),
+                    media_count,
+                }
+            })
+            .filter(|x| x.media_count > 0)
+            .sorted_by_key(|x| x.last.clone()).rev()
+            .sorted_by_key(|x| x.media_count).rev()
+            .collect()
+    }
+
     pub fn autocomplete_tags(&self, query: &str, max_items: usize) -> Vec<TagsAutocomplete> {
         if query.is_empty() {
             return vec![];
