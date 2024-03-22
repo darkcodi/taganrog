@@ -4,7 +4,7 @@ use crate::config::ConfigError;
 use crate::entities::{Media, MediaId, Tag};
 use crate::error::TaganrogError;
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub enum DbOperation {
     CreateMedia { media: Media },
     DeleteMedia { media_id: MediaId },
@@ -53,6 +53,22 @@ impl Storage for FileStorage {
             .map_err(TaganrogError::DbIOError)?;
         tokio::io::AsyncWriteExt::write_all(&mut file, line.as_bytes()).await
             .map_err(TaganrogError::DbIOError)?;
+        Ok(())
+    }
+}
+
+#[derive(Debug, Default)]
+pub struct InMemoryStorage {
+    operations: Vec<DbOperation>,
+}
+
+impl Storage for InMemoryStorage {
+    async fn read_all(&self) -> Result<Vec<DbOperation>, TaganrogError> {
+        Ok(self.operations.clone())
+    }
+
+    async fn write(&mut self, operation: DbOperation) -> Result<(), TaganrogError> {
+        self.operations.push(operation);
         Ok(())
     }
 }

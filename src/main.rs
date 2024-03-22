@@ -106,16 +106,19 @@ async fn handle_command(command: Command) {
     match matches.subcommand() {
         Some(("config", config_matches)) => {
             config::configure_console_logging(&matches);
-            let config = config::get_app_config(&matches);
             match config_matches.subcommand() {
                 Some(("get", get_matches)) => {
                     let key: &String = get_matches.get_one("key").unwrap();
-                    cli::get_config_value(config, key)
+                    let config_path = config::get_config_path(&matches)
+                        .expect("Failed to get config path");
+                    cli::get_config_value(&config_path, key)
                 },
                 Some(("set", set_matches)) => {
                     let key: &String = set_matches.get_one("key").unwrap();
                     let value: &String = set_matches.get_one("value").unwrap();
-                    cli::set_config_value(config, key, value)
+                    let config_path = config::get_config_path(&matches)
+                        .expect("Failed to get config path");
+                    cli::set_config_value(&config_path, key, value)
                 },
                 _ => {
                     error!("Invalid subcommand");
@@ -125,13 +128,13 @@ async fn handle_command(command: Command) {
         },
         Some(("web-ui", _)) => {
             config::configure_api_logging(&matches);
-            let config = config::get_app_config(&matches);
+            let config = config::get_app_config_or_exit(&matches);
             let client = create_taganrog_client(config).await;
             web_ui::serve(client).await
         },
         Some(("add", add_matches)) => {
             config::configure_console_logging(&matches);
-            let config = config::get_app_config(&matches);
+            let config = config::get_app_config_or_exit(&matches);
             let filepath_vec: Vec<&String> = add_matches.get_many("filepath").unwrap().collect();
             let mut client = create_taganrog_client(config).await;
             for filepath in filepath_vec {
@@ -151,7 +154,7 @@ async fn handle_command(command: Command) {
         },
         Some(("remove", remove_matches)) => {
             config::configure_console_logging(&matches);
-            let config = config::get_app_config(&matches);
+            let config = config::get_app_config_or_exit(&matches);
             let filepath_vec: Vec<&String> = remove_matches.get_many("filepath").unwrap().collect();
             let mut client = create_taganrog_client(config).await;
             for filepath in filepath_vec {
@@ -173,7 +176,7 @@ async fn handle_command(command: Command) {
             config::configure_console_logging(&matches);
             let filepath: &String = tag_matches.get_one("filepath").unwrap();
             let tags: Vec<&String> = tag_matches.get_many("tag").unwrap().collect();
-            let config = config::get_app_config(&matches);
+            let config = config::get_app_config_or_exit(&matches);
             let mut client = create_taganrog_client(config).await;
             for tag in tags {
                 match cli::tag_media(&mut client, filepath, tag).await {
@@ -195,7 +198,7 @@ async fn handle_command(command: Command) {
             config::configure_console_logging(&matches);
             let filepath: &String = untag_matches.get_one("filepath").unwrap();
             let tags: Vec<&String> = untag_matches.get_many("tag").unwrap().collect();
-            let config = config::get_app_config(&matches);
+            let config = config::get_app_config_or_exit(&matches);
             let mut client = create_taganrog_client(config).await;
             for tag in tags {
                 match cli::untag_media(&mut client, filepath, tag).await {
@@ -218,7 +221,7 @@ async fn handle_command(command: Command) {
             let all: bool = list_matches.get_flag("all");
             let max_items = if all { usize::MAX } else { 10 };
             let tag_name: String = list_matches.get_one::<String>("tag").map(|x| x.to_owned()).unwrap_or_default();
-            let config = config::get_app_config(&matches);
+            let config = config::get_app_config_or_exit(&matches);
             let client = create_taganrog_client(config).await;
             let tags_autocomplete = cli::list_tags(&client, tag_name, max_items).await;
             for tag_autocomplete in tags_autocomplete {
@@ -232,7 +235,7 @@ async fn handle_command(command: Command) {
             let all: bool = search_matches.get_flag("all");
             if all { page_size = usize::MAX; page = 1; }
             let tags: Vec<String> = search_matches.get_many::<String>("tag").unwrap().map(|x| x.to_owned()).collect();
-            let config = config::get_app_config(&matches);
+            let config = config::get_app_config_or_exit(&matches);
             let client = create_taganrog_client(config).await;
             let page_index = page - 1;
             let media_page = cli::search_media(&client, tags, page_size, page_index).await;

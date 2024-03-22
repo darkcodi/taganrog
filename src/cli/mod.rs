@@ -1,8 +1,7 @@
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use log::{error, info};
 use crate::client::TaganrogClient;
 use crate::config;
-use crate::config::AppConfig;
 use crate::entities::{InsertResult, Media, MediaPage, TagsAutocomplete};
 use crate::error::TaganrogError;
 use crate::storage::Storage;
@@ -54,14 +53,20 @@ pub async fn search_media<T: Storage>(client: &TaganrogClient<T>, tags: Vec<Stri
     client.search_media(&normalized_query, page_size, page_index)
 }
 
-pub fn get_config_value(config: AppConfig, key: &str) {
+pub fn get_config_value(config_path: &Path, key: &str) {
+    let file_config_result = config::read_file_config(config_path);
+    if file_config_result.is_err() {
+        error!("Failed to read config: {}", file_config_result.err().unwrap());
+        std::process::exit(1);
+    }
+    let file_config = file_config_result.unwrap();
     match key {
         "work-dir" => {
-            info!("Workdir: {:?}", config.file_config.workdir);
+            info!("Workdir: {:?}", file_config.workdir);
             std::process::exit(0);
         },
         "upload-dir" => {
-            info!("Upload dir: {:?}", config.file_config.upload_dir);
+            info!("Upload dir: {:?}", file_config.upload_dir);
             std::process::exit(0);
         },
         _ => {
@@ -71,7 +76,13 @@ pub fn get_config_value(config: AppConfig, key: &str) {
     }
 }
 
-pub fn set_config_value(mut config: AppConfig, key: &str, value: &str) {
+pub fn set_config_value(config_path: &Path, key: &str, value: &str) {
+    let file_config_result = config::read_file_config(config_path);
+    if file_config_result.is_err() {
+        error!("Failed to read config: {}", file_config_result.err().unwrap());
+        std::process::exit(1);
+    }
+    let mut file_config = file_config_result.unwrap();
     match key {
         "work-dir" => {
             let path_result = PathBuf::try_from(value);
@@ -85,8 +96,8 @@ pub fn set_config_value(mut config: AppConfig, key: &str, value: &str) {
                 std::process::exit(1);
             }
             let path_str = path.display().to_string();
-            config.file_config.workdir = Some(path_str);
-            let write_result = config::write_file_config(&config.config_path, &config.file_config);
+            file_config.workdir = Some(path_str);
+            let write_result = config::write_file_config(config_path, &file_config);
             if write_result.is_err() {
                 error!("Failed to write config: {}", write_result.err().unwrap());
                 std::process::exit(1);
@@ -106,8 +117,8 @@ pub fn set_config_value(mut config: AppConfig, key: &str, value: &str) {
                 std::process::exit(1);
             }
             let path_str = path.display().to_string();
-            config.file_config.upload_dir = Some(path_str);
-            let write_result = config::write_file_config(&config.config_path, &config.file_config);
+            file_config.upload_dir = Some(path_str);
+            let write_result = config::write_file_config(config_path, &file_config);
             if write_result.is_err() {
                 error!("Failed to write config: {}", write_result.err().unwrap());
                 std::process::exit(1);

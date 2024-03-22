@@ -22,17 +22,6 @@ impl ConfigBuilder {
     }
 }
 
-#[derive(Debug, Clone)]
-pub struct AppConfig {
-    pub config_path: PathBuf,
-    pub file_config: ConfigBuilder,
-
-    // final config
-    pub work_dir: PathBuf,
-    pub upload_dir: PathBuf,
-    pub thumbnails_dir: PathBuf,
-}
-
 #[derive(Error, Debug)]
 pub enum ConfigError {
     #[error("Failed to get home directory")]
@@ -49,18 +38,25 @@ pub enum ConfigError {
     Validation(String),
 }
 
+#[derive(Debug, Clone)]
+pub struct AppConfig {
+    pub work_dir: PathBuf,
+    pub upload_dir: PathBuf,
+    pub thumbnails_dir: PathBuf,
+}
+
 impl AppConfig {
-    pub fn new(config_path: PathBuf, file_config: ConfigBuilder, final_config: ConfigBuilder) -> Result<Self, ConfigError> {
-        let workdir = final_config.workdir
+    pub fn new(builder: ConfigBuilder) -> Result<Self, ConfigError> {
+        let workdir = builder.workdir
             .ok_or_else(|| ConfigError::Validation("workdir is not set".to_string()))?;
-        let upload_dir = final_config.upload_dir
+        let upload_dir = builder.upload_dir
             .ok_or_else(|| ConfigError::Validation("upload_dir is not set".to_string()))?;
 
         let work_dir = Self::get_or_create_workdir(&workdir)?;
         let upload_dir = Self::get_or_create_upload_dir(&work_dir, &upload_dir)?;
         let thumbnails_dir = Self::get_or_create_thumbnails_dir(&work_dir)?;
 
-        Ok(Self { config_path, file_config, work_dir, upload_dir, thumbnails_dir })
+        Ok(Self { work_dir, upload_dir, thumbnails_dir })
     }
 
     fn get_or_create_workdir(workdir: &str) -> Result<PathBuf, ConfigError> {
@@ -149,8 +145,14 @@ pub fn configure_api_logging(matches: &ArgMatches) {
         .expect("Failed to configure logging");
 }
 
-pub fn get_app_config(matches: &ArgMatches) -> AppConfig {
-    let appconfig_result = try_get_app_config(matches);
+pub fn get_app_config_or_exit(matches: &ArgMatches) -> AppConfig {
+    let config_path_result = get_config_path(matches);
+    if let Err(e) = &config_path_result {
+        error!("Failed to get config path: {}", e);
+        std::process::exit(1);
+    }
+    let config_path = config_path_result.unwrap();
+    let appconfig_result = get_app_config(matches, &config_path);
     if let Err(e) = &appconfig_result {
         error!("Failed to get app config: {}", e);
         std::process::exit(1);
@@ -161,11 +163,10 @@ pub fn get_app_config(matches: &ArgMatches) -> AppConfig {
     app_config
 }
 
-fn try_get_app_config(matches: &ArgMatches) -> Result<AppConfig, ConfigError> {
+pub fn get_app_config(matches: &ArgMatches, config_path: &Path) -> Result<AppConfig, ConfigError> {
     let home_dir = get_home_dir()?;
-    let config_path = get_config_path(&home_dir, matches);
     let env_config = read_env_config(matches)?;
-    let file_config = read_file_config(&config_path)?;
+    let file_config = read_file_config(config_path)?;
 
     let mut final_config = env_config.merge(&file_config);
     if final_config.workdir.is_none() {
@@ -179,11 +180,11 @@ fn try_get_app_config(matches: &ArgMatches) -> Result<AppConfig, ConfigError> {
     }
     debug!("Final config: {:?}", &final_config);
 
-    let app_config = AppConfig::new(config_path, file_config, final_config)?;
+    let app_config = AppConfig::new(final_config)?;
     Ok(app_config)
 }
 
-fn get_home_dir() -> Result<PathBuf, ConfigError> {
+pub fn get_home_dir() -> Result<PathBuf, ConfigError> {
     let maybe_homedir_path = home_dir();
     if maybe_homedir_path.is_none() {
         return Err(ConfigError::HomeDirNotFound);
@@ -195,16 +196,17 @@ fn get_home_dir() -> Result<PathBuf, ConfigError> {
     Ok(homedir_path)
 }
 
-fn get_config_path(home_dir: &Path, matches: &ArgMatches) -> PathBuf {
+pub fn get_config_path(matches: &ArgMatches) -> Result<PathBuf, ConfigError> {
+    let home_dir = get_home_dir()?;
     let maybe_config_path: Option<String> = matches.get_one("config-path").and_then(|x: &String| x.empty_to_none());
     if let Some(config_path) = &maybe_config_path {
         let config_path = PathBuf::from(config_path);
         debug!("TAG_CONFIG: {}", config_path.display().to_string());
-        config_path
+        Ok(config_path)
     } else {
         let config_path = home_dir.join("taganrog.config.json");
         debug!("No custom config path set. Using default: {}", config_path.display().to_string());
-        config_path
+        Ok(config_path)
     }
 }
 

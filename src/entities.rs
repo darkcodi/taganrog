@@ -1,5 +1,6 @@
 use chrono::{DateTime, Utc};
 
+#[derive(serde::Serialize, serde::Deserialize, Clone, Debug, PartialEq, Eq)]
 pub enum InsertResult<T> {
     Existing(T),
     New(T),

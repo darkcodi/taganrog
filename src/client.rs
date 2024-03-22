@@ -384,19 +384,19 @@ impl<T: Storage> TaganrogClient<T> {
     }
 
     pub async fn add_tag_to_media(&mut self, media_id: &MediaId, tag: &Tag) -> Result<bool, TaganrogError> {
-        let result = self.add_tag_to_media_in_memory(media_id, tag);
-        if result {
+        let was_added = self.add_tag_to_media_in_memory(media_id, tag);
+        if was_added {
             self.storage.write(DbOperation::AddTag { media_id: media_id.clone(), tag: tag.clone() }).await?;
         }
-        Ok(result)
+        Ok(was_added)
     }
 
     pub async fn remove_tag_from_media(&mut self, media_id: &MediaId, tag: &Tag) -> Result<bool, TaganrogError> {
-        let result = self.remove_tag_from_media_in_memory(media_id, tag);
-        if result {
+        let was_removed = self.remove_tag_from_media_in_memory(media_id, tag);
+        if was_removed {
             self.storage.write(DbOperation::RemoveTag { media_id: media_id.clone(), tag: tag.clone() }).await?;
         }
-        Ok(result)
+        Ok(was_removed)
     }
 
     pub fn get_media_path(&self, media_id: &MediaId) -> Option<PathBuf> {
