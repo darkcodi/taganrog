@@ -47,32 +47,21 @@ pub struct AppConfig {
 
 impl AppConfig {
     pub fn new(builder: ConfigBuilder) -> Result<Self, ConfigError> {
-        let workdir = builder.workdir
+        let work_dir = builder.workdir
             .ok_or_else(|| ConfigError::Validation("workdir is not set".to_string()))?;
         let upload_dir = builder.upload_dir
             .ok_or_else(|| ConfigError::Validation("upload_dir is not set".to_string()))?;
 
-        let work_dir = Self::get_or_create_workdir(&workdir)?;
-        let upload_dir = Self::get_or_create_upload_dir(&work_dir, &upload_dir)?;
-        let thumbnails_dir = Self::get_or_create_thumbnails_dir(&work_dir)?;
-
-        Ok(Self { work_dir, upload_dir, thumbnails_dir })
-    }
-
-    fn get_or_create_workdir(workdir: &str) -> Result<PathBuf, ConfigError> {
-        let workdir = PathBuf::from(workdir);
-        if !workdir.exists() {
-            std::fs::create_dir_all(&workdir)?;
+        let work_dir = PathBuf::from(work_dir);
+        if !work_dir.exists() {
+            std::fs::create_dir_all(&work_dir)?;
         }
-        if !workdir.is_dir() {
+        if !work_dir.is_dir() {
             return Err(ConfigError::Validation("workdir is not a directory".to_string()));
         }
-        Ok(workdir)
-    }
 
-    fn get_or_create_upload_dir(workdir: &PathBuf, upload_dir: &str) -> Result<PathBuf, ConfigError> {
         let upload_dir = PathBuf::from(upload_dir);
-        if !upload_dir.starts_with(workdir) {
+        if !upload_dir.starts_with(&work_dir) {
             return Err(ConfigError::Validation("upload_dir is not a subdirectory of workdir".to_string()));
         }
         if !upload_dir.exists() {
@@ -81,18 +70,15 @@ impl AppConfig {
         if upload_dir.exists() && !upload_dir.is_dir() {
             return Err(ConfigError::Validation("upload_dir is not a directory".to_string()));
         }
-        Ok(upload_dir)
-    }
-
-    fn get_or_create_thumbnails_dir(workdir: &Path) -> Result<PathBuf, ConfigError> {
-        let thumbnails_dir = workdir.join("taganrog-thumbnails");
+        let thumbnails_dir = work_dir.join("taganrog-thumbnails");
         if !thumbnails_dir.exists() {
             std::fs::create_dir_all(&thumbnails_dir)?;
         }
         if thumbnails_dir.exists() && !thumbnails_dir.is_dir() {
             return Err(ConfigError::Validation("thumbnails_dir is not a directory".to_string()));
         }
-        Ok(thumbnails_dir)
+
+        Ok(Self { work_dir, upload_dir, thumbnails_dir })
     }
 }
 
@@ -242,7 +228,7 @@ pub fn write_file_config(config_path: &Path, config: &ConfigBuilder) -> Result<(
     Ok(())
 }
 
-fn read_env_config(matches: &ArgMatches) -> Result<ConfigBuilder, ConfigError> {
+pub fn read_env_config(matches: &ArgMatches) -> Result<ConfigBuilder, ConfigError> {
     let current_dir = std::env::current_dir().map_err(|_| ConfigError::CurrentDirNotFound)?;
 
     let mut config = ConfigBuilder::default();
