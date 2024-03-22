@@ -34,3 +34,21 @@ pub fn normalize_query(query: &str) -> String {
 
     normalized_query
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_normalize_query() {
+        assert_eq!(normalize_query("  "), "");
+        assert_eq!(normalize_query("  -  "), "");
+        assert_eq!(normalize_query("  -  -  "), "");
+        assert_eq!(normalize_query("tag1"), "tag1");
+        assert_eq!(normalize_query("tag1 tag2"), "tag1 tag2");
+        assert_eq!(normalize_query("tag1 tag2 tag1"), "tag1 tag2");
+        assert_eq!(normalize_query("tag1   tag2"), "tag1 tag2");
+        assert_eq!(normalize_query("tag1   tag2 "), "tag1 tag2 ");
+        assert_eq!(normalize_query("tag1   tag2   "), "tag1 tag2 ");
+    }
+}

@@ -1,4 +1,4 @@
-use clap::{Arg, Command};
+use clap::{Arg, ArgMatches, Command};
 use log::{error, info};
 use taganrog::{cli, config, web_ui};
 use taganrog::client::TaganrogClient;
@@ -7,7 +7,7 @@ use taganrog::entities::{InsertResult};
 
 #[tokio::main]
 async fn main() {
-    let app = Command::new("tgk")
+    let command = Command::new("tgk")
         .version("0.1")
         .author("Ivan Yaremenchuk")
         .about("Taganrog All-In-One binary: CLI, Web UI")
@@ -97,8 +97,11 @@ async fn main() {
                 .arg(Arg::new("tag").required(true).help("List of tags that is used for AND-matching media").num_args(1..).value_delimiter(' ')),
         );
 
-    let matches = app.get_matches();
+    handle_command(command).await;
+}
 
+async fn handle_command(command: Command) {
+    let matches = command.get_matches();
     match matches.subcommand() {
         Some(("config", config_matches)) => {
             config::configure_console_logging(&matches);
