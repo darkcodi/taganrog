@@ -1,9 +1,10 @@
-use clap::{Arg, ArgMatches, Command};
-use log::{error, info};
+use clap::{Arg, Command};
+use log::{debug, error, info};
 use taganrog::{cli, config, web_ui};
 use taganrog::client::TaganrogClient;
 use taganrog::config::AppConfig;
 use taganrog::entities::{InsertResult};
+use taganrog::storage::FileStorage;
 
 #[tokio::main]
 async fn main() {
@@ -125,7 +126,8 @@ async fn handle_command(command: Command) {
         Some(("web-ui", _)) => {
             config::configure_api_logging(&matches);
             let config = config::get_app_config(&matches);
-            web_ui::serve(config).await
+            let client = create_taganrog_client(config).await;
+            web_ui::serve(client).await
         },
         Some(("add", add_matches)) => {
             config::configure_console_logging(&matches);
@@ -248,12 +250,25 @@ async fn handle_command(command: Command) {
     }
 }
 
-async fn create_taganrog_client(config: AppConfig) -> TaganrogClient {
-    let mut client = TaganrogClient::new(config.clone());
+async fn create_taganrog_client(config: AppConfig) -> TaganrogClient<FileStorage> {
+    debug!("Initializing storage...");
+    let storage_result = FileStorage::new(config.work_dir.clone());
+    if storage_result.is_err() {
+        error!("Failed to initialize storage: {}", storage_result.err().unwrap());
+        std::process::exit(1);
+    }
+    let storage = storage_result.unwrap();
+    debug!("Storage initialized!");
+
+    let mut client = TaganrogClient::new(config.clone(), storage);
+
+    debug!("Initializing DB...");
     let init_result = client.init().await;
     if init_result.is_err() {
         error!("Failed to initialize client: {}", init_result.err().unwrap());
         std::process::exit(1);
     }
+    debug!("DB Initialized!");
+
     client
 }

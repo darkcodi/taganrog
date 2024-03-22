@@ -1,19 +1,21 @@
 use std::path::PathBuf;
 use log::{error, info};
-use crate::client::{TaganrogClient, TaganrogError};
+use crate::client::TaganrogClient;
 use crate::config;
 use crate::config::AppConfig;
 use crate::entities::{InsertResult, Media, MediaPage, TagsAutocomplete};
+use crate::error::TaganrogError;
+use crate::storage::Storage;
 use crate::utils::normalize_query;
 
-pub async fn add_media(client: &mut TaganrogClient, filepath: &str) -> Result<InsertResult<Media>, TaganrogError> {
+pub async fn add_media<T: Storage>(client: &mut TaganrogClient<T>, filepath: &str) -> Result<InsertResult<Media>, TaganrogError> {
     let canonical_filepath = canonicalize(filepath);
     let media = client.create_media_from_file(&canonical_filepath).await?;
     let insert_result = client.add_media(media).await?;
     Ok(insert_result)
 }
 
-pub async fn remove_media(client: &mut TaganrogClient, filepath: &str) -> Result<Option<Media>, TaganrogError> {
+pub async fn remove_media<T: Storage>(client: &mut TaganrogClient<T>, filepath: &str) -> Result<Option<Media>, TaganrogError> {
     let canonical_filepath = canonicalize(filepath);
     let media = client.create_media_from_file(&canonical_filepath).await?;
     let media_id = media.id.clone();
@@ -21,21 +23,21 @@ pub async fn remove_media(client: &mut TaganrogClient, filepath: &str) -> Result
     Ok(maybe_media)
 }
 
-pub async fn tag_media(client: &mut TaganrogClient, filepath: &str, tag: &String) -> Result<bool, TaganrogError> {
+pub async fn tag_media<T: Storage>(client: &mut TaganrogClient<T>, filepath: &str, tag: &String) -> Result<bool, TaganrogError> {
     let canonical_filepath = canonicalize(filepath);
     let media = client.create_media_from_file(&canonical_filepath).await?;
     let was_added = client.add_tag_to_media(&media.id, tag).await?;
     Ok(was_added)
 }
 
-pub async fn untag_media(client: &mut TaganrogClient, filepath: &str, tag: &String) -> Result<bool, TaganrogError> {
+pub async fn untag_media<T: Storage>(client: &mut TaganrogClient<T>, filepath: &str, tag: &String) -> Result<bool, TaganrogError> {
     let canonical_filepath = canonicalize(filepath);
     let media = client.create_media_from_file(&canonical_filepath).await?;
     let was_removed = client.remove_tag_from_media(&media.id, tag).await?;
     Ok(was_removed)
 }
 
-pub async fn list_tags(client: &TaganrogClient, tag_name: String, max_items: usize) -> Vec<TagsAutocomplete> {
+pub async fn list_tags<T: Storage>(client: &TaganrogClient<T>, tag_name: String, max_items: usize) -> Vec<TagsAutocomplete> {
     let normalized_query = normalize_query(&tag_name);
     if normalized_query.is_empty() {
         return client.get_all_tags();
@@ -43,7 +45,7 @@ pub async fn list_tags(client: &TaganrogClient, tag_name: String, max_items: usi
     client.autocomplete_tags(&normalized_query, max_items)
 }
 
-pub async fn search_media(client: &TaganrogClient, tags: Vec<String>, page_size: usize, page_index: usize) -> MediaPage {
+pub async fn search_media<T: Storage>(client: &TaganrogClient<T>, tags: Vec<String>, page_size: usize, page_index: usize) -> MediaPage {
     let query = tags.join(" ");
     let normalized_query = normalize_query(&query);
     if normalized_query.is_empty() {

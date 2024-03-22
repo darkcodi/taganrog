@@ -16,8 +16,8 @@ use serde::{Deserialize, Serialize};
 use tokio::sync::RwLock;
 use tower_http::trace::TraceLayer;
 use crate::client::TaganrogClient;
-use crate::config::AppConfig;
 use crate::entities::Media;
+use crate::storage::FileStorage;
 use crate::utils::normalize_query;
 use crate::utils::str_utils::StringExtensions;
 
@@ -26,10 +26,7 @@ const FAVICON: &[u8] = include_bytes!("assets/favicon.ico");
 const DEFAULT_THUMBNAIL: &[u8] = include_bytes!("assets/icons/default_thumbnail.svg");
 const MAX_UPLOAD_SIZE_IN_BYTES: usize = 524_288_000; // 500 MB
 
-pub async fn serve(config: AppConfig) {
-    info!("initializing client...");
-    let mut client = TaganrogClient::new(config);
-    client.init().await.expect("failed to initialize client");
+pub async fn serve(client: TaganrogClient<FileStorage>) {
     let media_count = client.get_media_count();
     info!("media count: {}", media_count);
 
@@ -67,7 +64,7 @@ pub async fn serve(config: AppConfig) {
 
 #[derive(Clone, FromRef)]
 struct AppState {
-    client: Arc<RwLock<TaganrogClient>>,
+    client: Arc<RwLock<TaganrogClient<FileStorage>>>,
 }
 
 struct HtmlTemplate<T>(T);

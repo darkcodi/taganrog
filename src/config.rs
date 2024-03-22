@@ -28,9 +28,8 @@ pub struct AppConfig {
     pub file_config: ConfigBuilder,
 
     // final config
-    pub workdir: PathBuf,
+    pub work_dir: PathBuf,
     pub upload_dir: PathBuf,
-    pub db_path: PathBuf,
     pub thumbnails_dir: PathBuf,
 }
 
@@ -57,61 +56,45 @@ impl AppConfig {
         let upload_dir = final_config.upload_dir
             .ok_or_else(|| ConfigError::Validation("upload_dir is not set".to_string()))?;
 
-        let workdir = Self::get_or_create_workdir(&workdir)
-            .map_err(|x| ConfigError::Validation(x.to_string()))?;
-        let upload_dir = Self::get_or_create_upload_dir(&workdir, &upload_dir)
-            .map_err(|x| ConfigError::Validation(x.to_string()))?;
-        let db_path = Self::get_or_create_db_path(&workdir)
-            .map_err(|x| ConfigError::Validation(x.to_string()))?;
-        let thumbnails_dir = Self::get_or_create_thumbnails_dir(&workdir)
-            .map_err(|x| ConfigError::Validation(x.to_string()))?;
+        let work_dir = Self::get_or_create_workdir(&workdir)?;
+        let upload_dir = Self::get_or_create_upload_dir(&work_dir, &upload_dir)?;
+        let thumbnails_dir = Self::get_or_create_thumbnails_dir(&work_dir)?;
 
-        Ok(Self { config_path, file_config, workdir, upload_dir, db_path, thumbnails_dir })
+        Ok(Self { config_path, file_config, work_dir, upload_dir, thumbnails_dir })
     }
 
-    fn get_or_create_workdir(workdir: &str) -> anyhow::Result<PathBuf> {
+    fn get_or_create_workdir(workdir: &str) -> Result<PathBuf, ConfigError> {
         let workdir = PathBuf::from(workdir);
         if !workdir.exists() {
             std::fs::create_dir_all(&workdir)?;
         }
         if !workdir.is_dir() {
-            anyhow::bail!("workdir is not a directory");
+            return Err(ConfigError::Validation("workdir is not a directory".to_string()));
         }
         Ok(workdir)
     }
 
-    fn get_or_create_upload_dir(workdir: &PathBuf, upload_dir: &str) -> anyhow::Result<PathBuf> {
+    fn get_or_create_upload_dir(workdir: &PathBuf, upload_dir: &str) -> Result<PathBuf, ConfigError> {
         let upload_dir = PathBuf::from(upload_dir);
         if !upload_dir.starts_with(workdir) {
-            anyhow::bail!("upload_dir is not a subdirectory of workdir");
+            return Err(ConfigError::Validation("upload_dir is not a subdirectory of workdir".to_string()));
         }
         if !upload_dir.exists() {
             std::fs::create_dir_all(&upload_dir)?;
         }
         if upload_dir.exists() && !upload_dir.is_dir() {
-            anyhow::bail!("upload_dir is not a directory");
+            return Err(ConfigError::Validation("upload_dir is not a directory".to_string()));
         }
         Ok(upload_dir)
     }
 
-    fn get_or_create_db_path(workdir: &Path) -> anyhow::Result<PathBuf> {
-        let db_path = workdir.join("taganrog.db.json");
-        if !db_path.exists() {
-            std::fs::write(&db_path, "")?;
-        }
-        if db_path.exists() && !db_path.is_file() {
-            anyhow::bail!("db_path is not a file");
-        }
-        Ok(db_path)
-    }
-
-    fn get_or_create_thumbnails_dir(workdir: &Path) -> anyhow::Result<PathBuf> {
+    fn get_or_create_thumbnails_dir(workdir: &Path) -> Result<PathBuf, ConfigError> {
         let thumbnails_dir = workdir.join("taganrog-thumbnails");
         if !thumbnails_dir.exists() {
             std::fs::create_dir_all(&thumbnails_dir)?;
         }
         if thumbnails_dir.exists() && !thumbnails_dir.is_dir() {
-            anyhow::bail!("thumbnails_dir is not a directory");
+            return Err(ConfigError::Validation("thumbnails_dir is not a directory".to_string()));
         }
         Ok(thumbnails_dir)
     }
