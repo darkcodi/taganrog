@@ -409,3 +409,191 @@ impl<T: Storage> TaganrogClient<T> {
         self.cfg.thumbnails_dir.join(format!("{}.png", media_id))
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use rand::Rng;
+    use super::*;
+    use tempfile::tempdir;
+    use crate::config::ConfigBuilder;
+    use crate::storage::InMemoryStorage;
+
+    async fn create_test_client() -> TaganrogClient<InMemoryStorage> {
+        let dir = tempdir().unwrap();
+        let work_dir = dir.path().to_path_buf();
+        let upload_dir = work_dir.join("uploads");
+        let cfg = AppConfig::new(ConfigBuilder {
+            workdir: Some(work_dir.display().to_string()),
+            upload_dir: Some(upload_dir.display().to_string()),
+        }).unwrap();
+        let storage = InMemoryStorage::default();
+        let mut client = TaganrogClient::new(cfg, storage);
+        client.init().await.unwrap();
+        client
+    }
+
+    fn create_random_media() -> Media {
+        let id: String = rand::thread_rng().sample_iter(&rand::distributions::Alphanumeric)
+            .take(32).map(char::from).collect();
+        let filename = "test.txt".to_string();
+        let content_type = "text/plain".to_string();
+        let created_at = chrono::Utc::now();
+        let size = 0;
+        let location = "test.txt".to_string();
+        let was_uploaded = false;
+        let tags = vec![];
+        Media { id, filename, content_type, created_at, size, location, was_uploaded, tags }
+    }
+
+    #[tokio::test]
+    async fn test_get_media_count() {
+        let mut client = create_test_client().await;
+        assert_eq!(client.get_media_count(), 0);
+        let media = create_random_media();
+        client.create_media_in_memory(media.clone());
+        assert_eq!(client.get_media_count(), 1);
+        client.delete_media_in_memory(&media.id);
+        assert_eq!(client.get_media_count(), 0);
+    }
+
+    #[tokio::test]
+    async fn test_get_query_count() {
+        let mut client = create_test_client().await;
+        let media = create_random_media();
+        client.create_media_in_memory(media.clone());
+        client.add_tag_to_media_in_memory(&media.id, &"tag1".to_string());
+        client.add_tag_to_media_in_memory(&media.id, &"tag2".to_string());
+        assert_eq!(client.get_query_count(&["tag1".to_string()]), 1);
+        assert_eq!(client.get_query_count(&["tag1".to_string(), "tag2".to_string()]), 1);
+        assert_eq!(client.get_query_count(&["tag1".to_string(), "tag2".to_string(), "tag3".to_string()]), 0);
+        assert_eq!(client.get_query_count(&["tag3".to_string()]), 0);
+    }
+
+    #[tokio::test]
+    async fn test_get_media_intersection() {
+        let mut client = create_test_client().await;
+        let media1 = create_random_media();
+        let media2 = create_random_media();
+        client.create_media_in_memory(media1.clone());
+        client.create_media_in_memory(media2.clone());
+        client.add_tag_to_media_in_memory(&media1.id, &"tag1".to_string());
+        client.add_tag_to_media_in_memory(&media2.id, &"tag2".to_string());
+        client.add_tag_to_media_in_memory(&media1.id, &"tag2".to_string());
+        let intersection = client.get_media_intersection(&["tag1".to_string(), "tag2".to_string()]);
+        assert_eq!(intersection.len(), 1);
+        assert!(intersection.contains(&media1.id));
+    }
+
+    #[tokio::test]
+    async fn test_get_media_by_id() {
+        let mut client = create_test_client().await;
+        let media = create_random_media();
+        client.create_media_in_memory(media.clone());
+        let maybe_media = client.get_media_by_id(&media.id);
+        assert_eq!(maybe_media, Some(media));
+    }
+
+    #[tokio::test]
+    async fn test_get_random_media() {
+        let mut client = create_test_client().await;
+        let media = create_random_media();
+        client.create_media_in_memory(media.clone());
+        let maybe_media = client.get_random_media();
+        assert_eq!(maybe_media, Some(media));
+    }
+
+    #[tokio::test]
+    async fn test_get_all_media() {
+        let mut client = create_test_client().await;
+        let media1 = create_random_media();
+        let media2 = create_random_media();
+        client.create_media_in_memory(media1.clone());
+        client.create_media_in_memory(media2.clone());
+        let page = client.get_all_media(10, 0);
+        assert_eq!(page.media_vec.len(), 2);
+        assert_eq!(page.total_count, 2);
+        assert_eq!(page.total_pages, 1);
+    }
+
+    #[tokio::test]
+    async fn test_get_media_without_thumbnail() {
+        let mut client = create_test_client().await;
+        let media1 = create_random_media();
+        let media2 = create_random_media();
+        client.create_media_in_memory(media1.clone());
+        client.create_media_in_memory(media2.clone());
+        let page = client.get_media_without_thumbnail(10, 0);
+        assert_eq!(page.media_vec.len(), 2);
+        assert_eq!(page.total_count, 2);
+        assert_eq!(page.total_pages, 1);
+    }
+
+    #[tokio::test]
+    async fn test_get_untagged_media() {
+        let mut client = create_test_client().await;
+        let media1 = create_random_media();
+        let media2 = create_random_media();
+        client.create_media_in_memory(media1.clone());
+        client.create_media_in_memory(media2.clone());
+        let page = client.get_untagged_media(10, 0);
+        assert_eq!(page.media_vec.len(), 2);
+        assert_eq!(page.total_count, 2);
+        assert_eq!(page.total_pages, 1);
+
+        client.add_tag_to_media_in_memory(&media1.id, &"tag1".to_string());
+        let page = client.get_untagged_media(10, 0);
+        assert_eq!(page.media_vec.len(), 1);
+        assert_eq!(page.total_count, 1);
+        assert_eq!(page.total_pages, 1);
+    }
+
+    #[tokio::test]
+    async fn test_search_media() {
+        let mut client = create_test_client().await;
+        let media1 = create_random_media();
+        let media2 = create_random_media();
+        client.create_media_in_memory(media1.clone());
+        client.create_media_in_memory(media2.clone());
+        client.add_tag_to_media_in_memory(&media1.id, &"tag1".to_string());
+        client.add_tag_to_media_in_memory(&media2.id, &"tag2".to_string());
+        let page = client.search_media("tag1", 10, 0);
+        assert_eq!(page.media_vec.len(), 1);
+        assert_eq!(page.total_count, 1);
+        assert_eq!(page.total_pages, 1);
+    }
+
+    #[tokio::test]
+    async fn test_get_all_tags() {
+        let mut client = create_test_client().await;
+        let media1 = create_random_media();
+        let media2 = create_random_media();
+        client.create_media_in_memory(media1.clone());
+        client.create_media_in_memory(media2.clone());
+        client.add_tag_to_media_in_memory(&media1.id, &"tag1".to_string());
+        client.add_tag_to_media_in_memory(&media2.id, &"tag2".to_string());
+        let tags = client.get_all_tags();
+        assert_eq!(tags.len(), 2);
+        assert_eq!(tags[0].last, "tag1");
+        assert_eq!(tags[0].media_count, 1);
+        assert_eq!(tags[1].last, "tag2");
+        assert_eq!(tags[1].media_count, 1);
+    }
+
+    #[tokio::test]
+    async fn test_autocomplete_tags() {
+        let mut client = create_test_client().await;
+        let media1 = create_random_media();
+        let media2 = create_random_media();
+        client.create_media_in_memory(media1.clone());
+        client.create_media_in_memory(media2.clone());
+        client.add_tag_to_media_in_memory(&media1.id, &"tag1".to_string());
+        client.add_tag_to_media_in_memory(&media2.id, &"tag2".to_string());
+        let mut tags = client.autocomplete_tags("tag", 10);
+        tags.sort_by(|a, b| a.last.cmp(&b.last));
+        assert_eq!(tags.len(), 2);
+        assert_eq!(tags[0].last, "tag1");
+        assert_eq!(tags[0].media_count, 1);
+        assert_eq!(tags[1].last, "tag2");
+        assert_eq!(tags[1].media_count, 1);
+    }
+}
