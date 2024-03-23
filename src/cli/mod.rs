@@ -24,7 +24,10 @@ pub async fn remove_media<T: Storage>(client: &mut TaganrogClient<T>, filepath: 
 
 pub async fn tag_media<T: Storage>(client: &mut TaganrogClient<T>, filepath: &str, tag: &String) -> Result<bool, TaganrogError> {
     let canonical_filepath = canonicalize(filepath);
-    let media = client.create_media_from_file(&canonical_filepath).await?;
+    let mut media = client.create_media_from_file(&canonical_filepath).await?;
+    if client.get_media_by_id(&media.id).is_none() {
+        media = client.add_media(media).await?.safe_unwrap();
+    }
     let was_added = client.add_tag_to_media(&media.id, tag).await?;
     Ok(was_added)
 }
