@@ -16,7 +16,7 @@ use serde::{Deserialize, Serialize};
 use tokio::sync::RwLock;
 use tower_http::trace::TraceLayer;
 use crate::client::TaganrogClient;
-use crate::entities::Media;
+use crate::entities::{Media, TagsAutocomplete};
 use crate::storage::FileStorage;
 use crate::utils::normalize_query;
 use crate::utils::str_utils::StringExtensions;
@@ -24,6 +24,7 @@ use crate::utils::str_utils::StringExtensions;
 // icons
 const FAVICON: &[u8] = include_bytes!("assets/favicon.ico");
 const DEFAULT_THUMBNAIL: &[u8] = include_bytes!("assets/icons/default_thumbnail.svg");
+const AWESOME_CLOUD_LIB: &[u8] = include_bytes!("assets/scripts/jquery.awesomeCloud-0.2.min.js");
 const MAX_UPLOAD_SIZE_IN_BYTES: usize = 524_288_000; // 500 MB
 
 pub async fn serve(client: TaganrogClient<FileStorage>) {
@@ -35,6 +36,9 @@ pub async fn serve(client: TaganrogClient<FileStorage>) {
         // icons
         .route("/favicon.ico", get(favicon))
 
+        // scripts
+        .route("/scripts/jquery.awesomeCloud-0.2.min.js", get(get_awesome_cloud_lib))
+
         // pages
         .route("/", get(index))
         .route("/media/random", get(get_random_media))
@@ -43,6 +47,7 @@ pub async fn serve(client: TaganrogClient<FileStorage>) {
         .route("/media/:media_id/remove-tag", delete(remove_tag_from_media))
         .route("/search", get(media_search))
         .route("/upload", get(upload_page))
+        .route("/tags", get(list_all_tags))
 
         // api
         .route("/media/:media_id/thumbnail", get(get_media_thumbnail))
@@ -433,6 +438,10 @@ async fn get_media_thumbnail(
     response
 }
 
+async fn get_awesome_cloud_lib() -> impl IntoResponse {
+    Response::new(Body::from(AWESOME_CLOUD_LIB))
+}
+
 async fn stream_media(
     State(state): State<AppState>,
     Path(media_id): Path<String>,
@@ -541,4 +550,27 @@ fn get_fg_color(bg_color: &str) -> String {
     let yiq = ((r as f32 * 299.0) + (g as f32 * 587.0) + (b as f32 * 114.0)) / 1000.0;
     let fg_color = if yiq >= 128.0 { "black" } else { "white" };
     fg_color.to_string()
+}
+
+#[derive(Default, Template)]
+#[template(path = "tags.html")]
+pub struct TagsTemplate {
+    query: String,
+    tags: Vec<TagsAutocomplete>,
+}
+
+async fn list_all_tags(
+    Query(query): Query<SearchQuery>,
+    State(state): State<AppState>,
+) -> impl IntoResponse {
+    let normalized_query = normalize_query(&query.q.unwrap_or_default());
+    let client = state.client.read().await;
+    let tags = client.get_all_tags();
+    drop(client);
+    let tags = tags.iter()
+        .sorted_by_key(|x| x.media_count).rev()
+        .take(100)
+        .cloned()
+        .collect::<Vec<TagsAutocomplete>>();
+    HtmlTemplate(TagsTemplate { query: normalized_query, tags })
 }
