@@ -245,7 +245,16 @@ impl<T: Storage> TaganrogClient<T> {
     }
 
     fn delete_media_in_memory(&mut self, media_id: &MediaId) -> Option<Media> {
-        self.media_map.remove(media_id).map(|x| x.1)
+        let maybe_media = self.media_map.remove(media_id);
+        if maybe_media.is_none() {
+            return None;
+        }
+        let media = maybe_media.unwrap().1;
+        for tag in media.tags.iter() {
+            let mut entry = self.tags_map.entry(tag.clone()).or_default();
+            entry.value_mut().remove(media_id);
+        }
+        Some(media)
     }
 
     fn add_tag_to_media_in_memory(&mut self, media_id: &MediaId, tag: &Tag) -> bool {
