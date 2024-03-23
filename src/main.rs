@@ -62,16 +62,6 @@ async fn main() {
                 .about("Serve a web-ui using the Axum framework")
         )
         .subcommand(
-            Command::new("add")
-                .about("Add a file to the database")
-                .arg(Arg::new("filepath").required(true).help("File(s) to add").num_args(1..).value_delimiter(' ')),
-        )
-        .subcommand(
-            Command::new("remove")
-                .about("Remove a file from the database")
-                .arg(Arg::new("filepath").required(true).help("File(s) to remove").num_args(1..).value_delimiter(' ')),
-        )
-        .subcommand(
             Command::new("tag")
                 .about("Tag a file. It also adds the file to the database if it's not there yet.")
                 .arg(Arg::new("filepath").required(true).help("Path of the file to tag"))
@@ -131,46 +121,6 @@ async fn handle_command(command: Command) {
             let config = config::get_app_config_or_exit(&matches);
             let client = create_taganrog_client(config).await;
             web_ui::serve(client).await
-        },
-        Some(("add", add_matches)) => {
-            config::configure_console_logging(&matches);
-            let config = config::get_app_config_or_exit(&matches);
-            let filepath_vec: Vec<&String> = add_matches.get_many("filepath").unwrap().collect();
-            let mut client = create_taganrog_client(config).await;
-            for filepath in filepath_vec {
-                match cli::add_media(&mut client, filepath).await {
-                    Ok(insert_result) => {
-                        match insert_result {
-                            InsertResult::Existing(existing_media) => { info!("Media already exists: {:?}", existing_media); }
-                            InsertResult::New(new_media) => { info!("Added media: {:?}", new_media); }
-                        }
-                    },
-                    Err(e) => {
-                        error!("Failed to add media: {}", e);
-                        std::process::exit(1);
-                    }
-                }
-            }
-        },
-        Some(("remove", remove_matches)) => {
-            config::configure_console_logging(&matches);
-            let config = config::get_app_config_or_exit(&matches);
-            let filepath_vec: Vec<&String> = remove_matches.get_many("filepath").unwrap().collect();
-            let mut client = create_taganrog_client(config).await;
-            for filepath in filepath_vec {
-                match cli::remove_media(&mut client, filepath).await {
-                    Ok(maybe_media) => {
-                        match maybe_media {
-                            Some(media) => { info!("Removed media: {:?}", media); }
-                            None => { info!("Media not found"); }
-                        }
-                    },
-                    Err(e) => {
-                        error!("Failed to remove media: {}", e);
-                        std::process::exit(1);
-                    }
-                }
-            }
         },
         Some(("tag", tag_matches)) => {
             config::configure_console_logging(&matches);

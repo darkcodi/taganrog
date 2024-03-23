@@ -7,21 +7,6 @@ use crate::error::TaganrogError;
 use crate::storage::Storage;
 use crate::utils::normalize_query;
 
-pub async fn add_media<T: Storage>(client: &mut TaganrogClient<T>, filepath: &str) -> Result<InsertResult<Media>, TaganrogError> {
-    let canonical_filepath = canonicalize(filepath);
-    let media = client.create_media_from_file(&canonical_filepath).await?;
-    let insert_result = client.add_media(media).await?;
-    Ok(insert_result)
-}
-
-pub async fn remove_media<T: Storage>(client: &mut TaganrogClient<T>, filepath: &str) -> Result<Option<Media>, TaganrogError> {
-    let canonical_filepath = canonicalize(filepath);
-    let media = client.create_media_from_file(&canonical_filepath).await?;
-    let media_id = media.id.clone();
-    let maybe_media = client.delete_media(&media_id).await?;
-    Ok(maybe_media)
-}
-
 pub async fn tag_media<T: Storage>(client: &mut TaganrogClient<T>, filepath: &str, tag: &String) -> Result<bool, TaganrogError> {
     let canonical_filepath = canonicalize(filepath);
     let mut media = client.create_media_from_file(&canonical_filepath).await?;
