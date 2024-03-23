@@ -3,7 +3,6 @@ use log::{debug, error, info};
 use taganrog::{cli, config, web_ui};
 use taganrog::client::TaganrogClient;
 use taganrog::config::AppConfig;
-use taganrog::entities::{InsertResult};
 use taganrog::storage::FileStorage;
 
 #[tokio::main]

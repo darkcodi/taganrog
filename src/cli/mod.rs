@@ -2,7 +2,7 @@ use std::path::{Path, PathBuf};
 use log::{error, info};
 use crate::client::TaganrogClient;
 use crate::config;
-use crate::entities::{InsertResult, Media, MediaPage, TagsAutocomplete};
+use crate::entities::{MediaPage, TagsAutocomplete};
 use crate::error::TaganrogError;
 use crate::storage::Storage;
 use crate::utils::normalize_query;
