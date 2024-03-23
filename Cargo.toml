@@ -7,10 +7,6 @@ authors = [
     "Ivan Yaremenchuk <trooper982@gmail.com>"
 ]
 
-[[bin]]
-name = "tgk"
-path = "src/main.rs"
-
 [dependencies]
 anyhow = { version = "1.0", features = ["std"] }
 askama = "0.12"
