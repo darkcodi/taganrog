@@ -99,4 +99,4 @@ Taganrog also provides a web UI that can be accessed by visiting `http://localho
 
 ## License
 
-Distributed under the MIT License. See [LICENSE](https://github.com/darkcodi/taganrog/blob/main/LICENSE.md) for more information.
+Distributed under the MIT License. See [LICENSE](https://github.com/darkcodi/taganrog/blob/main/LICENSE) for more information.
