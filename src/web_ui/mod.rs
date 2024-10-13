@@ -26,7 +26,18 @@ use crate::utils::str_utils::StringExtensions;
 // icons
 const FAVICON: &[u8] = include_bytes!("assets/favicon.ico");
 const DEFAULT_THUMBNAIL: &[u8] = include_bytes!("assets/icons/default_thumbnail.svg");
-const AWESOME_CLOUD_LIB: &[u8] = include_bytes!("assets/scripts/jquery.awesomeCloud-0.2.min.js");
+
+// scripts
+const ALGOLIA_LIB: &[u8] = include_bytes!("assets/scripts/algolia_1.15.1.min.js");
+const AWESOME_CLOUD_LIB: &[u8] = include_bytes!("assets/scripts/awesome_cloud_0.2.min.js");
+const HTMX_LIB: &[u8] = include_bytes!("assets/scripts/htmx_2.0.3.min.js");
+const JQUERY_LIB: &[u8] = include_bytes!("assets/scripts/jquery_2.1.0.min.js");
+const TAILWIND_LIB: &[u8] = include_bytes!("assets/scripts/tailwind_1.0.8.min.js");
+const TAILWIND_EXT_LIB: &[u8] = include_bytes!("assets/scripts/tailwind_ext_1.0.8.min.js");
+
+// styles
+const ALGOLIA_STYLES: &[u8] = include_bytes!("assets/styles/algolia_classic_1.15.1.min.css");
+
 const MAX_UPLOAD_SIZE_IN_BYTES: usize = 524_288_000; // 500 MB
 
 pub async fn serve(client: TaganrogClient<FileStorage>) {
@@ -39,7 +50,15 @@ pub async fn serve(client: TaganrogClient<FileStorage>) {
         .route("/favicon.ico", get(favicon))
 
         // scripts
-        .route("/scripts/jquery.awesomeCloud-0.2.min.js", get(get_awesome_cloud_lib))
+        .route("/scripts/algolia.min.js", get(get_algolia_lib))
+        .route("/scripts/awesome_cloud.min.js", get(get_awesome_cloud_lib))
+        .route("/scripts/htmx.min.js", get(get_htmx_lib))
+        .route("/scripts/jquery.min.js", get(get_jquery_lib))
+        .route("/scripts/tailwind.min.js", get(get_tailwind_lib))
+        .route("/scripts/tailwind_ext.min.js", get(get_tailwind_ext_lib))
+
+        // styles
+        .route("/styles/algolia.min.css", get(get_algolia_styles))
 
         // pages
         .route("/", get(index))
@@ -49,7 +68,7 @@ pub async fn serve(client: TaganrogClient<FileStorage>) {
         .route("/media/:media_id/remove-tag", delete(remove_tag_from_media))
         .route("/search", get(media_search))
         .route("/upload", get(upload_page))
-        .route("/tags", get(list_all_tags))
+        .route("/tags_cloud", get(tags_cloud))
 
         // api
         .route("/media/:media_id/thumbnail", get(get_media_thumbnail))
@@ -459,8 +478,32 @@ async fn get_media_thumbnail(
     response
 }
 
+async fn get_algolia_lib() -> impl IntoResponse {
+    Response::new(Body::from(ALGOLIA_LIB))
+}
+
 async fn get_awesome_cloud_lib() -> impl IntoResponse {
     Response::new(Body::from(AWESOME_CLOUD_LIB))
+}
+
+async fn get_htmx_lib() -> impl IntoResponse {
+    Response::new(Body::from(HTMX_LIB))
+}
+
+async fn get_jquery_lib() -> impl IntoResponse {
+    Response::new(Body::from(JQUERY_LIB))
+}
+
+async fn get_tailwind_lib() -> impl IntoResponse {
+    Response::new(Body::from(TAILWIND_LIB))
+}
+
+async fn get_tailwind_ext_lib() -> impl IntoResponse {
+    Response::new(Body::from(TAILWIND_EXT_LIB))
+}
+
+async fn get_algolia_styles() -> impl IntoResponse {
+    Response::new(Body::from(ALGOLIA_STYLES))
 }
 
 async fn stream_media(
@@ -574,13 +617,13 @@ fn get_fg_color(bg_color: &str) -> String {
 }
 
 #[derive(Default, Template)]
-#[template(path = "tags.html")]
-pub struct TagsTemplate {
+#[template(path = "tags_cloud.html")]
+pub struct TagsCloudTemplate {
     query: String,
     tags: Vec<TagsAutocomplete>,
 }
 
-async fn list_all_tags(
+async fn tags_cloud(
     Query(query): Query<SearchQuery>,
     State(state): State<AppState>,
 ) -> impl IntoResponse {
@@ -593,5 +636,5 @@ async fn list_all_tags(
         .take(100)
         .cloned()
         .collect::<Vec<TagsAutocomplete>>();
-    HtmlTemplate(TagsTemplate { query: normalized_query, tags })
+    HtmlTemplate(TagsCloudTemplate { query: normalized_query, tags })
 }
