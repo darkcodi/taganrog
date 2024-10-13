@@ -1,13 +1,13 @@
 [package]
 name = "taganrog"
 description = "A personal tagging system and a search engine for your media library."
-version = "0.1.0"
+version = "0.2.0"
 edition = "2021"
 authors = ["Ivan Yaremenchuk <trooper982@gmail.com>"]
 readme = "README.md"
 license-file = "LICENSE"
 keywords = ["taganrog", "tag", "tagging", "search", "media"]
-categories = ["multimedia", "command-line-utilities", "web-programming"]
+categories = ["multimedia", "command-line-utilities", "web-programming", "gui"]
 repository = "https://github.com/darkcodi/taganrog"
 
 [lib]
