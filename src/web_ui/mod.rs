@@ -39,6 +39,8 @@ const TAILWIND_EXT_LIB: &[u8] = include_bytes!("assets/scripts/tailwind_ext_1.0.
 const ALGOLIA_STYLES: &[u8] = include_bytes!("assets/styles/algolia_classic_1.15.1.min.css");
 
 const MAX_UPLOAD_SIZE_IN_BYTES: usize = 524_288_000; // 500 MB
+const DEFAULT_MEDIA_PAGE_SIZE: usize = 6;
+const DEFAULT_AUTOCOMPLETE_PAGE_SIZE: usize = 6;
 
 pub async fn serve(client: TaganrogClient<FileStorage>) {
     let media_count = client.get_media_count();
@@ -145,6 +147,7 @@ async fn favicon() -> impl IntoResponse { Response::<Body>::new(FAVICON.into()) 
 struct SearchQuery {
     q: Option<String>,
     p: Option<usize>,
+    ps: Option<usize>,
 }
 
 #[derive(Default, Template)]
@@ -234,16 +237,16 @@ async fn media_search(
     }
     let page_number = query.p.unwrap_or(1).max(1);
     let page_index = page_number - 1;
-    const DEFAULT_PAGE_SIZE: usize = 6;
+    let page_size = query.ps.unwrap_or(DEFAULT_MEDIA_PAGE_SIZE).max(1);
 
     let client = state.client.read().await;
     let media_page = match normalized_query.as_str() {
-        "all" => client.get_all_media(DEFAULT_PAGE_SIZE, page_index),
-        "null" => client.get_untagged_media(DEFAULT_PAGE_SIZE, page_index),
-        "untagged" => client.get_untagged_media(DEFAULT_PAGE_SIZE, page_index),
-        "no-tags" => client.get_untagged_media(DEFAULT_PAGE_SIZE, page_index),
-        "no-thumbnail" => client.get_media_without_thumbnail(DEFAULT_PAGE_SIZE, page_index),
-        _ => client.search_media(&normalized_query, DEFAULT_PAGE_SIZE, page_index),
+        "all" => client.get_all_media(page_size, page_index),
+        "null" => client.get_untagged_media(page_size, page_index),
+        "untagged" => client.get_untagged_media(page_size, page_index),
+        "no-tags" => client.get_untagged_media(page_size, page_index),
+        "no-thumbnail" => client.get_media_without_thumbnail(page_size, page_index),
+        _ => client.search_media(&normalized_query, page_size, page_index),
     };
     drop(client);
 
@@ -391,9 +394,9 @@ async fn autocomplete_tags(
     if normalized_query.is_empty() {
         return Json(vec![]);
     }
-    let page = query.p.unwrap_or(6);
+    let page_size = query.ps.unwrap_or(DEFAULT_AUTOCOMPLETE_PAGE_SIZE).max(1);
     let client = state.client.read().await;
-    let autocomplete = client.autocomplete_tags(&normalized_query, page);
+    let autocomplete = client.autocomplete_tags(&normalized_query, page_size);
     let autocomplete = autocomplete.iter().map(|x| {
         let query = normalized_query.clone();
         let tags = x.head.iter().map(|x| x.as_str()).chain(once(x.last.as_str()))
@@ -412,6 +415,7 @@ async fn autocomplete_tags(
 #[template(path = "media.html")]
 pub struct MediaPageTemplate {
     query: String,
+    page: usize,
     media: ExtendedMedia,
     media_exists: bool,
 }
@@ -421,13 +425,14 @@ async fn get_media(
     Query(query): Query<SearchQuery>,
     Path(media_id): Path<String>,
 ) -> impl IntoResponse {
-    let query = normalize_query(&query.q.unwrap_or_default());
+    let normalized_query = normalize_query(&query.q.unwrap_or_default());
+    let page = query.p.unwrap_or(1);
     let client = state.client.read().await;
     if let Some(media) = client.get_media_by_id(&media_id) {
         let extended_media: ExtendedMedia = media.into();
-        HtmlTemplate(MediaPageTemplate { query, media: extended_media, media_exists: true })
+        HtmlTemplate(MediaPageTemplate { query: normalized_query, page, media: extended_media, media_exists: true })
     } else {
-        HtmlTemplate(MediaPageTemplate { query, media: ExtendedMedia::default(), media_exists: false })
+        HtmlTemplate(MediaPageTemplate { query: normalized_query, page, media: ExtendedMedia::default(), media_exists: false })
     }
 }
 
@@ -436,8 +441,8 @@ async fn get_random_media(
 ) -> impl IntoResponse {
     let client = state.client.read().await;
     match client.get_random_media() {
-        Some(media) => HtmlTemplate(MediaPageTemplate { query: "".to_string(), media: media.into(), media_exists: true }),
-        None => HtmlTemplate(MediaPageTemplate { query: "".to_string(), media: ExtendedMedia::default(), media_exists: false })
+        Some(media) => HtmlTemplate(MediaPageTemplate { query: "".to_string(), page: 1, media: media.into(), media_exists: true }),
+        None => HtmlTemplate(MediaPageTemplate { query: "".to_string(), page: 1, media: ExtendedMedia::default(), media_exists: false })
     }
 }
 

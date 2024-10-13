@@ -3,7 +3,7 @@
         <li id="li-{{ tag.name }}" class="rounded px-2 py-1 mb-2 flex justify-between items-center"
             style="background-color: {{ tag.bg_color }}; color: {{ tag.fg_color }};"
         >
-            <a href="/search?q={{ tag.name }}">#{{ tag.name }}</a>
+            <a href="/search?q={{ tag.name }}&p=1">#{{ tag.name }}</a>
             <span class="cursor-pointer hover:text-red-500"
                   hx-delete="/media/{{ media.id }}/remove-tag?tags={{ tag.name }}"
                   hx-trigger="click"

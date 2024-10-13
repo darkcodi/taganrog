@@ -22,7 +22,14 @@
                 </svg>
             </a>
         </header>
-        <main class="h-screen flex flex-col items-center justify-center bg-white px-4 sm:px-6 lg:px-8">
+        {% if query != "" %}
+            <header class="flex items-start justify-start bg-white px-4 py-0 sm:px-6 lg:px-8">
+                <a href="/search?q={{ query }}&p={{ page }}" class="inline-flex items-center justify-center whitespace-nowrap rounded-md text-sm font-medium ring-offset-background transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-500 focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 text-rose-400 hover:text-rose-600 border-2 border-rose-400 hover:border-rose-600 bg-white hover:bg-gray-100 h-10 px-4 py-2">
+                    Back
+                </a>
+            </header>
+        {% endif %}
+        <main class="h-screen flex flex-col items-center justify-start bg-white px-4 sm:px-6 lg:px-8">
             {% if media_exists %}
             <div id="media-main" class="max-w-fit w-full mt-6 flex h-3/4">
                 <div class="flex-1">
@@ -72,7 +79,7 @@
                                 <li id="li-{{ tag.name }}" class="rounded px-2 py-1 mb-2 flex justify-between items-center"
                                     style="background-color: {{ tag.bg_color }}; color: {{ tag.fg_color }};"
                                 >
-                                    <a href="/search?q={{ tag.name }}">#{{ tag.name }}</a>
+                                    <a href="/search?q={{ tag.name }}&p=1">#{{ tag.name }}</a>
                                     <span class="cursor-pointer hover:text-red-500"
                                         hx-delete="/media/{{ media.id }}/remove-tag?tags={{ tag.name }}"
                                         hx-trigger="click"

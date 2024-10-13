@@ -32,11 +32,11 @@
             <div class="max-w-7xl w-full mt-6 max-h-full">
                 {% for media in media_vec %}
                     <div class="rounded-md shadow-sm p-4 flex items-start space-x-4 mt-4 bg-gray-50">
-                        <a href="/media/{{ media.id }}?q={{ query }}">
+                        <a href="/media/{{ media.id }}?q={{ query }}&p={{ current_page_number }}">
                             <img src="/media/{{ media.id }}/thumbnail" class="w-32 h-32 object-contain rounded-md" style="aspect-ratio:100/100;object-fit:contain;" />
                         </a>
                         <div>
-                            <a href="/media/{{ media.id }}?q={{ query }}">
+                            <a href="/media/{{ media.id }}?q={{ query }}&p={{ current_page_number }}">
                                 <h2 class="text-xl font-bold">{{ media.filename }}</h2>
                             </a>
                             <p class="text-gray-600">File Size: {{ media.size }} bytes</p>
@@ -45,11 +45,11 @@
                             <div class="flex flex-wrap gap-2">
                                 {% for tag in media.tags %}
                                 {% if tag.is_in_query %}
-                                <a href="/search?q={{ query }}%20-{{ tag.name }}" class="rounded px-2 py-1 text-sm border-4 border-black"
+                                <a href="/search?q={{ query }}%20-{{ tag.name }}&p=1" class="rounded px-2 py-1 text-sm border-4 border-black"
                                    style="background-color: {{ tag.bg_color }}; color: {{ tag.fg_color }};"
                                 >#{{ tag.name }}</a>
                                 {% else %}
-                                <a href="/search?q={{ query }}%20{{ tag.name }}" class="rounded px-2 py-1 text-sm"
+                                <a href="/search?q={{ query }}%20{{ tag.name }}&p=1" class="rounded px-2 py-1 text-sm"
                                    style="background-color: {{ tag.bg_color }}; color: {{ tag.fg_color }};"
                                 >#{{ tag.name }}</a>
                                 {% endif %}

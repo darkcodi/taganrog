@@ -153,7 +153,7 @@
             }).then(response => {
                 if (response.ok) {
                     document.getElementById('submit-button').disabled = false;
-                    window.location.href = '/search?q=null';
+                    window.location.href = '/search?q=null&p=1';
                 } else {
                     console.error('Error:', response);
                     alert('Error uploading file');
