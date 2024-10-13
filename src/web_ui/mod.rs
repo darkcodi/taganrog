@@ -12,7 +12,9 @@ use axum_macros::FromRef;
 use chrono::{DateTime, Utc};
 use itertools::Itertools;
 use log::info;
+use random_port::{PortPicker, Protocol};
 use serde::{Deserialize, Serialize};
+use tauri::{WebviewUrl, WebviewWindowBuilder};
 use tokio::sync::RwLock;
 use tower_http::trace::TraceLayer;
 use crate::client::TaganrogClient;
@@ -61,10 +63,29 @@ pub async fn serve(client: TaganrogClient<FileStorage>) {
         .layer(TraceLayer::new_for_http())
         .layer(DefaultBodyLimit::max(MAX_UPLOAD_SIZE_IN_BYTES));
 
-    let addr = "[::]:1698";
-    let listener = tokio::net::TcpListener::bind(addr).await.expect("failed to bind to address");
+    let port: u16 = PortPicker::new().protocol(Protocol::Tcp).pick().unwrap();
+    let addr = format!("127.0.0.1:{}", port);
+    let listener = tokio::net::TcpListener::bind(&addr).await.expect("failed to bind to address");
     info!("listening on {}", &addr);
-    axum::serve(listener, router).await.expect("error running HTTP server");
+
+    tokio::spawn(async move {
+        axum::serve(listener, router).await.expect("error running HTTP server");
+    });
+
+    tauri::Builder::default()
+        // .invoke_handler(tauri::generate_handler![choose_file])
+        .setup(move |app| {
+            let url = format!("http://localhost:{}", port).parse().unwrap();
+            WebviewWindowBuilder::new(app, "main".to_string(), WebviewUrl::External(url))
+                .title("Taganrog")
+                .inner_size(1024.0, 768.0)
+                .resizable(true)
+                .fullscreen(false)
+                .build()?;
+            Ok(())
+        })
+        .run(tauri::generate_context!())
+        .expect("error while running Tauri application");
 }
 
 #[derive(Clone, FromRef)]
@@ -351,7 +372,7 @@ async fn autocomplete_tags(
     if normalized_query.is_empty() {
         return Json(vec![]);
     }
-    let page = query.p.unwrap_or(10);
+    let page = query.p.unwrap_or(6);
     let client = state.client.read().await;
     let autocomplete = client.autocomplete_tags(&normalized_query, page);
     let autocomplete = autocomplete.iter().map(|x| {
@@ -434,7 +455,7 @@ async fn get_media_thumbnail(
     let bytes = std::fs::read(&thumbnail_path).unwrap();
     let mut response = Response::new(Body::from(bytes));
     response.headers_mut().insert("Cache-Control", "public, max-age=31536000".parse().unwrap());
-    response.headers_mut().insert("Content-Type", "image/jpeg".parse().unwrap());
+    response.headers_mut().insert("Content-Type", "image/png".parse().unwrap());
     response
 }
 

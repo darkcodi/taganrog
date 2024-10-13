@@ -1,14 +1,14 @@
 use clap::{Arg, Command};
 use log::{debug, error, info};
-use taganrog::{cli, config, web_ui};
-use taganrog::client::TaganrogClient;
-use taganrog::config::AppConfig;
-use taganrog::storage::FileStorage;
+use taganrog_lib::config::AppConfig;
+use taganrog_lib::{cli, config, web_ui};
+use taganrog_lib::client::TaganrogClient;
+use taganrog_lib::storage::FileStorage;
 
 #[tokio::main]
 async fn main() {
     let command = Command::new("tgk")
-        .version("0.1")
+        .version("0.2")
         .author("Ivan Yaremenchuk")
         .about("Taganrog All-In-One binary: CLI, Web UI")
         .arg(Arg::new("config-path")
@@ -40,7 +40,7 @@ async fn main() {
             .short('v')
             .global(true)
             .env("TAG_VERBOSE"))
-        .subcommand_required(true)
+        .subcommand_required(false)
         .subcommand(
             Command::new("config")
                 .about("Manage file configuration")
@@ -55,10 +55,6 @@ async fn main() {
                         .arg(Arg::new("key").required(true).help("Key of the configuration value"))
                         .arg(Arg::new("value").required(true).help("Value of the configuration value"))
                 )
-        )
-        .subcommand(
-            Command::new("web-ui")
-                .about("Serve a web-ui using the Axum framework")
         )
         .subcommand(
             Command::new("tag")
@@ -93,6 +89,12 @@ async fn main() {
 async fn handle_command(command: Command) {
     let matches = command.get_matches();
     match matches.subcommand() {
+        None => {
+            config::configure_api_logging(&matches);
+            let config = config::get_app_config_or_exit(&matches);
+            let client = create_taganrog_client(config).await;
+            web_ui::serve(client).await
+        },
         Some(("config", config_matches)) => {
             config::configure_console_logging(&matches);
             match config_matches.subcommand() {
@@ -114,12 +116,6 @@ async fn handle_command(command: Command) {
                     std::process::exit(1);
                 }
             }
-        },
-        Some(("web-ui", _)) => {
-            config::configure_api_logging(&matches);
-            let config = config::get_app_config_or_exit(&matches);
-            let client = create_taganrog_client(config).await;
-            web_ui::serve(client).await
         },
         Some(("tag", tag_matches)) => {
             config::configure_console_logging(&matches);

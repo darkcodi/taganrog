@@ -10,6 +10,13 @@ keywords = ["taganrog", "tag", "tagging", "search", "media"]
 categories = ["multimedia", "command-line-utilities", "web-programming"]
 repository = "https://github.com/darkcodi/taganrog"
 
+[lib]
+name = "taganrog_lib"
+crate-type = ["staticlib", "cdylib", "rlib"]
+
+[build-dependencies]
+tauri-build = { version = "2.0", features = [] }
+
 [dependencies]
 anyhow = { version = "1.0", features = ["std"] }
 askama = "0.12"
@@ -27,9 +34,13 @@ itertools = "0.12"
 log = "0.4"
 path-absolutize = "3.1"
 rand = "0.8"
+random-port = "0.1"
 relative-path = "1.9"
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
+tauri = { version = "2.0", features = ["protocol-asset"] }
+tauri-plugin-localhost = "2.0"
+tauri-plugin-log = "2.0"
 tempfile = "3"
 thiserror = "1.0"
 tokio = { version = "1.35", features = ["full", "fs"] }
