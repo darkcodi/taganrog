@@ -92,8 +92,8 @@ Taganrog can be used as a CLI tool to manage your tags and files. Here are some 
   
 Taganrog also provides a web UI that can be accessed by visiting `http://localhost:1698` in your browser. The web UI allows you to search for files using tags and manage your tags.
 - **Search**: Enter tags in the search bar to search for files that have those tags.
+- **Tag new files**: Click on the `Plus` button in the top right corner and select a file(s) to tag.
 - **Add/Delete Tags**: Click on some media file and then add/remove tags to it on the right-side panel.
-- **Upload Files**: Click on the `Upload` button in the top right corner and select a file(s) to upload.
 - **Delete Files**: Open a media by clicking it and press the `Delete` button on the right-side pane to delete it.
 - **Tags Cloud**: Click on the `Cloud` button in the top right corner to see a cloud of your top 100 used tags.
 

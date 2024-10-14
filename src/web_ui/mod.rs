@@ -70,12 +70,12 @@ pub async fn serve(config: AppConfig, client: TaganrogClient<FileStorage>) {
 
         // pages
         .route("/", get(index))
+        .route("/media/new", get(new_media_page))
         .route("/media/random", get(get_random_media))
         .route("/media/:media_id", get(get_media).delete(delete_media))
         .route("/media/:media_id/add-tag", get(add_tag_to_media))
         .route("/media/:media_id/remove-tag", delete(remove_tag_from_media))
         .route("/search", get(media_search))
-        .route("/upload", get(upload_page))
         .route("/tags_cloud", get(tags_cloud))
 
         // api
@@ -550,11 +550,11 @@ async fn stream_media(
 }
 
 #[derive(Default, Template)]
-#[template(path = "upload.html")]
-struct UploadTemplate { }
+#[template(path = "new_media.html")]
+struct NewMediaTemplate { }
 
-async fn upload_page() -> impl IntoResponse {
-    HtmlTemplate(UploadTemplate::default())
+async fn new_media_page() -> impl IntoResponse {
+    HtmlTemplate(NewMediaTemplate::default())
 }
 
 #[derive(Default, Debug, Serialize)]
