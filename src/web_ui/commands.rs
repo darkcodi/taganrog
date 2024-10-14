@@ -7,9 +7,18 @@ use crate::entities::Media;
 use crate::web_ui::AppState;
 
 #[tauri::command(rename_all = "snake_case")]
-pub async fn choose_file(app_handle: tauri::AppHandle, app_state: State<'_, AppState>) -> Result<Media, String> {
-    let path_str = app_handle.dialog().file().blocking_pick_file().ok_or("No file selected")?.to_string();
+pub async fn choose_files(app_handle: tauri::AppHandle) -> Result<Vec<String>, String> {
+    let file_paths = app_handle.dialog().file().blocking_pick_files().ok_or("No files selected")?;
+    let file_paths = file_paths.iter().map(|p| p.to_string()).collect();
+    Ok(file_paths)
+}
+
+#[tauri::command(rename_all = "snake_case")]
+pub async fn load_media_from_file(path_str: &str, app_state: State<'_, AppState>) -> Result<Media, String> {
     let path_buf = std::path::PathBuf::from(&path_str);
+    if !path_buf.exists() {
+        return Err("File does not exist".to_string());
+    }
     let client = app_state.client.read().await;
     let mut media = client.create_media_from_file(&path_buf).await.map_err(|e| e.to_string())?;
     let maybe_existing_media = client.get_media_by_id(&media.id);
@@ -25,6 +34,12 @@ pub async fn choose_file(app_handle: tauri::AppHandle, app_state: State<'_, AppS
         media.tags.push(tag.clone());
     }
     Ok(media)
+}
+
+#[tauri::command(rename_all = "snake_case")]
+pub fn has_thumbnail(media_id: &str, app_state: State<'_, AppState>) -> Result<bool, String> {
+    let filepath = app_state.config.thumbnails_dir.join(format!("{}.png", media_id));
+    Ok(filepath.exists())
 }
 
 #[tauri::command(rename_all = "snake_case")]

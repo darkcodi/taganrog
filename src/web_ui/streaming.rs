@@ -21,7 +21,7 @@ pub fn get_stream_response(
 
     let mut resp = ResponseBuilder::new()
         .header(CONTENT_TYPE, "video/mp4")
-        .header(ACCESS_CONTROL_ALLOW_ORIGIN, "*");;
+        .header(ACCESS_CONTROL_ALLOW_ORIGIN, "*");
 
     // if the webview sent a range header, we need to send a 206 in return
     let http_response = if let Some(range_header) = request.headers().get("range") {

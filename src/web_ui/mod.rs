@@ -8,7 +8,7 @@ use askama::Template;
 use axum::{routing::get, routing::delete, Router, Json};
 use axum::body::Body;
 use axum::extract::{Path, Query, State};
-use axum::http::{Request, StatusCode};
+use axum::http::StatusCode;
 use axum::response::{Html, IntoResponse, Response};
 use axum_macros::FromRef;
 use chrono::{DateTime, Utc};
@@ -98,7 +98,7 @@ pub async fn serve(config: AppConfig, client: TaganrogClient<FileStorage>) {
     tauri::Builder::default()
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_fs::init())
-        .invoke_handler(tauri::generate_handler![choose_file, save_thumbnail])
+        .invoke_handler(tauri::generate_handler![choose_files, load_media_from_file, has_thumbnail, save_thumbnail])
         .setup(move |app| {
             app.manage(app_state);
             let url = format!("http://localhost:{}", port).parse().unwrap();

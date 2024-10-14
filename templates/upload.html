@@ -29,12 +29,12 @@
         <div class="max-w-7xl w-full mt-6 grid grid-cols-1 gap-4 bg-gray-50">
             <div class="rounded-md shadow-sm p-4">
                 <h2 class="text-2xl font-bold mt-2">
-                    Upload your file
+                    Tag new file(s)
                 </h2>
                 <div class="mt-4">
                     <button class="appearance-none rounded-none relative block w-full px-3 py-2 border border-gray-300 placeholder-gray-500 text-gray-900 rounded-md focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 focus:z-10 sm:text-sm"
                            id="fileInput">
-                        Choose file
+                        Choose file(s)
                     </button>
                 </div>
                 <div class="container mt-4 mx-auto px-4">
@@ -105,27 +105,52 @@
                     previewContainer.removeChild(previewContainer.firstChild);
                 }
 
-                const media = await invoke('choose_file');
-                console.log('Chosen media:', media);
-
-                const media_id = media.id;
-                const mimeType = media.content_type;
-                const filepath = media.location;
-                const normalizedFilepath = convertFileSrc(filepath, 'stream');
-                console.log('Normalized filepath:', normalizedFilepath);
-
-                const thumbnail = await generateThumbnail(normalizedFilepath, mimeType);
-                if (!thumbnail) {
-                    console.error('Failed to generate thumbnail');
+                const files = await invoke('choose_files');
+                if (!files || files.length === 0) {
+                    console.error('No files chosen');
                     return;
                 }
 
-                await invoke('save_thumbnail', { media_id, thumbnail });
+                if (files.length === 1) {
+                    // TODO: redirect to /preview page?
+                }
+                else {
+                    for (const path_str of files) {
+                        let media = await invoke('load_media_from_file', { path_str });
+                        console.log('Chosen media:', media);
 
-                const img = document.createElement('img');
-                img.src = thumbnail;
-                img.classList.add('w-32', 'h-32', 'object-cover', 'rounded-md', 'file-preview');
-                previewContainer.appendChild(img);
+                        const media_id = media.id;
+                        const mimeType = media.content_type;
+                        const filepath = media.location;
+                        const normalizedFilepath = convertFileSrc(filepath, 'stream');
+                        console.log('Normalized filepath:', normalizedFilepath);
+
+                        const has_thumbnail = await invoke('has_thumbnail', { media_id });
+
+                        if (has_thumbnail) {
+                            console.log('Thumbnail already exists');
+
+                            const img = document.createElement('img');
+                            img.src = `/media/${media_id}/thumbnail`;
+                            img.classList.add('w-32', 'h-32', 'object-cover', 'rounded-md', 'file-preview');
+                            previewContainer.appendChild(img);
+                        } else {
+                            const thumbnail = await generateThumbnail(normalizedFilepath, mimeType);
+                            if (!thumbnail) {
+                                console.error('Failed to generate thumbnail');
+                                return;
+                            }
+
+                            await invoke('save_thumbnail', { media_id, thumbnail });
+                            console.log('Saved new thumbnail');
+
+                            const img = document.createElement('img');
+                            img.src = thumbnail;
+                            img.classList.add('w-32', 'h-32', 'object-cover', 'rounded-md', 'file-preview');
+                            previewContainer.appendChild(img);
+                        }
+                    }
+                }
             });
         });
     </script>
