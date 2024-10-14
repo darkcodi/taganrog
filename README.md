@@ -56,15 +56,7 @@ There are four ways to install Taganrog:
     cargo install taganrog
     ```
 
-3. **Using Docker**:
-    - You can also run Taganrog using Docker:
-    ```sh
-    docker run -p 1698:1698 -v /path/to/some/directory:/workdir ghcr.io/darkcodi/taganrog:latest
-    ```
-    - Replace `/path/to/some/directory` with the path to your media files
-    - The web UI will be available at `http://localhost:1698`
-
-4. **Building from source**:
+3. **Building from source**:
    - Clone the repo and build the project using Cargo:
     ```sh
     git clone https://github.com/darkcodi/taganrog.git
