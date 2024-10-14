@@ -1,20 +1,21 @@
+mod commands;
+
 use std::hash::Hasher;
 use std::iter::once;
 use std::sync::Arc;
 use askama::Template;
-use axum::{routing::get, Router, Json};
+use axum::{routing::get, routing::delete, Router, Json};
 use axum::body::Body;
-use axum::extract::{DefaultBodyLimit, Multipart, Path, Query, State};
+use axum::extract::{Path, Query, State};
 use axum::http::StatusCode;
 use axum::response::{Html, IntoResponse, Response};
-use axum::routing::{delete, post};
 use axum_macros::FromRef;
 use chrono::{DateTime, Utc};
 use itertools::Itertools;
 use log::info;
 use random_port::{PortPicker, Protocol};
 use serde::{Deserialize, Serialize};
-use tauri::{WebviewUrl, WebviewWindowBuilder};
+use tauri::{Manager, WebviewUrl, WebviewWindowBuilder};
 use tokio::sync::RwLock;
 use tower_http::trace::TraceLayer;
 use crate::client::TaganrogClient;
@@ -22,6 +23,7 @@ use crate::entities::{Media, TagsAutocomplete};
 use crate::storage::FileStorage;
 use crate::utils::normalize_query;
 use crate::utils::str_utils::StringExtensions;
+use crate::web_ui::commands::*;
 
 // icons
 const FAVICON: &[u8] = include_bytes!("assets/favicon.ico");
@@ -38,7 +40,6 @@ const TAILWIND_EXT_LIB: &[u8] = include_bytes!("assets/scripts/tailwind_ext_1.0.
 // styles
 const ALGOLIA_STYLES: &[u8] = include_bytes!("assets/styles/algolia_classic_1.15.1.min.css");
 
-const MAX_UPLOAD_SIZE_IN_BYTES: usize = 524_288_000; // 500 MB
 const DEFAULT_MEDIA_PAGE_SIZE: usize = 6;
 const DEFAULT_AUTOCOMPLETE_PAGE_SIZE: usize = 6;
 
@@ -47,6 +48,7 @@ pub async fn serve(client: TaganrogClient<FileStorage>) {
     info!("media count: {}", media_count);
 
     info!("initializing router...");
+    let app_state = AppState { client: Arc::new(RwLock::new(client)) };
     let router = Router::new()
         // icons
         .route("/favicon.ico", get(favicon))
@@ -76,13 +78,9 @@ pub async fn serve(client: TaganrogClient<FileStorage>) {
         .route("/media/:media_id/thumbnail", get(get_media_thumbnail))
         .route("/media/:media_id/stream", get(stream_media))
         .route("/tags/autocomplete", get(autocomplete_tags))
-        .route("/upload/files", post(upload_files))
 
-        .with_state(AppState {
-            client: Arc::new(RwLock::new(client)),
-        })
-        .layer(TraceLayer::new_for_http())
-        .layer(DefaultBodyLimit::max(MAX_UPLOAD_SIZE_IN_BYTES));
+        .with_state(app_state.clone())
+        .layer(TraceLayer::new_for_http());
 
     let port: u16 = PortPicker::new().protocol(Protocol::Tcp).pick().unwrap();
     let addr = format!("127.0.0.1:{}", port);
@@ -94,8 +92,10 @@ pub async fn serve(client: TaganrogClient<FileStorage>) {
     });
 
     tauri::Builder::default()
-        // .invoke_handler(tauri::generate_handler![choose_file])
+        .plugin(tauri_plugin_dialog::init())
+        .invoke_handler(tauri::generate_handler![choose_file, save_thumbnail])
         .setup(move |app| {
+            app.manage(app_state);
             let url = format!("http://localhost:{}", port).parse().unwrap();
             WebviewWindowBuilder::new(app, "main".to_string(), WebviewUrl::External(url))
                 .title("Taganrog")
@@ -179,7 +179,6 @@ pub struct ExtendedMedia {
     pub created_at: DateTime<Utc>,
     pub size: i64,
     pub location: String,
-    pub was_uploaded: bool,
     pub tags: Vec<ExtendedTag>,
     pub is_image: bool,
 }
@@ -197,7 +196,6 @@ impl From<Media> for ExtendedMedia {
             created_at: media.created_at,
             size: media.size,
             location: media.location,
-            was_uploaded: media.was_uploaded,
             tags,
             is_image: media.content_type.starts_with("image"),
             content_type: media.content_type,
@@ -541,39 +539,6 @@ async fn upload_page() -> impl IntoResponse {
     HtmlTemplate(UploadTemplate::default())
 }
 
-async fn upload_files(
-    State(state): State<AppState>,
-    mut multipart: Multipart,
-) -> impl IntoResponse {
-    while let Ok(file) = read_multipart_file(&mut multipart).await {
-        let filename = file.file_name;
-        if filename.chars().any(|x| !x.is_ascii_alphanumeric() && x != '.' && x != '-' && x != '_') {
-            return StatusCode::INTERNAL_SERVER_ERROR;
-        }
-
-        let data = file.bytes;
-        let mut client = state.client.write().await;
-        let media_upload_result = client.upload_media(data, filename).await;
-        drop(client);
-        if media_upload_result.is_err() {
-            return StatusCode::INTERNAL_SERVER_ERROR;
-        }
-
-        let media = media_upload_result.unwrap().safe_unwrap();
-        let thumbnail_data = file.preview_bytes;
-        let client = state.client.read().await;
-        let thumbnail_path = client.get_thumbnail_path(&media.id);
-        drop(client);
-        if !thumbnail_path.exists() {
-            let thumbnail_save_result = std::fs::write(&thumbnail_path, thumbnail_data);
-            if thumbnail_save_result.is_err() {
-                return StatusCode::INTERNAL_SERVER_ERROR;
-            }
-        }
-    }
-    StatusCode::OK
-}
-
 #[derive(Default, Debug, Serialize)]
 pub struct MultipartFile {
     pub file_name: String,
@@ -582,23 +547,6 @@ pub struct MultipartFile {
     pub preview_file_name: String,
     pub preview_content_type: String,
     pub preview_bytes: Vec<u8>,
-}
-
-async fn read_multipart_file(multipart: &mut Multipart) -> anyhow::Result<MultipartFile> {
-    let mut result = MultipartFile::default();
-    {
-        let file = multipart.next_field().await?.ok_or(anyhow::anyhow!("No file was uploaded"))?;
-        result.file_name = file.file_name().unwrap_or_default().to_string();
-        result.content_type = file.content_type().unwrap_or_default().to_string();
-        result.bytes = file.bytes().await?.to_vec();
-    }
-    {
-        let file = multipart.next_field().await?.ok_or(anyhow::anyhow!("No preview file was uploaded"))?;
-        result.preview_file_name = file.file_name().unwrap_or_default().to_string();
-        result.preview_content_type = file.content_type().unwrap_or_default().to_string();
-        result.preview_bytes = file.bytes().await?.to_vec();
-    }
-    Ok(result)
 }
 
 fn get_bg_color(text: &str) -> String {

@@ -1,12 +1,12 @@
 use std::path::{PathBuf};
 use serde::{Deserialize, Serialize};
-use crate::config::ConfigError;
 use crate::entities::{Media, MediaId, Tag};
 use crate::error::TaganrogError;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub enum DbOperation {
     CreateMedia { media: Media },
+    UpdateMedia { media: Media },
     DeleteMedia { media_id: MediaId },
     AddTag { media_id: MediaId, tag: Tag },
     RemoveTag { media_id: MediaId, tag: Tag },
@@ -22,14 +22,7 @@ pub struct FileStorage {
 }
 
 impl FileStorage {
-    pub fn new(work_dir: PathBuf) -> Result<Self, ConfigError> {
-        let db_path = work_dir.join("taganrog.db.json");
-        if !db_path.exists() {
-            std::fs::write(&db_path, "")?;
-        }
-        if db_path.exists() && !db_path.is_file() {
-            return Err(ConfigError::Validation("db_path is not a file".to_string()));
-        }
+    pub fn new(db_path: PathBuf) -> anyhow::Result<Self> {
         Ok(Self { db_path })
     }
 }

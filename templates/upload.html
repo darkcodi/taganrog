@@ -27,22 +27,20 @@
     </header>
     <main class="h-screen flex flex-col items-center justify-center bg-white px-4 sm:px-6 lg:px-8">
         <div class="max-w-7xl w-full mt-6 grid grid-cols-1 gap-4 bg-gray-50">
-            <form id="upload-form" enctype="multipart/form-data" method="post" class="rounded-md shadow-sm p-4">
+            <div class="rounded-md shadow-sm p-4">
                 <h2 class="text-2xl font-bold mt-2">
                     Upload your file
                 </h2>
                 <div class="mt-4">
-                    <label class="sr-only" for="file">Upload</label>
-                    <input class="appearance-none rounded-none relative block w-full px-3 py-2 border border-gray-300 placeholder-gray-500 text-gray-900 rounded-md focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 focus:z-10 sm:text-sm"
-                           id="file" required="" type="file" autocomplete="off" name="file" accept=".jpg,.jpeg.,.gif,.png,.mov,.mp4" multiple>
+                    <button class="appearance-none rounded-none relative block w-full px-3 py-2 border border-gray-300 placeholder-gray-500 text-gray-900 rounded-md focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 focus:z-10 sm:text-sm"
+                           id="fileInput">
+                        Choose file
+                    </button>
                 </div>
                 <div class="container mt-4 mx-auto px-4">
                     <div id="preview-container" class="grid grid-cols-7 gap-4"></div>
                 </div>
-                <button id="submit-button" type="submit" class="inline-flex items-center justify-center whitespace-nowrap rounded-md text-sm font-medium transition-colors !bg-black !text-white !hover:bg-gray-700 !disabled:bg-gray-400 h-10 px-4 py-2 mt-4">
-                    Submit
-                </button>
-            </form>
+            </div>
         </div>
     </main>
     <footer class="w-full h-20 flex items-center justify-center bg-white">
@@ -51,127 +49,84 @@
         </div>
     </footer>
     <script>
-        document.getElementById('file').addEventListener('change', function(event) {
-            // clear previous preview children
-            let previewContainer = document.getElementById('preview-container');
-            while (previewContainer.firstChild) {
-                previewContainer.removeChild(previewContainer.firstChild);
-            }
-
-            for (let i = 0; i < event.target.files.length; i++) {
-                let file = event.target.files[i];
-                let slug = file.name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/-+/g, '-').replace(/^-|-$/g, '');
-                let fileReader = new FileReader();
-                if (file.type.match('image')) {
-                    fileReader.onload = function() {
-                        // convert to png
-                        let img = new Image();
-                        img.src = fileReader.result;
-                        img.onload = function() {
-                            let canvas = document.createElement('canvas');
-                            canvas.width = img.width;
-                            canvas.height = img.height;
-                            let ctx = canvas.getContext('2d');
-                            ctx.drawImage(img, 0, 0);
-                            let dataUrl = canvas.toDataURL('image/png');
-                            let img2 = document.createElement('img');
-                            img2.id = slug;
-                            img2.src = dataUrl;
-                            img2.classList.add('w-32', 'h-32', 'object-cover', 'rounded-md', 'file-preview');
-                            document.getElementById('preview-container').appendChild(img2);
-                            console.log('preview added ' + i);
-                        };
-                    };
-                    fileReader.readAsDataURL(file);
-                } else {
-                    fileReader.onload = function() {
-                        let blob = new Blob([fileReader.result], {type: file.type});
-                        let url = URL.createObjectURL(blob);
-                        let video = document.createElement('video');
-                        let timeupdate = function() {
-                            if (snapImage()) {
-                                video.removeEventListener('timeupdate', timeupdate);
-                                video.pause();
-                            }
-                        };
-                        video.addEventListener('loadeddata', function() {
-                            if (snapImage()) {
-                                video.removeEventListener('timeupdate', timeupdate);
-                            }
-                        });
-                        let snapImage = function() {
-                            let canvas = document.createElement('canvas');
-                            canvas.width = video.videoWidth;
-                            canvas.height = video.videoHeight;
-                            canvas.getContext('2d').drawImage(video, 0, 0, canvas.width, canvas.height);
-                            let image = canvas.toDataURL();
-                            let success = image.length > 100000;
-                            if (success) {
-                                let img = document.createElement('img');
-                                img.id = slug;
-                                img.src = image;
-                                img.classList.add('w-32', 'h-32', 'object-cover', 'rounded-md', 'file-preview');
-                                document.getElementById('preview-container').appendChild(img);
-                                URL.revokeObjectURL(url);
-                                console.log('preview added ' + i);
-                            }
-                            return success;
-                        };
-                        video.addEventListener('timeupdate', timeupdate);
-                        video.preload = 'metadata';
-                        video.src = url;
-                        // Load video in Safari / IE11
-                        video.muted = true;
-                        video.playsInline = true;
-                        video.play();
-                    };
-                    fileReader.readAsArrayBuffer(file);
+        const generateThumbnail = (src, mimeType) => {
+            return new Promise((resolve) => {
+                if (mimeType.startsWith('image')) {
+                    return generateImageThumbnail(src).then(resolve);
                 }
-            }
-        });
-        document.getElementById('upload-form').addEventListener('submit', async function(event) {
-            event.preventDefault(); // Prevent the default form submission
-            document.getElementById('submit-button').disabled = true;
 
-            const formData = new FormData();
-            const fileInput = document.getElementById('file');
-
-            for (let i = 0; i < fileInput.files.length; i++) {
-                let slug = fileInput.files[i].name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/-+/g, '-').replace(/^-|-$/g, '');
-                let imgElement = document.getElementById(slug);
-                if (imgElement === null) {
-                    continue;
+                if (mimeType.startsWith('video')) {
+                    return generateVideoThumbnail(src).then(resolve);
                 }
-                let blob = dataURLtoBlob(imgElement.src);
-                formData.append('file', fileInput.files[i]);
-                formData.append('preview', blob, 'preview.png');
-            }
 
-            await fetch('/upload/files', {
-                method: 'POST',
-                body: formData
-            }).then(response => {
-                if (response.ok) {
-                    document.getElementById('submit-button').disabled = false;
-                    window.location.href = '/search?q=null&p=1';
-                } else {
-                    console.error('Error:', response);
-                    alert('Error uploading file');
+                return resolve(null);
+            });
+        };
+        const generateVideoThumbnail = (src) => {
+            return new Promise((resolve) => {
+                const canvas = document.createElement("canvas");
+                const video = document.createElement("video");
+                video.crossOrigin = "anonymous";
+                video.autoplay = true;
+                video.muted = true;
+                video.src = src;
+                video.onloadeddata = () => {
+                    let ctx = canvas.getContext("2d");
+                    canvas.width = video.videoWidth;
+                    canvas.height = video.videoHeight;
+                    ctx.drawImage(video, 0, 0, video.videoWidth, video.videoHeight);
+                    video.pause();
+                    return resolve(canvas.toDataURL("image/png"));
+                };
+            });
+        };
+        const generateImageThumbnail = (src) => {
+            return new Promise((resolve) => {
+                const img = document.createElement("img");
+                img.crossOrigin = "anonymous";
+                img.src = src;
+                img.onload = () => {
+                    const canvas = document.createElement("canvas");
+                    const ctx = canvas.getContext("2d");
+                    canvas.width = img.width;
+                    canvas.height = img.height;
+                    ctx.drawImage(img, 0, 0, img.width, img.height);
+                    return resolve(canvas.toDataURL("image/png"));
+                };
+            });
+        };
+        window.addEventListener('DOMContentLoaded', () => {
+            const invoke = window.__TAURI__.core.invoke;
+            const convertFileSrc = window.__TAURI__.core.convertFileSrc;
+            const previewContainer = document.getElementById('preview-container');
+
+            document.getElementById('fileInput').addEventListener('click', async () => {
+                while (previewContainer.firstChild) {
+                    previewContainer.removeChild(previewContainer.firstChild);
                 }
-            }).catch(error => {
-                console.error('Error:', error);
-                alert('Error uploading file');
+
+                const media = await invoke('choose_file');
+                const filepath = media.location;
+                console.log('Chosen filepath:', filepath);
+                const normalizedFilepath = convertFileSrc(filepath, 'stream');
+                console.log('Normalized filepath:', normalizedFilepath);
+                const mimeType = media.content_type;
+                console.log('MIME type:', mimeType);
+
+                const thumbnail = await generateThumbnail(normalizedFilepath, mimeType);
+                if (!thumbnail) {
+                    console.error('Failed to generate thumbnail');
+                    return;
+                }
+
+                await invoke('save_thumbnail', { image_data_url: thumbnail });
+
+                const img = document.createElement('img');
+                img.src = thumbnail;
+                img.classList.add('w-32', 'h-32', 'object-cover', 'rounded-md', 'file-preview');
+                previewContainer.appendChild(img);
             });
         });
-
-        function dataURLtoBlob(dataurl) {
-            let arr = dataurl.split(','), mime = arr[0].match(/:(.*?);/)[1],
-                bstr = atob(arr[1]), n = bstr.length, u8arr = new Uint8Array(n);
-            while(n--){
-                u8arr[n] = bstr.charCodeAt(n);
-            }
-            return new Blob([u8arr], {type:mime});
-        }
     </script>
 </div>
 {% endblock %}
