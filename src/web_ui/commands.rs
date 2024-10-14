@@ -28,10 +28,17 @@ pub async fn choose_file(app_handle: tauri::AppHandle, app_state: State<'_, AppS
 }
 
 #[tauri::command(rename_all = "snake_case")]
-pub fn save_thumbnail(image_data_url: &str) -> Result<(), String> {
-    let data = image_data_url.split(",").nth(1).ok_or("Invalid data URL")?;
+pub fn save_thumbnail(media_id: &str, thumbnail: &str, app_state: State<'_, AppState>) -> Result<(), String> {
+    let filepath = app_state.config.thumbnails_dir.join(format!("{}.png", media_id));
+    if filepath.exists() {
+        if filepath.is_dir() {
+            return Err("Thumbnail path is a directory".to_string());
+        }
+        return Ok(());
+    }
+    let data = thumbnail.split(",").nth(1).ok_or("Invalid data URL")?;
     let bytes = decode(data).map_err(|e| e.to_string())?;
-    let mut file = File::create("thumbnail.png").map_err(|e| e.to_string())?;
+    let mut file = File::create(filepath).map_err(|e| e.to_string())?;
     file.write_all(&bytes).map_err(|e| e.to_string())?;
     Ok(())
 }

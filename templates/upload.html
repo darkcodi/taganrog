@@ -106,12 +106,13 @@
                 }
 
                 const media = await invoke('choose_file');
+                console.log('Chosen media:', media);
+
+                const media_id = media.id;
+                const mimeType = media.content_type;
                 const filepath = media.location;
-                console.log('Chosen filepath:', filepath);
                 const normalizedFilepath = convertFileSrc(filepath, 'stream');
                 console.log('Normalized filepath:', normalizedFilepath);
-                const mimeType = media.content_type;
-                console.log('MIME type:', mimeType);
 
                 const thumbnail = await generateThumbnail(normalizedFilepath, mimeType);
                 if (!thumbnail) {
@@ -119,7 +120,7 @@
                     return;
                 }
 
-                await invoke('save_thumbnail', { image_data_url: thumbnail });
+                await invoke('save_thumbnail', { media_id, thumbnail });
 
                 const img = document.createElement('img');
                 img.src = thumbnail;

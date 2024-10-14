@@ -21,6 +21,7 @@ use tauri::{Manager, WebviewUrl, WebviewWindowBuilder};
 use tokio::sync::RwLock;
 use tower_http::trace::TraceLayer;
 use crate::client::TaganrogClient;
+use crate::config::AppConfig;
 use crate::entities::{Media, TagsAutocomplete};
 use crate::storage::FileStorage;
 use crate::utils::normalize_query;
@@ -46,12 +47,12 @@ const ALGOLIA_STYLES: &[u8] = include_bytes!("assets/styles/algolia_classic_1.15
 const DEFAULT_MEDIA_PAGE_SIZE: usize = 6;
 const DEFAULT_AUTOCOMPLETE_PAGE_SIZE: usize = 6;
 
-pub async fn serve(client: TaganrogClient<FileStorage>) {
+pub async fn serve(config: AppConfig, client: TaganrogClient<FileStorage>) {
     let media_count = client.get_media_count();
     info!("media count: {}", media_count);
 
     info!("initializing router...");
-    let app_state = AppState { client: Arc::new(RwLock::new(client)) };
+    let app_state = AppState { config: Arc::new(config), client: Arc::new(RwLock::new(client)) };
     let router = Router::new()
         // icons
         .route("/favicon.ico", get(favicon))
@@ -127,6 +128,7 @@ pub async fn serve(client: TaganrogClient<FileStorage>) {
 
 #[derive(Clone, FromRef)]
 struct AppState {
+    config: Arc<AppConfig>,
     client: Arc<RwLock<TaganrogClient<FileStorage>>>,
 }
 

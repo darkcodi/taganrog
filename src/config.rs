@@ -1,7 +1,7 @@
 use std::path::PathBuf;
 use clap::ArgMatches;
 use home::home_dir;
-use log::{error, LevelFilter};
+use log::{error, info, LevelFilter};
 
 #[derive(Debug, Clone)]
 pub struct AppConfig {
@@ -99,6 +99,7 @@ pub fn get_app_config_or_exit() -> AppConfig {
         db_filepath,
         thumbnails_dir,
     };
+    info!("Config: {:?}", app_config);
 
     app_config
 }
