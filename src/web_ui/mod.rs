@@ -1,4 +1,5 @@
 mod commands;
+mod streaming;
 
 use std::hash::Hasher;
 use std::iter::once;
@@ -7,10 +8,11 @@ use askama::Template;
 use axum::{routing::get, routing::delete, Router, Json};
 use axum::body::Body;
 use axum::extract::{Path, Query, State};
-use axum::http::StatusCode;
+use axum::http::{Request, StatusCode};
 use axum::response::{Html, IntoResponse, Response};
 use axum_macros::FromRef;
 use chrono::{DateTime, Utc};
+use http::{header::*, response::Builder as ResponseBuilder};
 use itertools::Itertools;
 use log::info;
 use random_port::{PortPicker, Protocol};
@@ -24,6 +26,7 @@ use crate::storage::FileStorage;
 use crate::utils::normalize_query;
 use crate::utils::str_utils::StringExtensions;
 use crate::web_ui::commands::*;
+use crate::web_ui::streaming::get_stream_response;
 
 // icons
 const FAVICON: &[u8] = include_bytes!("assets/favicon.ico");
@@ -93,6 +96,7 @@ pub async fn serve(client: TaganrogClient<FileStorage>) {
 
     tauri::Builder::default()
         .plugin(tauri_plugin_dialog::init())
+        .plugin(tauri_plugin_fs::init())
         .invoke_handler(tauri::generate_handler![choose_file, save_thumbnail])
         .setup(move |app| {
             app.manage(app_state);
@@ -104,6 +108,18 @@ pub async fn serve(client: TaganrogClient<FileStorage>) {
                 .fullscreen(false)
                 .build()?;
             Ok(())
+        })
+        .register_asynchronous_uri_scheme_protocol("stream", move |_ctx, request, responder| {
+            match get_stream_response(request) {
+                Ok(http_response) => responder.respond(http_response),
+                Err(e) => responder.respond(
+                    ResponseBuilder::new()
+                        .status(StatusCode::INTERNAL_SERVER_ERROR)
+                        .header(CONTENT_TYPE, "text/plain")
+                        .body(e.to_string().as_bytes().to_vec())
+                        .unwrap(),
+                ),
+            }
         })
         .run(tauri::generate_context!())
         .expect("error while running Tauri application");
