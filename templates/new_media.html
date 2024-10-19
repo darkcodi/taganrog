@@ -40,6 +40,8 @@
                 <div class="container mt-4 mx-auto px-4">
                     <div id="preview-container" class="grid grid-cols-7 gap-4"></div>
                 </div>
+                <div id="tags-div">
+                </div>
             </div>
         </div>
     </main>
@@ -49,6 +51,8 @@
         </div>
     </footer>
     <script>
+        const invoke = window.__TAURI__.core.invoke;
+        const convertFileSrc = window.__TAURI__.core.convertFileSrc;
         const generateThumbnail = (src, mimeType) => {
             return new Promise((resolve) => {
                 if (mimeType.startsWith('image')) {
@@ -95,9 +99,41 @@
                 };
             });
         };
+        const addPreviewForMedia = async (media) => {
+            const previewContainer = document.getElementById('preview-container');
+
+            const media_id = media.id;
+            const mimeType = media.content_type;
+            const filepath = media.location;
+            const normalizedFilepath = convertFileSrc(filepath, 'stream');
+            console.log('Normalized filepath:', normalizedFilepath);
+
+            const has_thumbnail = await invoke('has_thumbnail', {media_id});
+
+            if (has_thumbnail) {
+                console.log('Thumbnail already exists');
+
+                const img = document.createElement('img');
+                img.src = `/media/${media_id}/thumbnail`;
+                img.classList.add('w-32', 'h-32', 'object-cover', 'rounded-md', 'file-preview');
+                previewContainer.appendChild(img);
+            } else {
+                const thumbnail = await generateThumbnail(normalizedFilepath, mimeType);
+                if (!thumbnail) {
+                    console.error('Failed to generate thumbnail');
+                    return;
+                }
+
+                await invoke('save_thumbnail', {media_id, thumbnail});
+                console.log('Saved new thumbnail');
+
+                const img = document.createElement('img');
+                img.src = thumbnail;
+                img.classList.add('w-32', 'h-32', 'object-cover', 'rounded-md', 'file-preview');
+                previewContainer.appendChild(img);
+            }
+        };
         window.addEventListener('DOMContentLoaded', () => {
-            const invoke = window.__TAURI__.core.invoke;
-            const convertFileSrc = window.__TAURI__.core.convertFileSrc;
             const previewContainer = document.getElementById('preview-container');
 
             document.getElementById('fileInput').addEventListener('click', async () => {
@@ -112,6 +148,11 @@
                 }
 
                 if (files.length === 1) {
+                    let media = await invoke('load_media_from_file', { path_str: files[0] });
+                    console.log('Chosen media:', media);
+
+                    await addPreviewForMedia(media);
+
                     // TODO: redirect to /preview page?
                 }
                 else {
@@ -119,37 +160,10 @@
                         let media = await invoke('load_media_from_file', { path_str });
                         console.log('Chosen media:', media);
 
-                        const media_id = media.id;
-                        const mimeType = media.content_type;
-                        const filepath = media.location;
-                        const normalizedFilepath = convertFileSrc(filepath, 'stream');
-                        console.log('Normalized filepath:', normalizedFilepath);
-
-                        const has_thumbnail = await invoke('has_thumbnail', { media_id });
-
-                        if (has_thumbnail) {
-                            console.log('Thumbnail already exists');
-
-                            const img = document.createElement('img');
-                            img.src = `/media/${media_id}/thumbnail`;
-                            img.classList.add('w-32', 'h-32', 'object-cover', 'rounded-md', 'file-preview');
-                            previewContainer.appendChild(img);
-                        } else {
-                            const thumbnail = await generateThumbnail(normalizedFilepath, mimeType);
-                            if (!thumbnail) {
-                                console.error('Failed to generate thumbnail');
-                                return;
-                            }
-
-                            await invoke('save_thumbnail', { media_id, thumbnail });
-                            console.log('Saved new thumbnail');
-
-                            const img = document.createElement('img');
-                            img.src = thumbnail;
-                            img.classList.add('w-32', 'h-32', 'object-cover', 'rounded-md', 'file-preview');
-                            previewContainer.appendChild(img);
-                        }
+                        await addPreviewForMedia(media);
                     }
+
+                    // TODO: unhide input for tags and submit button
                 }
             });
         });
