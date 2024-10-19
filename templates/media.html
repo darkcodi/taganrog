@@ -5,8 +5,8 @@
         {% include "search_header.html" %}
         {% if query != "" %}
             <div class="flex items-start justify-start bg-white px-4 py-0 sm:px-6 lg:px-8">
-                <a href="/search?q={{ query }}&p={{ page }}" class="inline-flex items-center justify-center whitespace-nowrap rounded-md text-sm font-medium ring-offset-background transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-500 focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 text-rose-400 hover:text-rose-600 border-2 border-rose-400 hover:border-rose-600 bg-white hover:bg-gray-100 h-10 px-4 py-2">
-                    Back
+                <a href="/search?q={{ query }}&p={{ page }}">
+                    <svg width="24px" height="24px" viewBox="0 0 1024 1024" xmlns="http://www.w3.org/2000/svg"><path fill="#EF4444" d="M224 480h640a32 32 0 1 1 0 64H224a32 32 0 0 1 0-64z"/><path fill="#EF4444" d="m237.248 512 265.408 265.344a32 32 0 0 1-45.312 45.312l-288-288a32 32 0 0 1 0-45.312l288-288a32 32 0 1 1 45.312 45.312L237.248 512z"/></svg>
                 </a>
             </div>
         {% endif %}
