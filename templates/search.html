@@ -33,7 +33,7 @@
                 {% for media in media_vec %}
                     <div class="rounded-md shadow-sm p-4 flex items-start space-x-4 mt-4 bg-gray-50">
                         <a href="/media/{{ media.id }}?q={{ query }}&p={{ current_page_number }}">
-                            <img src="{{ media.thumbnail_location }}" class="w-32 h-32 object-contain rounded-md" style="aspect-ratio:100/100;object-fit:contain;" />
+                            <img src="{{ media.thumbnail_url }}" class="w-32 h-32 object-contain rounded-md" style="aspect-ratio:100/100;object-fit:contain;" />
                         </a>
                         <div>
                             <a href="/media/{{ media.id }}?q={{ query }}&p={{ current_page_number }}">

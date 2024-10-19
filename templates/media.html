@@ -34,12 +34,12 @@
             <div id="media-main" class="max-w-fit w-full mt-6 flex h-3/4">
                 <div class="flex-1">
                     {% if media.is_image %}
-                        <img class="w-full h-full object-cover rounded-md focus:outline-none" src="/media/{{ media.id }}/stream" style="aspect-ratio:16/9;object-fit:contain;" />
+                        <img class="w-full h-full object-cover rounded-md focus:outline-none" src="{{ media.location_url }}" style="aspect-ratio:16/9;object-fit:contain;" />
                     {% else %}
                         <video id="media-player" preload="auto" autoplay="autoplay" loop="loop"
                                 controls
                                 class="w-full h-full object-cover rounded-md focus:outline-none"
-                                src="/media/{{ media.id }}/stream"
+                                src="{{ media.location_url }}"
                                 style="aspect-ratio:16/9;object-fit:contain;"
                         ></video>
                     {% endif %}

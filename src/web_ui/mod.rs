@@ -74,9 +74,6 @@ pub async fn serve(config: AppConfig, client: TaganrogClient<FileStorage>) {
         .route("/search", get(media_search))
         .route("/tags_cloud", get(tags_cloud))
 
-        // api
-        .route("/media/:media_id/stream", get(stream_media))
-
         .with_state(app_state.clone())
         .layer(TraceLayer::new_for_http());
 
@@ -191,7 +188,8 @@ pub struct ExtendedMedia {
     pub created_at: DateTime<Utc>,
     pub size: i64,
     pub location: String,
-    pub thumbnail_location: String,
+    pub location_url: String,
+    pub thumbnail_url: String,
     pub tags: Vec<ExtendedTag>,
     pub is_image: bool,
 }
@@ -209,7 +207,8 @@ impl From<Media> for ExtendedMedia {
             created_at: media.created_at,
             size: media.size,
             location: media.location,
-            thumbnail_location: String::default(),
+            location_url: String::default(),
+            thumbnail_url: String::default(),
             tags,
             is_image: media.content_type.starts_with("image"),
             content_type: media.content_type,
@@ -271,12 +270,13 @@ async fn media_search(
         .enumerate().map(|(i, x)| (x, i))
         .collect::<std::collections::HashMap<String, usize>>();
     media_vec.iter_mut().for_each(|media| {
-        let filepath = state.config.thumbnails_dir.join(format!("{}.png", &media.id));
-        if filepath.exists() {
-            media.thumbnail_location = convert_file_src(&filepath.to_string_lossy());
+        let thumbnail_filepath = state.config.thumbnails_dir.join(format!("{}.png", &media.id));
+        if thumbnail_filepath.exists() {
+            media.thumbnail_url = convert_file_src(&thumbnail_filepath.to_string_lossy());
         } else {
-            media.thumbnail_location = "/default_thumbnail.svg".to_string();
+            media.thumbnail_url = "/default_thumbnail.svg".to_string();
         }
+        media.location_url = convert_file_src(&media.location);
         media.tags.sort_by_key(|x| tag_to_index.get(&x.name).unwrap_or(&usize::MAX));
         media.tags.iter_mut().for_each(|tag| {
             tag.is_in_query = query_tags.contains(&tag.name);
@@ -341,7 +341,8 @@ async fn get_media(
     let page = query.p.unwrap_or(1);
     let client = state.client.read().await;
     if let Some(media) = client.get_media_by_id(&media_id) {
-        let extended_media: ExtendedMedia = media.into();
+        let mut extended_media: ExtendedMedia = media.into();
+        extended_media.location_url = convert_file_src(&extended_media.location);
         HtmlTemplate(MediaPageTemplate { query: normalized_query, page, media: extended_media, media_exists: true })
     } else {
         HtmlTemplate(MediaPageTemplate { query: normalized_query, page, media: ExtendedMedia::default(), media_exists: false })
@@ -353,7 +354,11 @@ async fn get_random_media(
 ) -> impl IntoResponse {
     let client = state.client.read().await;
     match client.get_random_media() {
-        Some(media) => HtmlTemplate(MediaPageTemplate { query: "".to_string(), page: 1, media: media.into(), media_exists: true }),
+        Some(media) => {
+            let mut extended_media: ExtendedMedia = media.into();
+            extended_media.location_url = convert_file_src(&extended_media.location);
+            HtmlTemplate(MediaPageTemplate { query: "".to_string(), page: 1, media: extended_media, media_exists: true })
+        },
         None => HtmlTemplate(MediaPageTemplate { query: "".to_string(), page: 1, media: ExtendedMedia::default(), media_exists: false })
     }
 }
@@ -387,28 +392,6 @@ async fn get_tailwind_ext_lib() -> impl IntoResponse {
 
 async fn get_algolia_styles() -> impl IntoResponse {
     Response::new(Body::from(ALGOLIA_STYLES))
-}
-
-async fn stream_media(
-    State(state): State<AppState>,
-    Path(media_id): Path<String>,
-) -> impl IntoResponse {
-    let client = state.client.read().await;
-    let media = client.get_media_by_id(&media_id);
-    if media.is_none() {
-        return Response::new(Body::empty());
-    }
-    let maybe_media_path = client.get_media_path(&media_id);
-    if maybe_media_path.is_none() {
-        return Response::new(Body::empty());
-    }
-    drop(client);
-    let media_path = maybe_media_path.unwrap();
-    let bytes = std::fs::read(media_path).unwrap();
-    let mut response = Response::new(Body::from(bytes));
-    response.headers_mut().insert("Cache-Control", "public, max-age=31536000".parse().unwrap());
-    response.headers_mut().insert("Content-Type", media.unwrap().content_type.parse().unwrap());
-    response
 }
 
 #[derive(Default, Template)]
