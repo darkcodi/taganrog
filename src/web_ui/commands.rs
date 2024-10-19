@@ -30,9 +30,9 @@ pub async fn load_media_from_file(path_str: &str, app_state: State<'_, AppState>
         let mut media: ExtendedMedia = media.into();
         let thumbnail_filepath = app_state.config.thumbnails_dir.join(format!("{}.png", &media.id));
         if thumbnail_filepath.exists() {
-            media.thumbnail_url = convert_file_src(&thumbnail_filepath.to_string_lossy());
+            media.thumbnail_location_url = convert_file_src(&thumbnail_filepath.to_string_lossy());
         } else {
-            media.thumbnail_url = "/default_thumbnail.svg".to_string();
+            media.thumbnail_location_url = "/default_thumbnail.svg".to_string();
         }
         media.location_url = convert_file_src(&media.location);
         return Ok(media);
@@ -47,9 +47,9 @@ pub async fn load_media_from_file(path_str: &str, app_state: State<'_, AppState>
     let mut media: ExtendedMedia = media.into();
     let thumbnail_filepath = app_state.config.thumbnails_dir.join(format!("{}.png", &media.id));
     if thumbnail_filepath.exists() {
-        media.thumbnail_url = convert_file_src(&thumbnail_filepath.to_string_lossy());
+        media.thumbnail_location_url = convert_file_src(&thumbnail_filepath.to_string_lossy());
     } else {
-        media.thumbnail_url = "/default_thumbnail.svg".to_string();
+        media.thumbnail_location_url = "/default_thumbnail.svg".to_string();
     }
     media.location_url = convert_file_src(&media.location);
     Ok(media)

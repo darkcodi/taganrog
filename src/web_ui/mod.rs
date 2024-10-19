@@ -189,7 +189,7 @@ pub struct ExtendedMedia {
     pub size: i64,
     pub location: String,
     pub location_url: String,
-    pub thumbnail_url: String,
+    pub thumbnail_location_url: String,
     pub tags: Vec<ExtendedTag>,
     pub is_image: bool,
 }
@@ -201,14 +201,15 @@ impl From<Media> for ExtendedMedia {
             tag.is_in_query = false;
             tag
         }).collect();
+        let location_url = convert_file_src(&media.location);
         Self {
             id: media.id,
             filename: media.filename,
             created_at: media.created_at,
             size: media.size,
             location: media.location,
-            location_url: String::default(),
-            thumbnail_url: String::default(),
+            location_url,
+            thumbnail_location_url: String::default(),
             tags,
             is_image: media.content_type.starts_with("image"),
             content_type: media.content_type,
@@ -272,9 +273,9 @@ async fn media_search(
     media_vec.iter_mut().for_each(|media| {
         let thumbnail_filepath = state.config.thumbnails_dir.join(format!("{}.png", &media.id));
         if thumbnail_filepath.exists() {
-            media.thumbnail_url = convert_file_src(&thumbnail_filepath.to_string_lossy());
+            media.thumbnail_location_url = convert_file_src(&thumbnail_filepath.to_string_lossy());
         } else {
-            media.thumbnail_url = "/default_thumbnail.svg".to_string();
+            media.thumbnail_location_url = "/default_thumbnail.svg".to_string();
         }
         media.location_url = convert_file_src(&media.location);
         media.tags.sort_by_key(|x| tag_to_index.get(&x.name).unwrap_or(&usize::MAX));
