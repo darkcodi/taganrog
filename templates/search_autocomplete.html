@@ -9,7 +9,6 @@
                 {
                     sourceId: 'tags-autocomplete',
                     getItems() {
-                        const invoke = window.__TAURI__.core.invoke;
                         return invoke("autocomplete_tags", { query: query })
                             .then((data) => {
                                 return data.map((item) => {

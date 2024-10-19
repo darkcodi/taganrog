@@ -2,32 +2,13 @@
 
 {% block content %}
     <div class="flex flex-col h-screen">
-        <header class="flex items-center justify-between bg-white px-4 py-4 sm:px-6 lg:px-8">
-            <form action="/" method="get" class="flex items-center space-x-4">
-                <button tabindex="-1" type="submit" class="border-none focus:outline-none">
-                    <h1 class="flex items-center text-3xl font-bold tracking-tighter sm:text-4xl md:text-5xl"><span class="text-6xl font-extrabold text-red-500"> Tag </span><span class="ml-2 text-5xl"> anrog </span></h1>
-                </button>
-            </form>
-            <div class="mx-auto w-full max-w-xl" id="autocomplete"></div>
-            <a class="border-none focus:outline-none mx-1.5" href="/tags_cloud">
-                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="#EF4444" class="h-6 w-6">
-                    <g id="SVGRepo_bgCarrier" stroke-width="0"/>
-                    <g id="SVGRepo_tracerCarrier" stroke-linecap="round" stroke-linejoin="round"/>
-                    <g id="SVGRepo_iconCarrier"> <path d="M20 11L3 11" stroke="#EF4444" stroke-width="1.5" stroke-linecap="round"/> <path d="M11 16H3" stroke="#EF4444" stroke-width="1.5" stroke-linecap="round"/> <path d="M14 18L17.5 15L21 18" stroke="#EF4444" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/> <path d="M3 6L13.5 6M20 6L17.75 6" stroke="#EF4444" stroke-width="1.5" stroke-linecap="round"/> </g>
-                </svg>
-            </a>
-            <a class="border-none focus:outline-none mx-1.5" href="/media/new">
-                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" class="h-6 w-6">
-                    <path d="M4 12H20M12 4V20" stroke="#EF4444" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
-                </svg>
-            </a>
-        </header>
+        {% include "search_header.html" %}
         {% if query != "" %}
-            <header class="flex items-start justify-start bg-white px-4 py-0 sm:px-6 lg:px-8">
+            <div class="flex items-start justify-start bg-white px-4 py-0 sm:px-6 lg:px-8">
                 <a href="/search?q={{ query }}&p={{ page }}" class="inline-flex items-center justify-center whitespace-nowrap rounded-md text-sm font-medium ring-offset-background transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-500 focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 text-rose-400 hover:text-rose-600 border-2 border-rose-400 hover:border-rose-600 bg-white hover:bg-gray-100 h-10 px-4 py-2">
                     Back
                 </a>
-            </header>
+            </div>
         {% endif %}
         <main class="h-screen flex flex-col items-center justify-start bg-white px-4 sm:px-6 lg:px-8">
             {% if media_exists %}
@@ -100,10 +81,8 @@
         <footer class="w-full h-20 flex items-center justify-center bg-white">
             <div class="text-center"><a class="text-gray-600" href="/media/random">Charting digital depths, from Alferaki to Faina</a></div>
         </footer>
-        {% include "algolia_autocomplete.html" %}
+        {% include "search_autocomplete.html" %}
         <script>
-            const invoke = window.__TAURI__.core.invoke;
-
             async function addTagToMedia(tag, mediaId) {
                 const response = await invoke('add_tag_to_media', { media_id: mediaId, tags: tag });
                 for (let tag of response) {
@@ -143,7 +122,6 @@
                         {
                             sourceId: 'tag-search',
                             getItems() {
-                                const invoke = window.__TAURI__.core.invoke;
                                 return invoke("autocomplete_tags", { query: query })
                                     .then((data) => {
                                         return data.map((item) => {

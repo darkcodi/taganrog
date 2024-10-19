@@ -17,6 +17,8 @@
     <script src="/scripts/algolia.min.js"></script>
     <script>
         const { autocomplete } = window['@algolia/autocomplete-js'];
+        const invoke = window.__TAURI__.core.invoke;
+        const convertFileSrc = window.__TAURI__.core.convertFileSrc;
     </script>
     <!-- Allow any inheriting page to extend head with additional assets -->
     {% block head %}{% endblock %}
