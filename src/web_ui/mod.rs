@@ -372,27 +372,45 @@ async fn get_default_thumbnail() -> impl IntoResponse {
 }
 
 async fn get_algolia_lib() -> impl IntoResponse {
-    Response::new(Body::from(ALGOLIA_LIB))
+    let mut response = Response::new(Body::from(ALGOLIA_LIB));
+    response.headers_mut().insert("Cache-Control", "public, max-age=31536000".parse().unwrap());
+    response.headers_mut().insert("Content-Type", "application/javascript".parse().unwrap());
+    response
 }
 
 async fn get_awesome_cloud_lib() -> impl IntoResponse {
-    Response::new(Body::from(AWESOME_CLOUD_LIB))
+    let mut response = Response::new(Body::from(AWESOME_CLOUD_LIB));
+    response.headers_mut().insert("Cache-Control", "public, max-age=31536000".parse().unwrap());
+    response.headers_mut().insert("Content-Type", "application/javascript".parse().unwrap());
+    response
 }
 
 async fn get_jquery_lib() -> impl IntoResponse {
-    Response::new(Body::from(JQUERY_LIB))
+    let mut response = Response::new(Body::from(JQUERY_LIB));
+    response.headers_mut().insert("Cache-Control", "public, max-age=31536000".parse().unwrap());
+    response.headers_mut().insert("Content-Type", "application/javascript".parse().unwrap());
+    response
 }
 
 async fn get_tailwind_lib() -> impl IntoResponse {
-    Response::new(Body::from(TAILWIND_LIB))
+    let mut response = Response::new(Body::from(TAILWIND_LIB));
+    response.headers_mut().insert("Cache-Control", "public, max-age=31536000".parse().unwrap());
+    response.headers_mut().insert("Content-Type", "application/javascript".parse().unwrap());
+    response
 }
 
 async fn get_tailwind_ext_lib() -> impl IntoResponse {
-    Response::new(Body::from(TAILWIND_EXT_LIB))
+    let mut response = Response::new(Body::from(TAILWIND_EXT_LIB));
+    response.headers_mut().insert("Cache-Control", "public, max-age=31536000".parse().unwrap());
+    response.headers_mut().insert("Content-Type", "application/javascript".parse().unwrap());
+    response
 }
 
 async fn get_algolia_styles() -> impl IntoResponse {
-    Response::new(Body::from(ALGOLIA_STYLES))
+    let mut response = Response::new(Body::from(ALGOLIA_STYLES));
+    response.headers_mut().insert("Cache-Control", "public, max-age=31536000".parse().unwrap());
+    response.headers_mut().insert("Content-Type", "text/css".parse().unwrap());
+    response
 }
 
 #[derive(Default, Template)]
