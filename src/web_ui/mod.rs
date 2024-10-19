@@ -36,7 +36,6 @@ const DEFAULT_THUMBNAIL: &[u8] = include_bytes!("assets/icons/default_thumbnail.
 // scripts
 const ALGOLIA_LIB: &[u8] = include_bytes!("assets/scripts/algolia_1.15.1.min.js");
 const AWESOME_CLOUD_LIB: &[u8] = include_bytes!("assets/scripts/awesome_cloud_0.2.min.js");
-const HTMX_LIB: &[u8] = include_bytes!("assets/scripts/htmx_2.0.3.min.js");
 const JQUERY_LIB: &[u8] = include_bytes!("assets/scripts/jquery_2.1.0.min.js");
 const TAILWIND_LIB: &[u8] = include_bytes!("assets/scripts/tailwind_1.0.8.min.js");
 const TAILWIND_EXT_LIB: &[u8] = include_bytes!("assets/scripts/tailwind_ext_1.0.8.min.js");
@@ -60,7 +59,6 @@ pub async fn serve(config: AppConfig, client: TaganrogClient<FileStorage>) {
         // scripts
         .route("/scripts/algolia.min.js", get(get_algolia_lib))
         .route("/scripts/awesome_cloud.min.js", get(get_awesome_cloud_lib))
-        .route("/scripts/htmx.min.js", get(get_htmx_lib))
         .route("/scripts/jquery.min.js", get(get_jquery_lib))
         .route("/scripts/tailwind.min.js", get(get_tailwind_lib))
         .route("/scripts/tailwind_ext.min.js", get(get_tailwind_ext_lib))
@@ -72,9 +70,7 @@ pub async fn serve(config: AppConfig, client: TaganrogClient<FileStorage>) {
         .route("/", get(index))
         .route("/media/new", get(new_media_page))
         .route("/media/random", get(get_random_media))
-        .route("/media/:media_id", get(get_media).delete(delete_media))
-        .route("/media/:media_id/add-tag", get(add_tag_to_media))
-        .route("/media/:media_id/remove-tag", delete(remove_tag_from_media))
+        .route("/media/:media_id", get(get_media))
         .route("/search", get(media_search))
         .route("/tags_cloud", get(tags_cloud))
 
@@ -98,7 +94,7 @@ pub async fn serve(config: AppConfig, client: TaganrogClient<FileStorage>) {
     tauri::Builder::default()
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_fs::init())
-        .invoke_handler(tauri::generate_handler![choose_files, load_media_from_file, has_thumbnail, save_thumbnail])
+        .invoke_handler(tauri::generate_handler![choose_files, load_media_from_file, has_thumbnail, save_thumbnail, add_tag_to_media, remove_tag_from_media, delete_media])
         .setup(move |app| {
             app.manage(app_state);
             let url = format!("http://localhost:{}", port).parse().unwrap();
@@ -318,82 +314,6 @@ pub struct TagBody {
     tags: Option<String>,
 }
 
-#[derive(Default, Template)]
-#[template(path = "add_tag_to_media.html")]
-pub struct AddTagToMediaTemplate {
-    media: Media,
-    added_tags: Vec<ExtendedTag>,
-}
-
-async fn add_tag_to_media(
-    State(state): State<AppState>,
-    Path(media_id): Path<String>,
-    Query(tag_body): Query<TagBody>,
-) -> impl IntoResponse {
-    let tags_str = normalize_query(&tag_body.tags.unwrap_or_default());
-    let tags_str = tags_str.trim_end();
-    if tags_str.is_empty() {
-        return HtmlTemplate(AddTagToMediaTemplate::default());
-    }
-    let client = state.client.read().await;
-    let maybe_media = client.get_media_by_id(&media_id);
-    drop(client);
-
-    if maybe_media.is_none() {
-        return HtmlTemplate(AddTagToMediaTemplate::default());
-    }
-    let media = maybe_media.unwrap();
-    let tags = extract_tags(tags_str);
-    let new_tags = tags.iter().filter(|x| !media.tags.contains(x)).cloned().collect::<Vec<String>>();
-    if new_tags.is_empty() {
-        return HtmlTemplate(AddTagToMediaTemplate::default());
-    }
-
-    let mut client = state.client.write().await;
-    for tag in &new_tags {
-        client.add_tag_to_media(&media_id, tag).await.unwrap();
-    }
-    drop(client);
-
-    let added_tags = new_tags.iter().map(|x| {
-        let bg_color = get_bg_color(x);
-        let fg_color = get_fg_color(&bg_color);
-        ExtendedTag { name: x.clone(), is_in_query: false, bg_color, fg_color }
-    }).collect::<Vec<ExtendedTag>>();
-    HtmlTemplate(AddTagToMediaTemplate { media, added_tags })
-}
-
-async fn remove_tag_from_media(
-    State(state): State<AppState>,
-    Path(media_id): Path<String>,
-    Query(tag_body): Query<TagBody>,
-) -> impl IntoResponse {
-    let tags_str = normalize_query(&tag_body.tags.unwrap_or_default());
-    let tags_str = tags_str.trim_end();
-    if tags_str.is_empty() {
-        return Response::new(Body::empty());
-    }
-    let client = state.client.read().await;
-    let maybe_media = client.get_media_by_id(&media_id);
-    drop(client);
-
-    if maybe_media.is_none() {
-        return Response::new(Body::empty());
-    }
-    let media = maybe_media.unwrap();
-    let tags = extract_tags(tags_str);
-    let removed_tags = tags.iter().filter(|x| media.tags.contains(x)).cloned().collect::<Vec<String>>();
-    if removed_tags.is_empty() {
-        return Response::new(Body::empty());
-    }
-
-    let mut client = state.client.write().await;
-    for tag in &removed_tags {
-        client.remove_tag_from_media(&media_id, tag).await.unwrap();
-    }
-    Response::new(Body::empty())
-}
-
 #[derive(Debug, Serialize)]
 struct AutocompleteObject {
     query: String,
@@ -462,23 +382,6 @@ async fn get_random_media(
     }
 }
 
-async fn delete_media(
-    State(state): State<AppState>,
-    Path(media_id): Path<String>,
-) -> impl IntoResponse {
-    let mut client = state.client.write().await;
-    let media_result = client.delete_media(&media_id).await;
-    if media_result.is_err() {
-        return StatusCode::INTERNAL_SERVER_ERROR;
-    }
-    let maybe_media = media_result.unwrap();
-    if maybe_media.is_none() {
-        return StatusCode::NOT_FOUND;
-    }
-
-    StatusCode::OK
-}
-
 async fn get_media_thumbnail(
     State(state): State<AppState>,
     Path(media_id): Path<String>,
@@ -505,10 +408,6 @@ async fn get_algolia_lib() -> impl IntoResponse {
 
 async fn get_awesome_cloud_lib() -> impl IntoResponse {
     Response::new(Body::from(AWESOME_CLOUD_LIB))
-}
-
-async fn get_htmx_lib() -> impl IntoResponse {
-    Response::new(Body::from(HTMX_LIB))
 }
 
 async fn get_jquery_lib() -> impl IntoResponse {

@@ -66,28 +66,15 @@
                             </li>
                         </ul>
                         <h2 class="text-2xl font-bold mb-2">Tags</h2>
-                        <ul>
-                            <div id="tag-adder"
-                                 hx-get="/media/{{ media.id }}/add-tag?q={{ query }}"
-                                 hx-vals="js:{tags: document.querySelector('#tag-search .aa-Input').value}"
-                                 hx-trigger="click"
-                                 hx-target="#next-tag-stub"
-                                 hx-swap="outerHTML">
-                                <input type="hidden" value="" name="tag">
-                            </div>
+                        <ul id="tags-list">
                             {% for tag in media.tags %}
                                 <li id="li-{{ tag.name }}" class="rounded px-2 py-1 mb-2 flex justify-between items-center"
                                     style="background-color: {{ tag.bg_color }}; color: {{ tag.fg_color }};"
                                 >
                                     <a href="/search?q={{ tag.name }}&p=1">#{{ tag.name }}</a>
-                                    <span class="cursor-pointer hover:text-red-500"
-                                        hx-delete="/media/{{ media.id }}/remove-tag?tags={{ tag.name }}"
-                                        hx-trigger="click"
-                                        hx-target="#li-{{ tag.name }}"
-                                        hx-swap="outerHTML">X</span>
+                                    <span class="cursor-pointer hover:text-red-500" onclick="removeTagFromMedia('{{ tag.name }}', '{{ media.id }}')">X</span>
                                 </li>
                             {% endfor %}
-                            <div id="next-tag-stub"></div>
                         </ul>
                         <div class="mt-4">
                             <div class="rounded-md shadow-sm">
@@ -102,7 +89,7 @@
                     </div>
                     <div class="mt-4">
                         <button class="inline-flex items-center justify-center whitespace-nowrap rounded-md text-sm font-medium ring-offset-background transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-500 focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 bg-red-600 text-white hover:bg-red-700 h-10 px-4 py-2 w-full"
-                                hx-delete="/media/{{ media.id }}" hx-trigger="click" hx-confirm="Are you sure you wish to delete this media?" hx-target="#media-main" hx-swap="outerHTML" >
+                                onclick="deleteMedia('{{ media.id }}')" >
                             Delete media
                         </button>
                     </div>
@@ -115,13 +102,32 @@
         </footer>
         {% include "algolia_autocomplete.html" %}
         <script>
-            document.body.addEventListener('htmx:afterRequest', function(event) {
-                if (event.detail.elt.id === 'tag-adder') {
-                    document.querySelector('#tag-search .aa-Input').value = '';
-                    document.querySelector('#tag-search .aa-Input').focus();
-                    document.querySelector('#tag-search .aa-Input').value = '';
+            const invoke = window.__TAURI__.core.invoke;
+
+            async function addTagToMedia(tag, mediaId) {
+                const response = await invoke('add_tag_to_media', { media_id: mediaId, tags: tag });
+                for (let tag of response) {
+                    document.querySelector('#tags-list').innerHTML += `
+                        <li id="li-${tag.name}" class="rounded px-2 py-1 mb-2 flex justify-between items-center"
+                            style="background-color: ${tag.bg_color}; color: ${tag.fg_color};"
+                        >
+                            <a href="/search?q=${tag.name}&p=1">#${tag.name}</a>
+                            <span class="cursor-pointer hover:text-red-500" onclick="removeTagFromMedia('${tag.name}', '${mediaId}')">X</span>
+                        </li>
+                    `;
                 }
-            });
+            }
+
+            async function removeTagFromMedia(tag, mediaId) {
+                await invoke('remove_tag_from_media', { media_id: mediaId, tags: tag });
+                document.querySelector(`#li-${tag}`).remove();
+            }
+
+            async function deleteMedia(mediaId) {
+                if (await invoke('delete_media', { media_id: mediaId })) {
+                    window.location.href = '/search?q={{ query }}&p={{ page }}';
+                }
+            }
 
             window.addEventListener('DOMContentLoaded', () => {
                 const video = document.getElementById('media-player');
@@ -156,8 +162,11 @@
                                     });
                             },
                             onSelect({ item }) {
-                                document.querySelector('#tag-adder').click();
-                                document.querySelector('#tag-search .aa-Input').value = '';
+                                const tagSearchInput = document.querySelector('#tag-search .aa-Input');
+                                const tagSearchClearButton = document.querySelector('#tag-search .aa-ClearButton');
+                                addTagToMedia(tagSearchInput.value, '{{ media.id }}');
+                                tagSearchClearButton.click();
+                                tagSearchInput.focus();
                             },
                             getItemInputValue: ({ item }) => item.suggestion,
                             templates: {
@@ -178,8 +187,11 @@
                 },
                 onSubmit({ state }) {
                     if (state.query) {
-                        document.querySelector('#tag-adder').click();
-                        document.querySelector('#tag-search .aa-Input').value = '';
+                        const tagSearchInput = document.querySelector('#tag-search .aa-Input');
+                        const tagSearchClearButton = document.querySelector('#tag-search .aa-ClearButton');
+                        addTagToMedia(tagSearchInput.value, '{{ media.id }}');
+                        tagSearchClearButton.click();
+                        tagSearchInput.focus();
                     }
                 },
             });

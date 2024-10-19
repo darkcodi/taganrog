@@ -39,7 +39,7 @@ In the digital age, where the quantity of files and data we handle is enormous, 
 ## Built With
 
 This project was built using the following open-source frameworks/libraries:
-- for Web UI: [Axum](https://github.com/tokio-rs/axum) + [Askama](https://github.com/djc/askama) + [HTMX](https://htmx.org/)
+- for Web UI: [Axum](https://github.com/tokio-rs/axum) + [Askama](https://github.com/djc/askama)
 - for CLI: [Clap](https://github.com/clap-rs/clap)
 - for DB: append-only JSON file (using [serde](https://github.com/serde-rs/serde))
 
