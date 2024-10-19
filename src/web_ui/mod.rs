@@ -68,7 +68,7 @@ pub async fn serve(config: AppConfig, client: TaganrogClient<FileStorage>) {
 
         // pages
         .route("/", get(index))
-        .route("/media/new", get(new_media_page))
+        .route("/media/add", get(add_media_page))
         .route("/media/random", get(get_random_media))
         .route("/media/:media_id", get(get_media))
         .route("/search", get(media_search))
@@ -419,11 +419,11 @@ async fn get_algolia_styles() -> impl IntoResponse {
 }
 
 #[derive(Default, Template)]
-#[template(path = "new_media.html")]
-struct NewMediaTemplate { }
+#[template(path = "add_media.html")]
+struct AddMediaTemplate { }
 
-async fn new_media_page() -> impl IntoResponse {
-    HtmlTemplate(NewMediaTemplate::default())
+async fn add_media_page() -> impl IntoResponse {
+    HtmlTemplate(AddMediaTemplate::default())
 }
 
 #[derive(Default, Debug, Serialize)]
