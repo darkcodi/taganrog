@@ -45,15 +45,15 @@ fn canonicalize(filepath: &str) -> PathBuf {
     if canonical_filepath_result.is_err() {
         let err = canonical_filepath_result.err().unwrap();
         if err.kind() == std::io::ErrorKind::NotFound {
-            error!("File not found: {}", filepath);
+            error!("file not found: {}", filepath);
             std::process::exit(1);
         } else {
-            error!("IO Error: {}", err);
+            error!("io error: {}", err);
             std::process::exit(1);
         }
     }
 
     let canonical_filepath = canonical_filepath_result.unwrap();
-    info!("File: {:?}", canonical_filepath);
+    info!("file: {:?}", canonical_filepath);
     canonical_filepath
 }

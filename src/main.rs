@@ -69,13 +69,13 @@ async fn handle_command(command: Command) {
                 match cli::tag_media(&mut client, filepath, tag).await {
                     Ok(was_added) => {
                         if was_added {
-                            info!("Tagged media: {}", filepath);
+                            info!("tagged media: {}", filepath);
                         } else {
-                            info!("Media already has tag: {}", filepath);
+                            info!("media already has tag: {}", filepath);
                         }
                     },
                     Err(e) => {
-                        error!("Failed to tag media: {}", e);
+                        error!("failed to tag media: {}", e);
                         std::process::exit(1);
                     }
                 }
@@ -91,13 +91,13 @@ async fn handle_command(command: Command) {
                 match cli::untag_media(&mut client, filepath, tag).await {
                     Ok(was_removed) => {
                         if was_removed {
-                            info!("Untagged media: {}", filepath);
+                            info!("untagged media: {}", filepath);
                         } else {
-                            info!("Media does not have tag: {}", filepath);
+                            info!("media does not have tag: {}", filepath);
                         }
                     },
                     Err(e) => {
-                        error!("Failed to untag media: {}", e);
+                        error!("failed to untag media: {}", e);
                         std::process::exit(1);
                     }
                 }
@@ -127,38 +127,38 @@ async fn handle_command(command: Command) {
             let page_index = page - 1;
             let media_page = cli::search_media(&client, tags, page_size, page_index).await;
 
-            info!("Displaying page {}/{}", media_page.page_index + 1, media_page.total_pages);
-            info!("Total results: {}", media_page.total_count);
+            info!("displaying page {}/{}", media_page.page_index + 1, media_page.total_pages);
+            info!("total results: {}", media_page.total_count);
             for media in media_page.media_vec {
                 info!("{}: {}", media.location, media.tags.join(", "));
             }
         },
         _ => {
-            error!("Invalid subcommand");
+            error!("invalid subcommand");
             std::process::exit(1);
         }
     }
 }
 
 async fn create_taganrog_client(config: AppConfig) -> TaganrogClient<FileStorage> {
-    info!("Initializing storage...");
+    info!("initializing storage...");
     let storage_result = FileStorage::new(config.db_filepath.clone());
     if storage_result.is_err() {
-        error!("Failed to initialize storage: {}", storage_result.err().unwrap());
+        error!("failed to initialize storage: {}", storage_result.err().unwrap());
         std::process::exit(1);
     }
     let storage = storage_result.unwrap();
-    info!("Storage initialized!");
+    info!("storage initialized!");
 
     let mut client = TaganrogClient::new(config, storage);
 
-    info!("Initializing DB...");
+    info!("initializing db...");
     let init_result = client.init().await;
     if init_result.is_err() {
-        error!("Failed to initialize client: {}", init_result.err().unwrap());
+        error!("failed to initialize client: {}", init_result.err().unwrap());
         std::process::exit(1);
     }
-    info!("DB Initialized!");
+    info!("db initialized!");
 
     client
 }

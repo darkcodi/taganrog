@@ -75,7 +75,7 @@ pub fn configure_api_logging(matches: &ArgMatches) {
 pub fn get_app_config_or_exit() -> AppConfig {
     let maybe_homedir_path = home_dir();
     if maybe_homedir_path.is_none() {
-        error!("Homedir not found");
+        error!("homedir not found");
         std::process::exit(1);
     }
     let homedir_path = maybe_homedir_path.unwrap();
@@ -112,7 +112,7 @@ pub fn get_app_config_or_exit() -> AppConfig {
         db_filepath,
         thumbnails_dir,
     };
-    info!("Config: {:?}", app_config);
+    info!("config: {:?}", app_config);
 
     app_config
 }
