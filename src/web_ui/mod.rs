@@ -189,19 +189,35 @@ pub struct ExtendedMedia {
     pub size: i64,
     pub location: String,
     pub location_url: String,
+    pub thumbnail_location: String,
     pub thumbnail_location_url: String,
     pub tags: Vec<ExtendedTag>,
     pub is_image: bool,
 }
 
-impl From<Media> for ExtendedMedia {
-    fn from(media: Media) -> Self {
+impl ExtendedMedia {
+    pub fn create_for_query(media: Media, app_config: &AppConfig, query_tags: &Vec<String>) -> Self {
+        let mut media = ExtendedMedia::create(media, app_config);
+        media.tags.sort_by_key(|ex_tag| query_tags.iter().position(|tag| tag == &ex_tag.name).unwrap_or(usize::MAX));
+        media.tags.iter_mut().for_each(|tag| {
+            tag.is_in_query = query_tags.contains(&tag.name);
+        });
+        media
+    }
+
+    pub fn create(media: Media, app_config: &AppConfig) -> Self {
         let tags = media.tags.into_iter().map(|tag| {
             let mut tag: ExtendedTag = tag.into();
             tag.is_in_query = false;
             tag
         }).collect();
         let location_url = convert_file_src(&media.location);
+        let thumbnail_location = app_config.thumbnails_dir.join(format!("{}.png", &media.id)).to_string_lossy().to_string();
+        let thumbnail_location_url = if std::path::Path::new(&thumbnail_location).exists() {
+            convert_file_src(&thumbnail_location)
+        } else {
+            "/default_thumbnail.svg".to_string()
+        };
         Self {
             id: media.id,
             filename: media.filename,
@@ -209,7 +225,8 @@ impl From<Media> for ExtendedMedia {
             size: media.size,
             location: media.location,
             location_url,
-            thumbnail_location_url: String::default(),
+            thumbnail_location,
+            thumbnail_location_url,
             tags,
             is_image: media.content_type.starts_with("image"),
             content_type: media.content_type,
@@ -263,26 +280,11 @@ async fn media_search(
     drop(client);
 
     let page_number = media_page.page_index + 1;
-    let mut media_vec = media_page.media_vec.into_iter().map(|x| x.into()).collect::<Vec<ExtendedMedia>>();
 
-    // order tags in each media by the order they appear in the query
     let query_tags = extract_tags(&normalized_query);
-    let tag_to_index = query_tags.clone().into_iter()
-        .enumerate().map(|(i, x)| (x, i))
-        .collect::<std::collections::HashMap<String, usize>>();
-    media_vec.iter_mut().for_each(|media| {
-        let thumbnail_filepath = state.config.thumbnails_dir.join(format!("{}.png", &media.id));
-        if thumbnail_filepath.exists() {
-            media.thumbnail_location_url = convert_file_src(&thumbnail_filepath.to_string_lossy());
-        } else {
-            media.thumbnail_location_url = "/default_thumbnail.svg".to_string();
-        }
-        media.location_url = convert_file_src(&media.location);
-        media.tags.sort_by_key(|x| tag_to_index.get(&x.name).unwrap_or(&usize::MAX));
-        media.tags.iter_mut().for_each(|tag| {
-            tag.is_in_query = query_tags.contains(&tag.name);
-        });
-    });
+    let media_vec = media_page.media_vec.into_iter()
+        .map(|x| ExtendedMedia::create_for_query(x, &state.config, &query_tags))
+        .collect::<Vec<ExtendedMedia>>();
 
     const PAGES_BEFORE: usize = 3;
     const PAGES_AFTER: usize = 3;
@@ -342,9 +344,8 @@ async fn get_media(
     let page = query.p.unwrap_or(1);
     let client = state.client.read().await;
     if let Some(media) = client.get_media_by_id(&media_id) {
-        let mut extended_media: ExtendedMedia = media.into();
-        extended_media.location_url = convert_file_src(&extended_media.location);
-        HtmlTemplate(MediaPageTemplate { query: normalized_query, page, media: extended_media, media_exists: true })
+        let media = ExtendedMedia::create(media, &state.config);
+        HtmlTemplate(MediaPageTemplate { query: normalized_query, page, media, media_exists: true })
     } else {
         HtmlTemplate(MediaPageTemplate { query: normalized_query, page, media: ExtendedMedia::default(), media_exists: false })
     }
@@ -356,9 +357,8 @@ async fn get_random_media(
     let client = state.client.read().await;
     match client.get_random_media() {
         Some(media) => {
-            let mut extended_media: ExtendedMedia = media.into();
-            extended_media.location_url = convert_file_src(&extended_media.location);
-            HtmlTemplate(MediaPageTemplate { query: "".to_string(), page: 1, media: extended_media, media_exists: true })
+            let media = ExtendedMedia::create(media, &state.config);
+            HtmlTemplate(MediaPageTemplate { query: "".to_string(), page: 1, media, media_exists: true })
         },
         None => HtmlTemplate(MediaPageTemplate { query: "".to_string(), page: 1, media: ExtendedMedia::default(), media_exists: false })
     }

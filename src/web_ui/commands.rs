@@ -5,9 +5,9 @@ use base64::decode;
 use itertools::Itertools;
 use tauri::State;
 use tauri_plugin_dialog::{DialogExt, MessageDialogButtons};
-use crate::entities::{Media, MediaId};
+use crate::entities::MediaId;
 use crate::utils::normalize_query;
-use crate::web_ui::{convert_file_src, extract_tags, get_bg_color, get_fg_color, AppState, AutocompleteObject, ExtendedMedia, ExtendedTag, DEFAULT_AUTOCOMPLETE_PAGE_SIZE};
+use crate::web_ui::{extract_tags, get_bg_color, get_fg_color, AppState, AutocompleteObject, ExtendedMedia, ExtendedTag, DEFAULT_AUTOCOMPLETE_PAGE_SIZE};
 
 #[tauri::command(rename_all = "snake_case")]
 pub async fn choose_files(app_handle: tauri::AppHandle) -> Result<Vec<String>, String> {
@@ -27,15 +27,7 @@ pub async fn load_media_from_file(path_str: &str, app_state: State<'_, AppState>
     let maybe_existing_media = client.get_media_by_id(&media.id);
     drop(client);
     if maybe_existing_media.is_none() {
-        let mut media: ExtendedMedia = media.into();
-        let thumbnail_filepath = app_state.config.thumbnails_dir.join(format!("{}.png", &media.id));
-        if thumbnail_filepath.exists() {
-            media.thumbnail_location_url = convert_file_src(&thumbnail_filepath.to_string_lossy());
-        } else {
-            media.thumbnail_location_url = "/default_thumbnail.svg".to_string();
-        }
-        media.location_url = convert_file_src(&media.location);
-        return Ok(media);
+        return Ok(ExtendedMedia::create(media, &app_state.config));
     }
     let mut client = app_state.client.write().await;
     media = client.update_media(media).await.map_err(|e| e.to_string())?.safe_unwrap();
@@ -44,15 +36,7 @@ pub async fn load_media_from_file(path_str: &str, app_state: State<'_, AppState>
     for tag in existing_media.tags {
         media.tags.push(tag.clone());
     }
-    let mut media: ExtendedMedia = media.into();
-    let thumbnail_filepath = app_state.config.thumbnails_dir.join(format!("{}.png", &media.id));
-    if thumbnail_filepath.exists() {
-        media.thumbnail_location_url = convert_file_src(&thumbnail_filepath.to_string_lossy());
-    } else {
-        media.thumbnail_location_url = "/default_thumbnail.svg".to_string();
-    }
-    media.location_url = convert_file_src(&media.location);
-    Ok(media)
+    Ok(ExtendedMedia::create(media, &app_state.config))
 }
 
 #[tauri::command(rename_all = "snake_case")]
