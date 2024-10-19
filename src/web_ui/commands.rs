@@ -5,7 +5,7 @@ use base64::decode;
 use itertools::Itertools;
 use tauri::State;
 use tauri_plugin_dialog::{DialogExt, MessageDialogButtons};
-use crate::entities::MediaId;
+use crate::entities::{Media, MediaId};
 use crate::utils::normalize_query;
 use crate::web_ui::{extract_tags, get_bg_color, get_fg_color, AppState, AutocompleteObject, ExtendedMedia, ExtendedTag, DEFAULT_AUTOCOMPLETE_PAGE_SIZE};
 
@@ -62,33 +62,24 @@ pub fn save_thumbnail(media_id: &str, thumbnail: &str, app_state: State<'_, AppS
 }
 
 #[tauri::command(rename_all = "snake_case")]
-pub async fn add_tag_to_media(media_id: &str, tags: &str, app_state: State<'_, AppState>) -> Result<Vec<ExtendedTag>, String> {
+pub async fn add_tag_to_media(media_id: &str, tags: &str, path: Option<&str>, app_state: State<'_, AppState>) -> Result<Vec<ExtendedTag>, String> {
     let media_id: MediaId = media_id.to_string();
     let tags_str = normalize_query(tags);
     let tags_str = tags_str.trim_end();
     if tags_str.is_empty() {
         return Err("No tags provided".to_string());
     }
-    let client = app_state.client.read().await;
-    let maybe_media = client.get_media_by_id(&media_id);
-    drop(client);
-
-    if maybe_media.is_none() {
-        return Err("Media not found".to_string());
-    }
-    let media = maybe_media.unwrap();
+    let media = get_or_create_media(&media_id, path, &app_state).await?;
     let tags = extract_tags(tags_str);
     let new_tags = tags.iter().filter(|x| !media.tags.contains(x)).cloned().collect::<Vec<String>>();
     if new_tags.is_empty() {
         return Err("No new tags provided".to_string());
     }
-
     let mut client = app_state.client.write().await;
     for tag in &new_tags {
         client.add_tag_to_media(&media_id, tag).await.unwrap();
     }
     drop(client);
-
     let added_tags = new_tags.iter().map(|x| {
         let bg_color = get_bg_color(x);
         let fg_color = get_fg_color(&bg_color);
@@ -172,4 +163,35 @@ pub async fn autocomplete_tags(query: &str, app_state: State<'_, AppState>) -> R
         AutocompleteObject { query, suggestion, highlighted_suggestion, media_count: x.media_count }
     }).sorted_by_key(|x| x.media_count).rev().collect::<Vec<AutocompleteObject>>();
     Ok(autocomplete)
+}
+
+async fn get_or_create_media(media_id: &MediaId, path: Option<&str>, app_state: &State<'_, AppState>) -> Result<Media, String> {
+    let client = app_state.client.read().await;
+    let mut maybe_media = client.get_media_by_id(&media_id);
+    drop(client);
+
+    if maybe_media.is_some() {
+        return Ok(maybe_media.unwrap());
+    }
+
+    if path.is_none() {
+        return Err("Media not found".to_string());
+    }
+
+    let path = path.unwrap();
+    let client = app_state.client.read().await;
+    maybe_media = client.create_media_from_file(&path.into()).await.ok();
+    drop(client);
+    if maybe_media.is_none() {
+        return Err("Media not found (1)".to_string());
+    }
+
+    let mut client = app_state.client.write().await;
+    maybe_media = client.add_media(maybe_media.unwrap()).await.ok().map(|x| x.safe_unwrap());
+    drop(client);
+    if maybe_media.is_none() {
+        return Err("Media not found (2)".to_string());
+    }
+
+    Ok(maybe_media.unwrap())
 }

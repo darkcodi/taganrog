@@ -83,8 +83,8 @@
         </footer>
         {% include "search_autocomplete.html" %}
         <script>
-            async function addTagToMedia(tag, mediaId) {
-                const response = await invoke('add_tag_to_media', { media_id: mediaId, tags: tag });
+            async function addTagToMedia(tag, mediaId, path) {
+                const response = await invoke('add_tag_to_media', { media_id: mediaId, tags: tag, path });
                 for (let tag of response) {
                     document.querySelector('#tags-list').innerHTML += `
                         <li id="li-${tag.name}" class="rounded px-2 py-1 mb-2 flex justify-between items-center"
@@ -142,7 +142,9 @@
                             onSelect({ item }) {
                                 const tagSearchInput = document.querySelector('#tag-search .aa-Input');
                                 const tagSearchClearButton = document.querySelector('#tag-search .aa-ClearButton');
-                                addTagToMedia(tagSearchInput.value, '{{ media.id }}');
+                                const urlParams = new URLSearchParams(window.location.search);
+                                const path = urlParams.get('path');
+                                addTagToMedia(tagSearchInput.value, '{{ media.id }}', path);
                                 tagSearchClearButton.click();
                                 tagSearchInput.focus();
                             },
@@ -167,7 +169,9 @@
                     if (state.query) {
                         const tagSearchInput = document.querySelector('#tag-search .aa-Input');
                         const tagSearchClearButton = document.querySelector('#tag-search .aa-ClearButton');
-                        addTagToMedia(tagSearchInput.value, '{{ media.id }}');
+                        const urlParams = new URLSearchParams(window.location.search);
+                        const path = urlParams.get('path');
+                        addTagToMedia(tagSearchInput.value, '{{ media.id }}', path);
                         tagSearchClearButton.click();
                         tagSearchInput.focus();
                     }

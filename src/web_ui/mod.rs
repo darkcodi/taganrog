@@ -157,6 +157,7 @@ struct SearchQuery {
     q: Option<String>,
     p: Option<usize>,
     ps: Option<usize>,
+    path: Option<String>,
 }
 
 #[derive(Default, Template)]
@@ -343,7 +344,11 @@ async fn get_media(
     let normalized_query = normalize_query(&query.q.unwrap_or_default());
     let page = query.p.unwrap_or(1);
     let client = state.client.read().await;
-    if let Some(media) = client.get_media_by_id(&media_id) {
+    let mut maybe_media = client.get_media_by_id(&media_id);
+    if maybe_media.is_none() {
+        maybe_media = client.create_media_from_file(&query.path.unwrap_or_default().into()).await.ok();
+    }
+    if let Some(media) = maybe_media {
         let media = ExtendedMedia::create(media, &state.config);
         HtmlTemplate(MediaPageTemplate { query: normalized_query, page, media, media_exists: true })
     } else {

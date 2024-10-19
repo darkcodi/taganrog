@@ -129,7 +129,7 @@
 
                     await addPreviewForMedia(media);
 
-                    // TODO: redirect to /preview page?
+                    window.location.href = `/media/${media.id}?path=${encodeURIComponent(files[0])}`;
                 }
                 else {
                     for (const path_str of files) {

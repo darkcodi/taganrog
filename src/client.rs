@@ -309,6 +309,7 @@ impl<T: Storage> TaganrogClient<T> {
     }
 
     pub async fn create_media_from_file(&self, abs_path: &PathBuf) -> Result<Media, TaganrogError> {
+        dbg!(&abs_path);
         if !abs_path.exists() || abs_path.is_dir() {
             return Err(TaganrogError::FileNotFound);
         }
