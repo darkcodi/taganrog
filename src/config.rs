@@ -1,5 +1,7 @@
 use std::path::PathBuf;
 use clap::ArgMatches;
+use colored::Color;
+use fern::colors::ColoredLevelConfig;
 use home::home_dir;
 use log::{error, info, LevelFilter};
 
@@ -40,15 +42,26 @@ pub fn configure_api_logging(matches: &ArgMatches) {
     let is_verbose = matches.get_one("verbose").map(|x: &bool| x.to_owned()).unwrap_or_default();
     let min_level = if is_verbose { LevelFilter::Debug } else { LevelFilter::Info };
 
+    let colors = ColoredLevelConfig::new()
+        .trace(Color::Green)
+        .debug(Color::Blue)
+        .info(Color::BrightWhite)
+        .warn(Color::Yellow)
+        .error(Color::Red);
+
     fern::Dispatch::new()
-        // Perform allocation-free log formatting
-        .format(|out, message, record| {
+        .format(move |out, message, record| {
             out.finish(format_args!(
-                "[{} {} {}] {}",
-                humantime::format_rfc3339(std::time::SystemTime::now()),
-                record.level(),
-                record.target(),
-                message
+                "[{green_color}{date}{clear_color} {gray_color}{level}{clear_color} {magenta_color}{target}{clear_color}] {level_color}{message}{clear_color}",
+                date = humantime::format_rfc3339(std::time::SystemTime::now()),
+                level = record.level(),
+                target = record.target(),
+                message = message,
+                green_color = format_args!("\x1B[{}m", Color::Green.to_fg_str()),
+                gray_color = format_args!("\x1B[{}m", Color::BrightBlack.to_fg_str()),
+                magenta_color = format_args!("\x1B[{}m", Color::Magenta.to_fg_str()),
+                level_color = format_args!("\x1B[{}m", colors.get_color(&record.level()).to_fg_str()),
+                clear_color = "\x1B[0m",
             ))
         })
         .level(min_level)
