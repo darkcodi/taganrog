@@ -243,14 +243,27 @@ impl<T: Storage> TaganrogClient<T> {
         InsertResult::New(media)
     }
 
-    fn update_media_in_memory(&mut self, media: Media) -> InsertResult<Media> {
+    fn update_media_in_memory(&mut self, mut media: Media) -> InsertResult<Media> {
         let id = media.id.clone();
-        if self.media_map.contains_key(&id) {
-            self.media_map.remove(&id);
-            self.media_map.insert(id, media.clone());
+        let previous_media = self.media_map.get(&id).map(|x| x.value().clone());
+        if previous_media.is_some() {
+            let mut tags = previous_media.as_ref().unwrap().tags.clone();
+            for tag in media.tags.iter() {
+                if !tags.contains(tag) {
+                    tags.push(tag.clone());
+                }
+            }
+            self.delete_media_in_memory(&id);
+            let media = self.create_media_in_memory(media).safe_unwrap();
+            for tag in tags.iter() {
+                self.add_tag_to_media_in_memory(&media.id, tag);
+            }
             InsertResult::Existing(media)
         } else {
-            self.media_map.insert(id, media.clone());
+            let media = self.create_media_in_memory(media).safe_unwrap();
+            for tag in media.tags.iter() {
+                self.add_tag_to_media_in_memory(&media.id, tag);
+            }
             InsertResult::New(media)
         }
     }
