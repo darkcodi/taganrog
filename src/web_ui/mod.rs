@@ -54,6 +54,7 @@ pub async fn serve(config: AppConfig, client: TaganrogClient<FileStorage>) {
     let router = Router::new()
         // icons
         .route("/favicon.ico", get(favicon))
+        .route("/default_thumbnail.svg", get(get_default_thumbnail))
 
         // scripts
         .route("/scripts/algolia.min.js", get(get_algolia_lib))
@@ -74,7 +75,6 @@ pub async fn serve(config: AppConfig, client: TaganrogClient<FileStorage>) {
         .route("/tags_cloud", get(tags_cloud))
 
         // api
-        .route("/media/:media_id/thumbnail", get(get_media_thumbnail))
         .route("/media/:media_id/stream", get(stream_media))
 
         .with_state(app_state.clone())
@@ -191,6 +191,7 @@ pub struct ExtendedMedia {
     pub created_at: DateTime<Utc>,
     pub size: i64,
     pub location: String,
+    pub thumbnail_location: String,
     pub tags: Vec<ExtendedTag>,
     pub is_image: bool,
 }
@@ -208,6 +209,7 @@ impl From<Media> for ExtendedMedia {
             created_at: media.created_at,
             size: media.size,
             location: media.location,
+            thumbnail_location: String::default(),
             tags,
             is_image: media.content_type.starts_with("image"),
             content_type: media.content_type,
@@ -269,6 +271,12 @@ async fn media_search(
         .enumerate().map(|(i, x)| (x, i))
         .collect::<std::collections::HashMap<String, usize>>();
     media_vec.iter_mut().for_each(|media| {
+        let filepath = state.config.thumbnails_dir.join(format!("{}.png", &media.id));
+        if filepath.exists() {
+            media.thumbnail_location = convert_file_src(&filepath.to_string_lossy());
+        } else {
+            media.thumbnail_location = "/default_thumbnail.svg".to_string();
+        }
         media.tags.sort_by_key(|x| tag_to_index.get(&x.name).unwrap_or(&usize::MAX));
         media.tags.iter_mut().for_each(|tag| {
             tag.is_in_query = query_tags.contains(&tag.name);
@@ -350,23 +358,10 @@ async fn get_random_media(
     }
 }
 
-async fn get_media_thumbnail(
-    State(state): State<AppState>,
-    Path(media_id): Path<String>,
-) -> impl IntoResponse {
-    let client = state.client.read().await;
-    let thumbnail_path = client.get_thumbnail_path(&media_id);
-    drop(client);
-    if !thumbnail_path.exists() {
-        let mut response = Response::new(Body::from(DEFAULT_THUMBNAIL));
-        response.headers_mut().insert("Cache-Control", "no-store".parse().unwrap());
-        response.headers_mut().insert("Content-Type", "image/svg+xml".parse().unwrap());
-        return response;
-    }
-    let bytes = std::fs::read(&thumbnail_path).unwrap();
-    let mut response = Response::new(Body::from(bytes));
+async fn get_default_thumbnail() -> impl IntoResponse {
+    let mut response = Response::new(Body::from(DEFAULT_THUMBNAIL));
     response.headers_mut().insert("Cache-Control", "public, max-age=31536000".parse().unwrap());
-    response.headers_mut().insert("Content-Type", "image/png".parse().unwrap());
+    response.headers_mut().insert("Content-Type", "image/svg+xml".parse().unwrap());
     response
 }
 
@@ -475,4 +470,9 @@ async fn tags_cloud(
         .cloned()
         .collect::<Vec<TagsAutocomplete>>();
     HtmlTemplate(TagsCloudTemplate { query: normalized_query, tags })
+}
+
+pub fn convert_file_src(file_path: &str) -> String {
+    let encoded_path = urlencoding::encode(file_path);
+    format!("http://stream.localhost/{}", encoded_path)
 }

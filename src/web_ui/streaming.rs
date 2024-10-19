@@ -10,6 +10,9 @@ pub fn get_stream_response(
         .decode_utf8_lossy()
         .to_string();
 
+    let guess = mime_guess::from_path(&path);
+    let mime_type = guess.first().map(|mime| mime.to_string()).unwrap_or("application/octet-stream".to_string());
+
     let mut file = File::open(&path)?;
 
     let len = {
@@ -20,7 +23,7 @@ pub fn get_stream_response(
     };
 
     let mut resp = ResponseBuilder::new()
-        .header(CONTENT_TYPE, "video/mp4")
+        .header(CONTENT_TYPE, mime_type)
         .header(ACCESS_CONTROL_ALLOW_ORIGIN, "*");
 
     // if the webview sent a range header, we need to send a 206 in return

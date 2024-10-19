@@ -7,7 +7,7 @@ use tauri::State;
 use tauri_plugin_dialog::{DialogExt, MessageDialogButtons};
 use crate::entities::{Media, MediaId};
 use crate::utils::normalize_query;
-use crate::web_ui::{extract_tags, get_bg_color, get_fg_color, AppState, AutocompleteObject, ExtendedTag, DEFAULT_AUTOCOMPLETE_PAGE_SIZE};
+use crate::web_ui::{convert_file_src, extract_tags, get_bg_color, get_fg_color, AppState, AutocompleteObject, ExtendedMedia, ExtendedTag, DEFAULT_AUTOCOMPLETE_PAGE_SIZE};
 
 #[tauri::command(rename_all = "snake_case")]
 pub async fn choose_files(app_handle: tauri::AppHandle) -> Result<Vec<String>, String> {
@@ -17,7 +17,7 @@ pub async fn choose_files(app_handle: tauri::AppHandle) -> Result<Vec<String>, S
 }
 
 #[tauri::command(rename_all = "snake_case")]
-pub async fn load_media_from_file(path_str: &str, app_state: State<'_, AppState>) -> Result<Media, String> {
+pub async fn load_media_from_file(path_str: &str, app_state: State<'_, AppState>) -> Result<ExtendedMedia, String> {
     let path_buf = std::path::PathBuf::from(&path_str);
     if !path_buf.exists() {
         return Err("File does not exist".to_string());
@@ -27,6 +27,13 @@ pub async fn load_media_from_file(path_str: &str, app_state: State<'_, AppState>
     let maybe_existing_media = client.get_media_by_id(&media.id);
     drop(client);
     if maybe_existing_media.is_none() {
+        let mut media: ExtendedMedia = media.into();
+        let filepath = app_state.config.thumbnails_dir.join(format!("{}.png", &media.id));
+        if filepath.exists() {
+            media.thumbnail_location = convert_file_src(&filepath.to_string_lossy());
+        } else {
+            media.thumbnail_location = "/default_thumbnail.svg".to_string();
+        }
         return Ok(media);
     }
     let mut client = app_state.client.write().await;
@@ -35,6 +42,13 @@ pub async fn load_media_from_file(path_str: &str, app_state: State<'_, AppState>
     let existing_media = maybe_existing_media.unwrap();
     for tag in existing_media.tags {
         media.tags.push(tag.clone());
+    }
+    let mut media: ExtendedMedia = media.into();
+    let filepath = app_state.config.thumbnails_dir.join(format!("{}.png", &media.id));
+    if filepath.exists() {
+        media.thumbnail_location = convert_file_src(&filepath.to_string_lossy());
+    } else {
+        media.thumbnail_location = "/default_thumbnail.svg".to_string();
     }
     Ok(media)
 }
