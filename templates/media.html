@@ -143,8 +143,8 @@
                         {
                             sourceId: 'tag-search',
                             getItems() {
-                                return fetch(`/tags/autocomplete?q=${encodeURIComponent(query)}`)
-                                    .then((response) => response.json())
+                                const invoke = window.__TAURI__.core.invoke;
+                                return invoke("autocomplete_tags", { query: query })
                                     .then((data) => {
                                         return data.map((item) => {
                                             return {

@@ -2,10 +2,9 @@ mod commands;
 mod streaming;
 
 use std::hash::Hasher;
-use std::iter::once;
 use std::sync::Arc;
 use askama::Template;
-use axum::{routing::get, routing::delete, Router, Json};
+use axum::{routing::get, Router};
 use axum::body::Body;
 use axum::extract::{Path, Query, State};
 use axum::http::StatusCode;
@@ -77,7 +76,6 @@ pub async fn serve(config: AppConfig, client: TaganrogClient<FileStorage>) {
         // api
         .route("/media/:media_id/thumbnail", get(get_media_thumbnail))
         .route("/media/:media_id/stream", get(stream_media))
-        .route("/tags/autocomplete", get(autocomplete_tags))
 
         .with_state(app_state.clone())
         .layer(TraceLayer::new_for_http());
@@ -94,7 +92,7 @@ pub async fn serve(config: AppConfig, client: TaganrogClient<FileStorage>) {
     tauri::Builder::default()
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_fs::init())
-        .invoke_handler(tauri::generate_handler![choose_files, load_media_from_file, has_thumbnail, save_thumbnail, add_tag_to_media, remove_tag_from_media, delete_media])
+        .invoke_handler(tauri::generate_handler![choose_files, load_media_from_file, has_thumbnail, save_thumbnail, add_tag_to_media, remove_tag_from_media, delete_media, autocomplete_tags])
         .setup(move |app| {
             app.manage(app_state);
             let url = format!("http://localhost:{}", port).parse().unwrap();
@@ -309,42 +307,12 @@ fn extract_tags(query: &str) -> Vec<String> {
     query_tags
 }
 
-#[derive(Debug, Default, Deserialize)]
-pub struct TagBody {
-    tags: Option<String>,
-}
-
 #[derive(Debug, Serialize)]
 struct AutocompleteObject {
     query: String,
     suggestion: String,
     highlighted_suggestion: String,
     media_count: usize,
-}
-
-async fn autocomplete_tags(
-    State(state): State<AppState>,
-    Query(query): Query<SearchQuery>,
-) -> Json<Vec<AutocompleteObject>> {
-    let normalized_query = normalize_query(&query.q.unwrap_or_default());
-    if normalized_query.is_empty() {
-        return Json(vec![]);
-    }
-    let page_size = query.ps.unwrap_or(DEFAULT_AUTOCOMPLETE_PAGE_SIZE).max(1);
-    let client = state.client.read().await;
-    let autocomplete = client.autocomplete_tags(&normalized_query, page_size);
-    let autocomplete = autocomplete.iter().map(|x| {
-        let query = normalized_query.clone();
-        let tags = x.head.iter().map(|x| x.as_str()).chain(once(x.last.as_str()))
-            .map(|x| x.to_string()).collect::<Vec<String>>();
-        let suggestion = tags.join(" ");
-        let highlighted_suggestion = match suggestion.starts_with(&query) {
-            true => query.clone() + "<mark>" + &suggestion[normalized_query.len()..] + "</mark>",
-            false => suggestion.clone(),
-        };
-        AutocompleteObject { query, suggestion, highlighted_suggestion, media_count: x.media_count }
-    }).sorted_by_key(|x| x.media_count).rev().collect::<Vec<AutocompleteObject>>();
-    Json(autocomplete)
 }
 
 #[derive(Default, Template)]

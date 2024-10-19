@@ -243,7 +243,7 @@ impl<T: Storage> TaganrogClient<T> {
         InsertResult::New(media)
     }
 
-    fn update_media_in_memory(&mut self, mut media: Media) -> InsertResult<Media> {
+    fn update_media_in_memory(&mut self, media: Media) -> InsertResult<Media> {
         let id = media.id.clone();
         let previous_media = self.media_map.get(&id).map(|x| x.value().clone());
         if previous_media.is_some() {

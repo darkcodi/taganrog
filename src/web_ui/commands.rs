@@ -1,11 +1,13 @@
 use std::fs::File;
 use std::io::Write;
+use std::iter::once;
 use base64::decode;
+use itertools::Itertools;
 use tauri::State;
 use tauri_plugin_dialog::{DialogExt, MessageDialogButtons};
 use crate::entities::{Media, MediaId};
 use crate::utils::normalize_query;
-use crate::web_ui::{extract_tags, get_bg_color, get_fg_color, AppState, ExtendedTag, HtmlTemplate, TagBody};
+use crate::web_ui::{extract_tags, get_bg_color, get_fg_color, AppState, AutocompleteObject, ExtendedTag, DEFAULT_AUTOCOMPLETE_PAGE_SIZE};
 
 #[tauri::command(rename_all = "snake_case")]
 pub async fn choose_files(app_handle: tauri::AppHandle) -> Result<Vec<String>, String> {
@@ -147,4 +149,27 @@ pub async fn delete_media(media_id: &str, app_handle: tauri::AppHandle, app_stat
     let mut client = app_state.client.write().await;
     client.delete_media(&media_id).await.map_err(|e| e.to_string())?;
     Ok(true)
+}
+
+#[tauri::command(rename_all = "snake_case")]
+pub async fn autocomplete_tags(query: &str, app_state: State<'_, AppState>) -> Result<Vec<AutocompleteObject>, String> {
+    let normalized_query = normalize_query(query);
+    if normalized_query.is_empty() {
+        return Ok(vec![]);
+    }
+    let page_size = DEFAULT_AUTOCOMPLETE_PAGE_SIZE;
+    let client = app_state.client.read().await;
+    let autocomplete = client.autocomplete_tags(&normalized_query, page_size);
+    let autocomplete = autocomplete.iter().map(|x| {
+        let query = normalized_query.clone();
+        let tags = x.head.iter().map(|x| x.as_str()).chain(once(x.last.as_str()))
+            .map(|x| x.to_string()).collect::<Vec<String>>();
+        let suggestion = tags.join(" ");
+        let highlighted_suggestion = match suggestion.starts_with(&query) {
+            true => query.clone() + "<mark>" + &suggestion[normalized_query.len()..] + "</mark>",
+            false => suggestion.clone(),
+        };
+        AutocompleteObject { query, suggestion, highlighted_suggestion, media_count: x.media_count }
+    }).sorted_by_key(|x| x.media_count).rev().collect::<Vec<AutocompleteObject>>();
+    Ok(autocomplete)
 }
