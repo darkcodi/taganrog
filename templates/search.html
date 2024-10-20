@@ -20,7 +20,7 @@
                             <a href="/media/{{ media.id }}?q={{ query }}&p={{ current_page_number }}">
                                 <h2 class="text-xl font-bold">{{ media.filename }}</h2>
                             </a>
-                            <p class="text-gray-600">File Size: {{ media.size }} bytes</p>
+                            <p class="text-gray-600">File Size: {{ media.human_size }}</p>
                             <p class="text-gray-600">File Type: {{ media.content_type }}</p>
                             <p class="text-gray-600">Created: {{ media.created_at }}</p>
                             <div class="flex flex-wrap gap-2">

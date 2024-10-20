@@ -12,6 +12,7 @@ use axum::response::{Html, IntoResponse, Response};
 use axum_macros::FromRef;
 use chrono::{DateTime, Utc};
 use http::{header::*, response::Builder as ResponseBuilder};
+use humanize_bytes::humanize_bytes_decimal;
 use itertools::Itertools;
 use log::info;
 use random_port::{PortPicker, Protocol};
@@ -190,6 +191,7 @@ pub struct ExtendedMedia {
     pub content_type: String,
     pub created_at: DateTime<Utc>,
     pub size: i64,
+    pub human_size: String,
     pub location: String,
     pub location_url: String,
     pub thumbnail_location: String,
@@ -221,11 +223,13 @@ impl ExtendedMedia {
         } else {
             "/default_thumbnail.svg".to_string()
         };
+        let human_size = humanize_bytes_decimal!(media.size).to_string();
         Self {
             id: media.id,
             filename: media.filename,
             created_at: media.created_at,
             size: media.size,
+            human_size,
             location: media.location,
             location_url,
             thumbnail_location,
