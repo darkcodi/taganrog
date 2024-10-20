@@ -36,7 +36,6 @@ impl<T: Storage> TaganrogClient<T> {
         for operation in operations {
             match operation {
                 DbOperation::CreateMedia { media } => { self.create_media_in_memory(media); }
-                DbOperation::UpdateMedia { media } => { self.update_media_in_memory(media); }
                 DbOperation::DeleteMedia { media_id } => { self.delete_media_in_memory(&media_id); }
                 DbOperation::AddTag { media_id, tag } => { self.add_tag_to_media_in_memory(&media_id, &tag); }
                 DbOperation::RemoveTag { media_id, tag } => { self.remove_tag_from_media_in_memory(&media_id, &tag); }
@@ -258,27 +257,6 @@ impl<T: Storage> TaganrogClient<T> {
         InsertResult::New(media)
     }
 
-    fn update_media_in_memory(&mut self, media: Media) -> InsertResult<Media> {
-        let id = media.id.clone();
-        let previous_media = self.media_map.get(&id).map(|x| x.value().clone());
-        if previous_media.is_some() {
-            let mut tags = previous_media.as_ref().unwrap().tags.clone();
-            self.delete_media_in_memory(&id);
-            let media = self.create_media_in_memory(media).safe_unwrap();
-            for tag in tags.iter() {
-                self.add_tag_to_media_in_memory(&media.id, tag);
-            }
-            let media = self.media_map.get(&id).map(|x| x.value().clone()).unwrap();
-            InsertResult::Existing(media)
-        } else {
-            let media = self.create_media_in_memory(media).safe_unwrap();
-            for tag in media.tags.iter() {
-                self.add_tag_to_media_in_memory(&media.id, tag);
-            }
-            InsertResult::New(media)
-        }
-    }
-
     fn delete_media_in_memory(&mut self, media_id: &MediaId) -> Option<Media> {
         let maybe_media = self.media_map.remove(media_id);
         if maybe_media.is_none() {
@@ -357,12 +335,6 @@ impl<T: Storage> TaganrogClient<T> {
         if let InsertResult::New(media) = &result {
             self.storage.write(DbOperation::CreateMedia { media: media.clone() }).await?;
         }
-        Ok(result)
-    }
-
-    pub async fn update_media(&mut self, media: Media) -> Result<InsertResult<Media>, TaganrogError> {
-        let result = self.update_media_in_memory(media);
-        self.storage.write(DbOperation::UpdateMedia { media: result.clone().safe_unwrap() }).await?;
         Ok(result)
     }
 

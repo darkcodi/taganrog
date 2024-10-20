@@ -6,7 +6,6 @@ use crate::error::TaganrogError;
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub enum DbOperation {
     CreateMedia { media: Media },
-    UpdateMedia { media: Media },
     DeleteMedia { media_id: MediaId },
     AddTag { media_id: MediaId, tag: Tag },
     RemoveTag { media_id: MediaId, tag: Tag },

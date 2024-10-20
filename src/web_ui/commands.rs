@@ -23,15 +23,7 @@ pub async fn load_media_from_file(path_str: &str, app_state: State<'_, AppState>
         return Err("File does not exist".to_string());
     }
     let client = app_state.client.read().await;
-    let mut media = client.create_media_from_file(&path_buf).await.map_err(|e| e.to_string())?;
-    let maybe_existing_media = client.get_media_by_id(&media.id);
-    drop(client);
-    if maybe_existing_media.is_some() {
-        let mut client = app_state.client.write().await;
-        media = client.update_media(media).await.map_err(|e| e.to_string())?.safe_unwrap();
-        drop(client);
-        return Ok(ExtendedMedia::create(media, &app_state.config));
-    }
+    let media = client.create_media_from_file(&path_buf).await.map_err(|e| e.to_string())?;
     Ok(ExtendedMedia::create(media, &app_state.config))
 }
 
