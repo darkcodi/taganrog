@@ -381,8 +381,16 @@ mod tests {
     use crate::storage::InMemoryStorage;
 
     async fn create_test_client() -> TaganrogClient<InMemoryStorage> {
-        let dir = tempdir().unwrap();
-        let cfg = AppConfig::new(dir.path().to_path_buf());
+        let temp_dir = tempdir().unwrap();
+        let temp_dir_path = temp_dir.path().to_path_buf();
+        let tg_homedir = temp_dir_path.join(".taganrog");
+        let db_filepath = tg_homedir.join("taganrog.db.json");
+        let thumbnails_dir = tg_homedir.join("thumbnails");
+        let cfg = AppConfig {
+            tg_homedir,
+            db_filepath,
+            thumbnails_dir,
+        };
         let storage = InMemoryStorage::default();
         let mut client = TaganrogClient::new(cfg, storage);
         client.init().await.unwrap();
