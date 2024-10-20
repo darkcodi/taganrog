@@ -186,6 +186,20 @@ pub fn show_info_dialog(message: &str, app_handle: tauri::AppHandle) {
         .blocking_show();
 }
 
+#[tauri::command(rename_all = "snake_case")]
+pub async fn show_media_in_file_manager(media_id: &str, app_state: State<'_, AppState>) -> Result<(), String> {
+    let media_id: MediaId = media_id.to_string();
+    let client = app_state.client.read().await;
+    let maybe_media = client.get_media_by_id(&media_id);
+    drop(client);
+    if maybe_media.is_none() {
+        return Err("Media not found".to_string());
+    }
+    let media = maybe_media.unwrap();
+    showfile::show_path_in_file_manager(&media.location);
+    Ok(())
+}
+
 async fn get_or_create_media(media_id: &MediaId, path: Option<&str>, app_state: &State<'_, AppState>) -> Result<Media, String> {
     let client = app_state.client.read().await;
     let mut maybe_media = client.get_media_by_id(&media_id);

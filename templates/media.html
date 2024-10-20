@@ -34,6 +34,10 @@
                                 <span class="break-all"> {{ media.filename }}</span>
                             </li>
                             <li class="mb-2">
+                                <strong>Location:</strong>
+                                <span class="break-all"> <a onclick="invoke('show_media_in_file_manager', { media_id: '{{ media.id }}' })" style="text-decoration: underline; color: blue; cursor: pointer;">{{ media.location }}</a></span>
+                            </li>
+                            <li class="mb-2">
                                 <strong>Hash:</strong>
                                 <span class="break-all"> {{ media.id }}</span>
                             </li>
