@@ -144,10 +144,12 @@ impl<T> IntoResponse for HtmlTemplate<T>
 #[template(path = "index.html")]
 struct IndexTemplate {
     query: String,
+    random_media_id: String,
 }
 
 async fn index() -> impl IntoResponse {
-    HtmlTemplate(IndexTemplate::default())
+    let random_media_id = rand::random::<u64>().to_string();
+    HtmlTemplate(IndexTemplate { query: "".to_string(), random_media_id })
 }
 
 async fn favicon() -> impl IntoResponse { Response::<Body>::new(FAVICON.into()) }
@@ -334,6 +336,7 @@ pub struct MediaPageTemplate {
     page: usize,
     media: ExtendedMedia,
     media_exists: bool,
+    random_media_id: String,
 }
 
 async fn get_media(
@@ -348,25 +351,34 @@ async fn get_media(
     if maybe_media.is_none() {
         maybe_media = client.create_media_from_file(&query.path.unwrap_or_default().into()).await.ok();
     }
+    let random_media_id = rand::random::<u64>().to_string();
     if let Some(media) = maybe_media {
         let mut media = ExtendedMedia::create(media, &state.config);
         media.tags = media.tags.into_iter().rev().collect();
-        HtmlTemplate(MediaPageTemplate { query: normalized_query, page, media, media_exists: true })
+        HtmlTemplate(MediaPageTemplate { query: normalized_query, page, media, media_exists: true, random_media_id })
     } else {
-        HtmlTemplate(MediaPageTemplate { query: normalized_query, page, media: ExtendedMedia::default(), media_exists: false })
+        HtmlTemplate(MediaPageTemplate { query: normalized_query, page, media: ExtendedMedia::default(), media_exists: false, random_media_id })
     }
 }
 
+#[derive(Deserialize)]
+struct RandomQuery {
+    seed: Option<u64>,
+}
+
 async fn get_random_media(
+    Query(query): Query<RandomQuery>,
     State(state): State<AppState>,
 ) -> impl IntoResponse {
+    let seed = query.seed.unwrap_or_else(|| rand::random());
     let client = state.client.read().await;
-    match client.get_random_media() {
+    let random_media_id = rand::random::<u64>().to_string();
+    match client.get_random_media(seed) {
         Some(media) => {
             let media = ExtendedMedia::create(media, &state.config);
-            HtmlTemplate(MediaPageTemplate { query: "".to_string(), page: 1, media, media_exists: true })
+            HtmlTemplate(MediaPageTemplate { query: "".to_string(), page: 1, media, media_exists: true, random_media_id })
         },
-        None => HtmlTemplate(MediaPageTemplate { query: "".to_string(), page: 1, media: ExtendedMedia::default(), media_exists: false })
+        None => HtmlTemplate(MediaPageTemplate { query: "".to_string(), page: 1, media: ExtendedMedia::default(), media_exists: false, random_media_id })
     }
 }
 
@@ -421,10 +433,13 @@ async fn get_algolia_styles() -> impl IntoResponse {
 
 #[derive(Default, Template)]
 #[template(path = "add_media.html")]
-struct AddMediaTemplate { }
+struct AddMediaTemplate {
+    random_media_id: String,
+}
 
 async fn add_media_page() -> impl IntoResponse {
-    HtmlTemplate(AddMediaTemplate::default())
+    let random_media_id = rand::random::<u64>().to_string();
+    HtmlTemplate(AddMediaTemplate { random_media_id })
 }
 
 #[derive(Default, Debug, Serialize)]

@@ -2,7 +2,9 @@ use std::collections::HashSet;
 use std::path::{Path, PathBuf};
 use dashmap::DashMap;
 use itertools::Itertools;
+use rand::SeedableRng;
 use rand::seq::SliceRandom;
+use rand_chacha::ChaCha8Rng;
 use tokio::time::Instant;
 use crate::config::AppConfig;
 use crate::entities::*;
@@ -71,9 +73,10 @@ impl<T: Storage> TaganrogClient<T> {
         maybe_media
     }
 
-    pub fn get_random_media(&self) -> Option<Media> {
+    pub fn get_random_media(&self, seed: u64) -> Option<Media> {
+        let mut random = ChaCha8Rng::seed_from_u64(seed);
         let media_vec = self.media_map.iter().map(|x| x.value().clone()).collect::<Vec<Media>>();
-        let maybe_media = media_vec.choose(&mut rand::thread_rng()).cloned();
+        let maybe_media = media_vec.choose(&mut random).cloned();
         maybe_media
     }
 
@@ -462,7 +465,7 @@ mod tests {
         let mut client = create_test_client().await;
         let media = create_random_media();
         client.create_media_in_memory(media.clone());
-        let maybe_media = client.get_random_media();
+        let maybe_media = client.get_random_media(rand::random());
         assert_eq!(maybe_media, Some(media));
     }
 
