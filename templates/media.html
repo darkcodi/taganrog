@@ -150,6 +150,12 @@
                                 addTagToMedia(tagSearchInput.value, '{{ media.id }}', path);
                                 tagSearchClearButton.click();
                                 tagSearchInput.focus();
+                                requestAnimationFrame(() => {
+                                    tagSearchInput.focus();
+                                });
+                                setTimeout(() => {
+                                    tagSearchInput.focus();
+                                }, 0);
                             },
                             getItemInputValue: ({ item }) => item.suggestion,
                             templates: {
@@ -177,6 +183,12 @@
                         addTagToMedia(tagSearchInput.value, '{{ media.id }}', path);
                         tagSearchClearButton.click();
                         tagSearchInput.focus();
+                        requestAnimationFrame(() => {
+                            tagSearchInput.focus();
+                        });
+                        setTimeout(() => {
+                            tagSearchInput.focus();
+                        }, 0);
                     }
                 },
             });
