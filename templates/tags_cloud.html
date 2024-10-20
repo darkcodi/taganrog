@@ -7,7 +7,7 @@
 
 {% block content %}
 <div class="flex flex-col h-screen">
-    {% include "search_header.html" %}
+    {% include "default_header.html" %}
     <div id="demo" class="w-full min-w-full max-w-full h-full min-h-full max-h-full !z-0">
         {% for tag in tags %}
             <span data-weight="{{ tag.media_count }}">{{ tag.last }}</span>
