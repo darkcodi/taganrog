@@ -28,7 +28,14 @@
         {% include "search_autocomplete.html" %}
         <script>
             // focus on the Algolia input
-            document.querySelector('.aa-Input').focus();
+            const tagSearchInput = document.querySelector('.aa-Input');
+            tagSearchInput.focus();
+            requestAnimationFrame(() => {
+                tagSearchInput.focus();
+            });
+            setTimeout(() => {
+                tagSearchInput.focus();
+            }, 0);
         </script>
     </div>
 {% endblock %}
