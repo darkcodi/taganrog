@@ -30,16 +30,16 @@
                         <h2 class="text-2xl font-bold mb-2">File Info</h2>
                         <ul>
                             <li class="mb-2">
-                                <strong>Name:</strong>
-                                <span class="break-all"> {{ media.filename }}</span>
+                                <strong>Id:</strong>
+                                <span class="break-all"> {{ media.id }}</span>
                             </li>
                             <li class="mb-2">
                                 <strong>Location:</strong>
                                 <span class="break-all"> <a onclick="invoke('show_media_in_file_manager', { media_id: '{{ media.id }}' })" style="text-decoration: underline; color: blue; cursor: pointer;">{{ media.location }}</a></span>
                             </li>
                             <li class="mb-2">
-                                <strong>Hash:</strong>
-                                <span class="break-all"> {{ media.id }}</span>
+                                <strong>Size:</strong>
+                                <span class="break-all"> {{ media.human_size }}</span>
                             </li>
                             <li class="mb-2">
                                 <strong>Type:</strong>
