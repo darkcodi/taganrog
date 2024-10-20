@@ -3,16 +3,16 @@
 {% block content %}
     <div class="flex flex-col h-screen">
         {% include "search_header.html" %}
-        {% if query != "" %}
-            <div class="flex items-start justify-start bg-white px-4 py-0 sm:px-6 lg:px-8">
+        <main class="h-screen flex flex-row items-start justify-between bg-white px-4 sm:px-6 lg:px-8">
+            <div class="flex items-center justify-center bg-white px-4 py-0 sm:px-6 lg:px-8 h-full">
+                {% if query != "" %}
                 <a href="/search?q={{ query }}&p={{ page }}">
                     <svg width="24px" height="24px" viewBox="0 0 1024 1024" xmlns="http://www.w3.org/2000/svg"><path fill="#EF4444" d="M224 480h640a32 32 0 1 1 0 64H224a32 32 0 0 1 0-64z"/><path fill="#EF4444" d="m237.248 512 265.408 265.344a32 32 0 0 1-45.312 45.312l-288-288a32 32 0 0 1 0-45.312l288-288a32 32 0 1 1 45.312 45.312L237.248 512z"/></svg>
                 </a>
+                {% endif %}
             </div>
-        {% endif %}
-        <main class="h-screen flex flex-col items-center justify-start bg-white px-4 sm:px-6 lg:px-8">
             {% if media_exists %}
-            <div id="media-main" class="max-w-fit w-full mt-6 flex h-3/4">
+            <div id="media-main" class="max-w-fit w-full flex h-full">
                 <div class="flex-1">
                     {% if media.is_image %}
                         <img class="w-full h-full object-cover rounded-md focus:outline-none" src="{{ media.location_url }}" style="aspect-ratio:16/9;object-fit:contain;" />
@@ -77,6 +77,7 @@
                 </div>
             </div>
             {% endif %}
+            <div></div>
         </main>
         <footer class="w-full h-20 flex items-center justify-center bg-white">
             <div class="text-center"><a class="text-gray-600" href="/media/random">Charting digital depths, from Alferaki to Faina</a></div>
