@@ -10,7 +10,7 @@
                     Tag new file(s)
                 </h2>
                 <div class="mt-4">
-                    <button class="appearance-none rounded-none relative block w-full px-3 py-2 border border-gray-300 placeholder-gray-500 text-gray-900 rounded-md focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 focus:z-10 sm:text-sm"
+                    <button class="appearance-none rounded-none relative block w-full px-3 py-2 border border-gray-300 placeholder-gray-500 rounded-md focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 focus:z-10 sm:text-sm bg-gray-200 hover:bg-gray-300 transition-colors text-black font-medium"
                            id="fileInput">
                         Choose file(s)
                     </button>
@@ -163,8 +163,8 @@
                         await addPreviewForMedia(media);
                     }
 
-                    // TODO: unhide input for tags and submit button
                     document.getElementById('tags-block').style.display = 'block';
+                    document.getElementById('fileInput').style.display = 'none';
                 }
             });
         });
@@ -202,6 +202,7 @@
             }
             document.getElementById('tags-list').innerHTML = '';
             document.getElementById('tags-block').style.display = 'none';
+            document.getElementById('fileInput').style.display = 'block';
         }
 
         async function submitAll() {
