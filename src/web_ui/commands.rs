@@ -4,7 +4,7 @@ use std::iter::once;
 use base64::decode;
 use itertools::Itertools;
 use tauri::State;
-use tauri_plugin_dialog::{DialogExt, MessageDialogButtons};
+use tauri_plugin_dialog::{DialogExt, MessageDialogButtons, MessageDialogKind};
 use crate::entities::{Media, MediaId};
 use crate::utils::normalize_query;
 use crate::web_ui::{extract_tags, get_bg_color, get_fg_color, AppState, AutocompleteObject, ExtendedMedia, ExtendedTag, DEFAULT_AUTOCOMPLETE_PAGE_SIZE};
@@ -26,7 +26,7 @@ pub async fn load_media_from_file(path_str: &str, app_state: State<'_, AppState>
     let mut media = client.create_media_from_file(&path_buf).await.map_err(|e| e.to_string())?;
     let maybe_existing_media = client.get_media_by_id(&media.id);
     drop(client);
-    if maybe_existing_media.is_none() {
+    if maybe_existing_media.is_some() {
         return Ok(ExtendedMedia::create(media, &app_state.config));
     }
     let mut client = app_state.client.write().await;
@@ -67,13 +67,13 @@ pub async fn add_tag_to_media(media_id: &str, tags: &str, path: Option<&str>, ap
     let tags_str = normalize_query(tags);
     let tags_str = tags_str.trim_end();
     if tags_str.is_empty() {
-        return Err("No tags provided".to_string());
+        return Ok(vec![]);
     }
     let media = get_or_create_media(&media_id, path, &app_state).await?;
     let tags = extract_tags(tags_str);
     let new_tags = tags.iter().filter(|x| !media.tags.contains(x)).cloned().collect::<Vec<String>>();
     if new_tags.is_empty() {
-        return Err("No new tags provided".to_string());
+        return Ok(vec![]);
     }
     let mut client = app_state.client.write().await;
     for tag in &new_tags {
@@ -163,6 +163,31 @@ pub async fn autocomplete_tags(query: &str, app_state: State<'_, AppState>) -> R
         AutocompleteObject { query, suggestion, highlighted_suggestion, media_count: x.media_count }
     }).sorted_by_key(|x| x.media_count).rev().collect::<Vec<AutocompleteObject>>();
     Ok(autocomplete)
+}
+
+#[tauri::command(rename_all = "snake_case")]
+pub fn parse_tags(query: &str) -> Result<Vec<ExtendedTag>, String> {
+    let query = normalize_query(query);
+    let tags = extract_tags(&query).into_iter().map(|x| x.into()).collect::<Vec<ExtendedTag>>();
+    Ok(tags)
+}
+
+#[tauri::command(rename_all = "snake_case")]
+pub fn show_err_dialog(message: &str, app_handle: tauri::AppHandle) {
+    app_handle.dialog()
+        .message(message)
+        .kind(MessageDialogKind::Error)
+        .title("Error")
+        .blocking_show();
+}
+
+#[tauri::command(rename_all = "snake_case")]
+pub fn show_info_dialog(message: &str, app_handle: tauri::AppHandle) {
+    app_handle.dialog()
+        .message(message)
+        .kind(MessageDialogKind::Info)
+        .title("Info")
+        .blocking_show();
 }
 
 async fn get_or_create_media(media_id: &MediaId, path: Option<&str>, app_state: &State<'_, AppState>) -> Result<Media, String> {

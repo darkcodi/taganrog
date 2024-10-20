@@ -18,7 +18,27 @@
                 <div class="container mt-4 mx-auto px-4">
                     <div id="preview-container" class="grid grid-cols-7 gap-4"></div>
                 </div>
-                <div id="tags-div">
+                <div id="tags-block" class="mt-4" style="display: none;">
+                    <div class="rounded-md shadow-sm">
+                        <div>
+                            <label class="sr-only" for="tag-search">
+                                Search Tags
+                            </label>
+                            <div class="mx-auto w-full" id="tag-search"></div>
+                        </div>
+                    </div>
+                    <ul id="tags-list" style="margin-top: 0.5rem">
+                    </ul>
+                    <div class="mt-4" style="display: flex; flex-direction: row; width: 100%; justify-content: space-between;">
+                        <button class="inline-flex items-center justify-center whitespace-nowrap rounded-md text-sm font-medium ring-offset-background transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-500 focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 bg-red-600 text-white hover:bg-red-700 h-10 px-4 py-2"
+                                id="resetAll" onclick="resetAll()">
+                            Reset
+                        </button>
+                        <button class="mx-1 my-3 inline-flex items-center justify-center whitespace-nowrap rounded-md text-sm font-medium ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 h-10 px-4 py-2 bg-gray-200 hover:bg-gray-300 transition-colors text-black"
+                                id="submitTags" onclick="submitAll()">
+                            Submit
+                        </button>
+                    </div>
                 </div>
             </div>
         </div>
@@ -92,6 +112,8 @@
                 const img = document.createElement('img');
                 img.src = media.thumbnail_location_url;
                 img.classList.add('w-32', 'h-32', 'object-cover', 'rounded-md', 'file-preview');
+                img.setAttribute('data-media-id', media_id);
+                img.setAttribute('data-location', filepath);
                 previewContainer.appendChild(img);
             } else {
                 const thumbnail = await generateThumbnail(normalizedFilepath, mimeType);
@@ -106,6 +128,8 @@
                 const img = document.createElement('img');
                 img.src = thumbnail;
                 img.classList.add('w-32', 'h-32', 'object-cover', 'rounded-md', 'file-preview');
+                img.setAttribute('data-media-id', media_id);
+                img.setAttribute('data-location', filepath);
                 previewContainer.appendChild(img);
             }
         };
@@ -140,8 +164,136 @@
                     }
 
                     // TODO: unhide input for tags and submit button
+                    document.getElementById('tags-block').style.display = 'block';
                 }
             });
+        });
+
+        async function addTagToUploadList(query) {
+            const response = await invoke('parse_tags', { query });
+            for (const tag of response) {
+                const existingTagElement = document.getElementById(`li-${tag.name}`);
+                if (existingTagElement) {
+                    continue;
+                }
+                const tagElement = document.createElement('li');
+                tagElement.id = `li-${tag.name}`;
+                tagElement.classList.add('rounded', 'px-2', 'py-1', 'mb-2', 'flex', 'justify-between', 'items-center');
+                tagElement.style.backgroundColor = tag.bg_color;
+                tagElement.style.color = tag.fg_color;
+                tagElement.innerHTML = `
+                    <div>#${tag.name}</div>
+                    <span class="cursor-pointer hover:text-red-500" onclick="removeTagFromUploadList('${tag.name}')">X</span>
+                `;
+                tagElement.setAttribute('data-tag-name', tag.name);
+                document.getElementById('tags-list').appendChild(tagElement);
+            }
+        }
+
+        async function removeTagFromUploadList(tagName) {
+            const tagElement = document.getElementById(`li-${tagName}`);
+            tagElement.remove();
+        }
+
+        function resetAll() {
+            const previewContainer = document.getElementById('preview-container');
+            while (previewContainer.firstChild) {
+                previewContainer.removeChild(previewContainer.firstChild);
+            }
+            document.getElementById('tags-list').innerHTML = '';
+            document.getElementById('tags-block').style.display = 'none';
+        }
+
+        async function submitAll() {
+            let tags_list_children = document.getElementById('tags-list').children;
+            if (tags_list_children.length === 0) {
+                await invoke('show_err_dialog', { message: 'No tags selected' });
+                return;
+            }
+            let tags = new Set();
+            for (const tag of tags_list_children) {
+                tags.add(tag);
+            }
+            let allTagsString = Array.from(tags).map(tag => tag.getAttribute('data-tag-name')).join(' ');
+            console.log('All tags:', allTagsString);
+
+            const previewContainer = document.getElementById('preview-container');
+            const previewImages = previewContainer.getElementsByClassName('file-preview');
+            if (previewImages.length === 0) {
+                await invoke('show_err_dialog', { message: 'No files selected' });
+                return;
+            }
+
+            for (const previewImage of previewImages) {
+                const media_id = previewImage.getAttribute('data-media-id');
+                const filepath = previewImage.getAttribute('data-location');
+                await invoke('add_tag_to_media', { media_id, tags: allTagsString, path: filepath });
+                console.log('Added tags to media:', media_id);
+            }
+
+            console.log('All tags added');
+            resetAll();
+
+            await invoke('show_info_dialog', { message: 'Tags added successfully' });
+        }
+
+        autocomplete({
+            container: '#tag-search',
+            getSources({ query }) {
+                return [
+                    {
+                        sourceId: 'tag-search',
+                        getItems() {
+                            return invoke("autocomplete_tags", { query: query })
+                                .then((data) => {
+                                    return data.map((item) => {
+                                        return {
+                                            ...item,
+                                            suggestion: item.suggestion,
+                                            _highlightResult: {
+                                                highlighted_suggestion: {
+                                                    value: item.highlighted_suggestion
+                                                        .replace(/<mark>/g, '__aa-highlight__')
+                                                        .replace(/<\/mark>/g, '__/aa-highlight__')
+                                                },
+                                            },
+                                        };
+                                    });
+                                });
+                        },
+                        onSelect({ item }) {
+                            const tagSearchInput = document.querySelector('#tag-search .aa-Input');
+                            const tagSearchClearButton = document.querySelector('#tag-search .aa-ClearButton');
+                            addTagToUploadList(item.suggestion);
+                            tagSearchClearButton.click();
+                            tagSearchInput.focus();
+                        },
+                        getItemInputValue: ({ item }) => item.suggestion,
+                        templates: {
+                            item({ item, components, html }) {
+                                return html`<div className="aa-ItemWrapper">
+                                  <div className="aa-ItemContent">
+                                    <div className="aa-ItemContentBody">
+                                      <div className="aa-ItemContentTitle">
+                                        ${components.Highlight({ hit: item, attribute: 'highlighted_suggestion' })}
+                                      </div>
+                                    </div>
+                                  </div>
+                                </div>`
+                            },
+                        },
+                    },
+                ];
+            },
+            onSubmit({ state }) {
+                if (state.query) {
+                    const tagSearchInput = document.querySelector('#tag-search .aa-Input');
+                    const tagSearchClearButton = document.querySelector('#tag-search .aa-ClearButton');
+                    addTagToUploadList(state.query);
+                    tagSearchClearButton.click();
+                    tagSearchInput.focus();
+                }
+            },
         });
     </script>
 </div>
