@@ -3,7 +3,7 @@
 {% block content %}
     <div class="flex flex-col h-screen">
         {% include "search_header.html" %}
-        <main class="h-screen flex flex-row items-start justify-between bg-white px-4 sm:px-6 lg:px-8">
+        <main class="flex flex-grow flex-row items-start justify-between bg-white px-4 sm:px-6 lg:px-8 overflow-y-auto">
             <div class="flex items-center justify-center bg-white px-4 py-0 sm:px-6 lg:px-8 h-full">
                 {% if query != "" %}
                 <a href="/search?q={{ query }}&p={{ page }}">
@@ -12,7 +12,7 @@
                 {% endif %}
             </div>
             {% if media_exists %}
-            <div id="media-main" class="max-w-fit w-full flex h-full">
+            <div id="media-main" class="w-full flex h-full max-h-full">
                 <div class="flex-1">
                     {% if media.is_image %}
                         <img class="w-full h-full object-cover rounded-md focus:outline-none" src="{{ media.location_url }}" style="aspect-ratio:16/9;object-fit:contain;" />
@@ -26,7 +26,7 @@
                     {% endif %}
                 </div>
                 <div class="w-96 p-4 bg-gray-100 rounded-md ml-4 flex flex-col justify-between">
-                    <div>
+                    <div class="overflow-y-auto">
                         <h2 class="text-2xl font-bold mb-2">File Info</h2>
                         <ul>
                             <li class="mb-2">
@@ -79,7 +79,7 @@
             {% endif %}
             <div></div>
         </main>
-        <footer class="w-full h-20 flex items-center justify-center bg-white">
+        <footer class="w-full flex items-center justify-center bg-white h-14">
             <div class="text-center"><a class="text-gray-600" href="/media/random">Charting digital depths, from Alferaki to Faina</a></div>
         </footer>
         {% include "search_autocomplete.html" %}
