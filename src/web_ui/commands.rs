@@ -200,6 +200,27 @@ pub async fn show_media_in_file_manager(media_id: &str, app_state: State<'_, App
     Ok(())
 }
 
+#[tauri::command(rename_all = "snake_case")]
+pub async fn export_db(app_handle: tauri::AppHandle, app_state: State<'_, AppState>) -> Result<(), String> {
+    let filepath = app_handle.dialog().file().blocking_save_file().ok_or("No file selected")?.into_path().map_err(|e| e.to_string())?;
+    let client = app_state.client.read().await;
+    let db_operations = client.export_db_operations();
+    drop(client);
+    let lines = db_operations.iter().map(|x| serde_json::to_string(x).unwrap()).collect::<Vec<String>>();
+    let filepath_str = filepath.to_string_lossy().to_string();
+    let mut file = File::create(&filepath_str).map_err(|e| e.to_string())?;
+    for line in lines {
+        file.write_all(line.as_bytes()).map_err(|e| e.to_string())?;
+        file.write_all(b"\n").map_err(|e| e.to_string())?;
+    }
+    app_handle.dialog()
+        .message(format!("Database exported successfully to {}", &filepath_str))
+        .kind(MessageDialogKind::Info)
+        .title("Export successful")
+        .blocking_show();
+    Ok(())
+}
+
 async fn get_or_create_media(media_id: &MediaId, path: Option<&str>, app_state: &State<'_, AppState>) -> Result<Media, String> {
     let client = app_state.client.read().await;
     let mut maybe_media = client.get_media_by_id(&media_id);

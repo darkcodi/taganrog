@@ -234,6 +234,19 @@ impl<T: Storage> TaganrogClient<T> {
         autocomplete
     }
 
+    pub fn export_db_operations(&self) -> Vec<DbOperation> {
+        let mut operations = Vec::new();
+        for media in self.media_map.iter().map(|x| x.value().clone()) {
+            if !media.tags.is_empty() {
+                operations.push(DbOperation::CreateMedia { media: media.clone() });
+                for tag in media.tags.iter() {
+                    operations.push(DbOperation::AddTag { media_id: media.id.clone(), tag: tag.clone() });
+                }
+            }
+        }
+        operations
+    }
+
     fn create_media_in_memory(&mut self, media: Media) -> InsertResult<Media> {
         let id = media.id.clone();
         if self.media_map.contains_key(&id) {

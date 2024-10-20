@@ -89,7 +89,7 @@ pub async fn serve(config: AppConfig, client: TaganrogClient<FileStorage>) {
     tauri::Builder::default()
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_fs::init())
-        .invoke_handler(tauri::generate_handler![choose_files, load_media_from_file, has_thumbnail, save_thumbnail, add_tag_to_media, remove_tag_from_media, delete_media, autocomplete_tags, parse_tags, show_err_dialog, show_info_dialog, show_media_in_file_manager])
+        .invoke_handler(tauri::generate_handler![choose_files, load_media_from_file, has_thumbnail, save_thumbnail, add_tag_to_media, remove_tag_from_media, delete_media, autocomplete_tags, parse_tags, show_err_dialog, show_info_dialog, show_media_in_file_manager, export_db])
         .setup(move |app| {
             app.manage(app_state);
             let url = format!("http://localhost:{}", port).parse().unwrap();
