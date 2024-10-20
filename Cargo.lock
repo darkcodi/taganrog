@@ -4112,7 +4112,6 @@ dependencies = [
  "http",
  "http-range",
  "humantime",
- "infer",
  "itertools",
  "log",
  "mime",

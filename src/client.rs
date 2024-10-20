@@ -236,10 +236,12 @@ impl<T: Storage> TaganrogClient<T> {
 
     pub fn export_db_operations(&self) -> Vec<DbOperation> {
         let mut operations = Vec::new();
-        for media in self.media_map.iter().map(|x| x.value().clone()) {
+        for mut media in self.media_map.iter().sorted_by_key(|x| x.created_at).map(|x| x.value().clone()) {
             if !media.tags.is_empty() {
+                let media_tags = media.tags;
+                media.tags = vec![];
                 operations.push(DbOperation::CreateMedia { media: media.clone() });
-                for tag in media.tags.iter() {
+                for tag in media_tags.iter() {
                     operations.push(DbOperation::AddTag { media_id: media.id.clone(), tag: tag.clone() });
                 }
             }
@@ -322,12 +324,12 @@ impl<T: Storage> TaganrogClient<T> {
             return Err(TaganrogError::FileNotFound);
         }
 
-        let file_bytes = std::fs::read(&abs_path)
-            .map_err(TaganrogError::FileReadError)?;
-        let hash = MurMurHasher::hash_bytes(&file_bytes);
+        let abs_path_str = abs_path.to_string_lossy().to_string();
+        let hash = MurMurHasher::hash_str(&abs_path_str);
         let metadata = std::fs::metadata(&abs_path)
             .map_err(TaganrogError::FileMetadataError)?;
-        let content_type = infer::get(&file_bytes).map(|x| x.mime_type()).unwrap_or("application/octet-stream").to_string();
+        let guess = mime_guess::from_path(&abs_path_str);
+        let content_type = guess.first().map(|mime| mime.to_string()).unwrap_or("application/octet-stream".to_string());
         let size = metadata.len() as i64;
         let location = abs_path.to_string_lossy().to_string();
         let created_at = chrono::Utc::now();

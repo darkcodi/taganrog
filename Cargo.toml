@@ -35,7 +35,6 @@ home = "0.5"
 http = "1.1"
 http-range = "0.1"
 humantime = "2.1"
-infer = { version = "0.16", default-features = false }
 itertools = "0.13"
 log = "0.4"
 mime = "0.3.0"
