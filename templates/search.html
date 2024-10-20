@@ -1,6 +1,7 @@
 {% extends "base.html" %}
 
 {% block head %}
+    <script src="/scripts/jquery.min.js"></script>
     {% if query == "" %}
         <meta http-equiv="refresh" content="0; url=/" />
     {% endif %}
@@ -10,7 +11,7 @@
     <div class="flex flex-col h-screen">
         {% include "search_header.html" %}
         <main class="flex flex-col items-center justify-center bg-white px-4 sm:px-6 lg:px-8 overflow-y-auto flex-grow">
-            <div class="max-w-7xl w-full mt-6 max-h-full">
+            <div class="max-w-7xl w-full mt-6 max-h-full" id="search-results">
                 {% for media in media_vec %}
                     <div class="rounded-md shadow-sm p-4 flex items-start space-x-4 mt-4 bg-gray-50">
                         <a href="/media/{{ media.id }}?q={{ query }}&p={{ current_page_number }}">
@@ -85,4 +86,56 @@
         </footer>
         {% include "search_autocomplete.html" %}
     </div>
+    <script>
+        function getTotalHeight(element) {
+            const style = window.getComputedStyle(element);
+
+            const marginTop = parseFloat(style.marginTop);
+            const marginBottom = parseFloat(style.marginBottom);
+            const borderTop = parseFloat(style.borderTopWidth);
+            const borderBottom = parseFloat(style.borderBottomWidth);
+            const offsetHeight = element.offsetHeight; // Includes padding
+
+            return offsetHeight + marginTop + marginBottom + borderTop + borderBottom;
+        }
+
+        $(window).resize(function() {
+            clearTimeout(window.resizedFinished);
+            window.resizedFinished = setTimeout(function(){
+                const windowWidth = $(window).width();
+                const windowHeight = $(window).height();
+                console.log("Resize finished. Window size: " + windowWidth + "x" + windowHeight);
+
+                const searchResults = document.getElementById("search-results");
+                const childCount = searchResults.children.length;
+                if (childCount === 0) {
+                    return;
+                }
+
+                const firstChild = searchResults.firstElementChild;
+                const itemHeight = getTotalHeight(firstChild);
+
+                const header = document.querySelector("header");
+                const headerHeight = header ? header.offsetHeight : 0;
+
+                const footer = document.querySelector("footer");
+                const footerHeight = footer ? footer.offsetHeight : 0;
+
+                const urlParams = new URLSearchParams(window.location.search);
+                const pageNumber = urlParams.get('p');
+                const pageSize = Number(urlParams.get('ps')) || 6;
+                console.log("Page size: " + pageSize);
+
+                const newPageSize = Math.floor((windowHeight - headerHeight - footerHeight) / itemHeight);
+                console.log("New page size: " + newPageSize);
+                if (pageSize === newPageSize) {
+                    return;
+                }
+
+                const newPageNumber = Math.floor((pageNumber - 1) * pageSize / newPageSize) + 1;
+                console.log("New page number: " + newPageNumber);
+                window.location.href = window.location.pathname + "?q=" + urlParams.get('q') + "&p=" + newPageNumber + "&ps=" + newPageSize;
+            }, 250);
+        });
+    </script>
 {% endblock %}
