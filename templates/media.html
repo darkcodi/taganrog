@@ -86,8 +86,9 @@
         <script>
             async function addTagToMedia(tag, mediaId, path) {
                 const response = await invoke('add_tag_to_media', { media_id: mediaId, tags: tag, path });
+                const tagsList = document.querySelector('#tags-list');
                 for (let tag of response) {
-                    document.querySelector('#tags-list').innerHTML += `
+                    const newLi = `
                         <li id="li-${tag.name}" class="rounded px-2 py-1 mb-2 flex justify-between items-center"
                             style="background-color: ${tag.bg_color}; color: ${tag.fg_color};"
                         >
@@ -95,6 +96,7 @@
                             <span class="cursor-pointer hover:text-red-500" onclick="removeTagFromMedia('${tag.name}', '${mediaId}')">X</span>
                         </li>
                     `;
+                    tagsList.insertAdjacentHTML('afterbegin', newLi);
                 }
             }
 

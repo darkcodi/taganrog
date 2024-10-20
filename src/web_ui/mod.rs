@@ -349,7 +349,8 @@ async fn get_media(
         maybe_media = client.create_media_from_file(&query.path.unwrap_or_default().into()).await.ok();
     }
     if let Some(media) = maybe_media {
-        let media = ExtendedMedia::create(media, &state.config);
+        let mut media = ExtendedMedia::create(media, &state.config);
+        media.tags = media.tags.into_iter().rev().collect();
         HtmlTemplate(MediaPageTemplate { query: normalized_query, page, media, media_exists: true })
     } else {
         HtmlTemplate(MediaPageTemplate { query: normalized_query, page, media: ExtendedMedia::default(), media_exists: false })
