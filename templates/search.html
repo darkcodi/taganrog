@@ -99,43 +99,49 @@
             return offsetHeight + marginTop + marginBottom + borderTop + borderBottom;
         }
 
+        function optimizePageSize() {
+            const windowWidth = $(window).width();
+            const windowHeight = $(window).height();
+            console.log("Window size: " + windowWidth + "x" + windowHeight);
+
+            const searchResults = document.getElementById("search-results");
+            const childCount = searchResults.children.length;
+            if (childCount === 0) {
+                return;
+            }
+
+            const firstChild = searchResults.firstElementChild;
+            const itemHeight = getTotalHeight(firstChild);
+
+            const header = document.querySelector("header");
+            const headerHeight = header ? getTotalHeight(header) : 0;
+
+            const footer = document.querySelector("footer");
+            const footerHeight = footer ? getTotalHeight(footer) : 0;
+
+            const urlParams = new URLSearchParams(window.location.search);
+            const pageNumber = urlParams.get('p');
+            const pageSize = Number(urlParams.get('ps')) || 3;
+            console.log("Page size: " + pageSize);
+
+            const newPageSize = Math.max(1, Math.floor((windowHeight - headerHeight - footerHeight) / itemHeight));
+            console.log("New page size: " + newPageSize);
+            if (pageSize === newPageSize) {
+                return;
+            }
+
+            const newPageNumber = Math.floor((pageNumber - 1) * pageSize / newPageSize) + 1;
+            console.log("New page number: " + newPageNumber);
+            window.location.href = window.location.pathname + "?q=" + urlParams.get('q') + "&p=" + newPageNumber + "&ps=" + newPageSize;
+        }
+
         $(window).resize(function() {
             clearTimeout(window.resizedFinished);
             window.resizedFinished = setTimeout(function(){
-                const windowWidth = $(window).width();
-                const windowHeight = $(window).height();
-                console.log("Resize finished. Window size: " + windowWidth + "x" + windowHeight);
-
-                const searchResults = document.getElementById("search-results");
-                const childCount = searchResults.children.length;
-                if (childCount === 0) {
-                    return;
-                }
-
-                const firstChild = searchResults.firstElementChild;
-                const itemHeight = getTotalHeight(firstChild);
-
-                const header = document.querySelector("header");
-                const headerHeight = header ? header.offsetHeight : 0;
-
-                const footer = document.querySelector("footer");
-                const footerHeight = footer ? footer.offsetHeight : 0;
-
-                const urlParams = new URLSearchParams(window.location.search);
-                const pageNumber = urlParams.get('p');
-                const pageSize = Number(urlParams.get('ps')) || 6;
-                console.log("Page size: " + pageSize);
-
-                const newPageSize = Math.floor((windowHeight - headerHeight - footerHeight) / itemHeight);
-                console.log("New page size: " + newPageSize);
-                if (pageSize === newPageSize) {
-                    return;
-                }
-
-                const newPageNumber = Math.floor((pageNumber - 1) * pageSize / newPageSize) + 1;
-                console.log("New page number: " + newPageNumber);
-                window.location.href = window.location.pathname + "?q=" + urlParams.get('q') + "&p=" + newPageNumber + "&ps=" + newPageSize;
+                optimizePageSize();
             }, 250);
         });
+
+        optimizePageSize();
     </script>
 {% endblock %}

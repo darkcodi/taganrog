@@ -43,7 +43,7 @@ const TAILWIND_EXT_LIB: &[u8] = include_bytes!("assets/scripts/tailwind_ext_1.0.
 // styles
 const ALGOLIA_STYLES: &[u8] = include_bytes!("assets/styles/algolia_classic_1.15.1.min.css");
 
-const DEFAULT_MEDIA_PAGE_SIZE: usize = 6;
+const DEFAULT_MEDIA_PAGE_SIZE: usize = 3;
 const DEFAULT_AUTOCOMPLETE_PAGE_SIZE: usize = 6;
 
 pub async fn serve(config: AppConfig, client: TaganrogClient<FileStorage>) {
