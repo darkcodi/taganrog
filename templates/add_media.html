@@ -3,9 +3,9 @@
 {% block content %}
 <div class="flex flex-col h-screen">
     {% include "default_header.html" %}
-    <main class="h-screen flex flex-col items-center justify-center bg-white px-4 sm:px-6 lg:px-8">
-        <div class="max-w-7xl w-full mt-6 grid grid-cols-1 gap-4 bg-gray-50">
-            <div class="rounded-md shadow-sm p-4">
+    <main class="h-4/5 flex flex-col items-center justify-center bg-white px-4 sm:px-6 lg:px-8">
+        <div class="h-full flex flex-col w-full mt-6 bg-gray-50">
+            <div class="flex flex-col rounded-md shadow-sm p-4 overflow-y-auto">
                 <h2 class="text-2xl font-bold mt-2">
                     Tag new file(s)
                 </h2>
@@ -15,8 +15,8 @@
                         Choose file(s)
                     </button>
                 </div>
-                <div class="container mt-4 mx-auto px-4">
-                    <div id="preview-container" class="grid grid-cols-7 gap-4"></div>
+                <div class="flex flex-col flex-grow container mt-4 mx-auto px-4 overflow-y-auto">
+                    <div id="preview-container" class="flex-grow grid grid-cols-7 gap-4 overflow-y-auto"></div>
                 </div>
                 <div id="tags-block" class="mt-4" style="display: none;">
                     <div class="rounded-md shadow-sm">
@@ -30,7 +30,7 @@
                     <ul id="tags-list" style="margin-top: 0.5rem">
                     </ul>
                     <div class="mt-4" style="display: flex; flex-direction: row; width: 100%; justify-content: space-between;">
-                        <button class="inline-flex items-center justify-center whitespace-nowrap rounded-md text-sm font-medium ring-offset-background transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-500 focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 bg-red-600 text-white hover:bg-red-700 h-10 px-4 py-2"
+                        <button class="mx-1 my-3 inline-flex items-center justify-center whitespace-nowrap rounded-md text-sm font-medium ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 h-10 px-4 py-2 bg-red-600 hover:bg-red-700 transition-colors text-white"
                                 id="resetAll" onclick="resetAll()">
                             Reset
                         </button>
