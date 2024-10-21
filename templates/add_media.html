@@ -5,12 +5,12 @@
     {% include "default_header.html" %}
     <main class="h-4/5 flex flex-col items-center justify-center bg-white px-4 sm:px-6 lg:px-8">
         <div class="h-full flex flex-col w-full mt-6 bg-gray-50">
-            <div class="flex flex-col rounded-md shadow-sm p-4 overflow-y-auto">
+            <div class="flex flex-col rounded-md p-4 overflow-y-auto">
                 <h2 class="text-2xl font-bold mt-2">
                     Tag new file(s)
                 </h2>
                 <div class="mt-4">
-                    <button class="appearance-none rounded-none relative block w-full px-3 py-2 border border-gray-300 placeholder-gray-500 rounded-md focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 focus:z-10 sm:text-sm bg-gray-200 hover:bg-gray-300 transition-colors text-black font-medium"
+                    <button class="appearance-none rounded-none relative block w-full px-3 py-2 border border-gray-300 placeholder-gray-500 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 focus:z-10 sm:text-sm bg-gray-200 hover:bg-gray-300 transition-colors text-black font-medium"
                            id="fileInput">
                         Choose file(s)
                     </button>
@@ -19,7 +19,7 @@
                     <div id="preview-container" class="flex-grow grid grid-cols-7 gap-4 overflow-y-auto"></div>
                 </div>
                 <div id="tags-block" class="mt-4">
-                    <div class="rounded-md shadow-sm">
+                    <div class="rounded-md">
                         <div>
                             <label class="sr-only" for="tag-search">
                                 Search Tags
