@@ -126,7 +126,12 @@
             img.classList.add('w-32', 'h-32', 'object-cover', 'rounded-md', 'file-preview');
             img.setAttribute('data-media-id', media_id);
             img.setAttribute('data-location', filepath);
-            previewContainer.appendChild(img);
+
+            const link = document.createElement('a');
+            link.href = `/media/${media_id}?path=${encodeURIComponent(filepath)}`;
+            link.appendChild(img);
+
+            previewContainer.appendChild(link);
             previewContainer.scrollTop = previewContainer.scrollHeight;
         };
 
