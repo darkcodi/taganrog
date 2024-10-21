@@ -106,34 +106,28 @@
 
             const has_thumbnail = await invoke('has_thumbnail', {media_id});
 
+            let src = '';
             if (has_thumbnail) {
+                src = media.thumbnail_location_url;
                 console.log('Thumbnail already exists');
-
-                const img = document.createElement('img');
-                img.src = media.thumbnail_location_url;
-                img.classList.add('w-32', 'h-32', 'object-cover', 'rounded-md', 'file-preview');
-                img.setAttribute('data-media-id', media_id);
-                img.setAttribute('data-location', filepath);
-                previewContainer.appendChild(img);
-                previewContainer.scrollTop = previewContainer.scrollHeight;
-            } else {
+            }
+            else {
                 const thumbnail = await generateThumbnail(normalizedFilepath, mimeType);
                 if (!thumbnail) {
                     console.error('Failed to generate thumbnail');
                     return;
                 }
-
-                await invoke('save_thumbnail', {media_id, thumbnail});
+                src = thumbnail;
                 console.log('Saved new thumbnail');
-
-                const img = document.createElement('img');
-                img.src = thumbnail;
-                img.classList.add('w-32', 'h-32', 'object-cover', 'rounded-md', 'file-preview');
-                img.setAttribute('data-media-id', media_id);
-                img.setAttribute('data-location', filepath);
-                previewContainer.appendChild(img);
-                previewContainer.scrollTop = previewContainer.scrollHeight;
             }
+
+            const img = document.createElement('img');
+            img.src = src;
+            img.classList.add('w-32', 'h-32', 'object-cover', 'rounded-md', 'file-preview');
+            img.setAttribute('data-media-id', media_id);
+            img.setAttribute('data-location', filepath);
+            previewContainer.appendChild(img);
+            previewContainer.scrollTop = previewContainer.scrollHeight;
         };
 
         function disableElement(element) {
