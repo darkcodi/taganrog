@@ -18,23 +18,23 @@
                 <div class="flex flex-col flex-grow container mt-4 mx-auto px-4 overflow-y-auto">
                     <div id="preview-container" class="flex-grow grid grid-cols-7 gap-4 overflow-y-auto"></div>
                 </div>
-                <div id="tags-block" class="mt-4" style="display: none;">
+                <div id="tags-block" class="mt-4">
                     <div class="rounded-md shadow-sm">
                         <div>
                             <label class="sr-only" for="tag-search">
                                 Search Tags
                             </label>
-                            <div class="mx-auto w-full" id="tag-search"></div>
+                            <div disabled class="mx-auto w-full disabled:opacity-60 disabled:pointer-events-none disabled:cursor-not-allowed" id="tag-search"></div>
                         </div>
                     </div>
                     <ul id="tags-list" style="margin-top: 0.5rem">
                     </ul>
                     <div class="mt-4" style="display: flex; flex-direction: row; width: 100%; justify-content: space-between;">
-                        <button class="mx-1 my-3 inline-flex items-center justify-center whitespace-nowrap rounded-md text-sm font-medium ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 h-10 px-4 py-2 bg-red-600 hover:bg-red-700 transition-colors text-white"
+                        <button disabled class="mx-1 my-3 inline-flex items-center justify-center whitespace-nowrap rounded-md text-sm font-medium ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 h-10 px-4 py-2 bg-red-600 hover:bg-red-700 transition-colors text-white disabled:opacity-60 disabled:pointer-events-none disabled:cursor-not-allowed"
                                 id="resetAll" onclick="resetAll()">
                             Reset
                         </button>
-                        <button class="mx-1 my-3 inline-flex items-center justify-center whitespace-nowrap rounded-md text-sm font-medium ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 h-10 px-4 py-2 bg-gray-200 hover:bg-gray-300 transition-colors text-black"
+                        <button disabled class="mx-1 my-3 inline-flex items-center justify-center whitespace-nowrap rounded-md text-sm font-medium ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 h-10 px-4 py-2 bg-gray-200 hover:bg-gray-300 transition-colors text-black disabled:opacity-60 disabled:pointer-events-none disabled:cursor-not-allowed"
                                 id="submitTags" onclick="submitAll()">
                             Submit
                         </button>
@@ -133,6 +133,25 @@
                 previewContainer.appendChild(img);
             }
         };
+
+        function disableElement(element) {
+            if (element) {
+                element.disabled = true;
+                element.style.pointerEvents = 'none';
+                element.style.cursor = 'not-allowed';
+                element.style.opacity = '0.6';
+            }
+        }
+
+        function enableElement(element) {
+            if (element) {
+                element.disabled = false;
+                element.style.pointerEvents = '';
+                element.style.cursor = '';
+                element.style.opacity = '1';
+            }
+        }
+
         window.addEventListener('DOMContentLoaded', () => {
             const previewContainer = document.getElementById('preview-container');
 
@@ -163,7 +182,9 @@
                         await addPreviewForMedia(media);
                     }
 
-                    document.getElementById('tags-block').style.display = 'block';
+                    enableElement(document.getElementById('resetAll'));
+                    enableElement(document.getElementById('submitTags'));
+                    enableElement(document.getElementById('tag-search'));
                     document.getElementById('fileInput').style.display = 'none';
                 }
             });
@@ -195,13 +216,19 @@
             tagElement.remove();
         }
 
+        disableElement(document.getElementById('resetAll'));
+        disableElement(document.getElementById('submitTags'));
+        disableElement(document.getElementById('tag-search'));
+
         function resetAll() {
             const previewContainer = document.getElementById('preview-container');
             while (previewContainer.firstChild) {
                 previewContainer.removeChild(previewContainer.firstChild);
             }
             document.getElementById('tags-list').innerHTML = '';
-            document.getElementById('tags-block').style.display = 'none';
+            disableElement(document.getElementById('resetAll'));
+            disableElement(document.getElementById('submitTags'));
+            disableElement(document.getElementById('tag-search'));
             document.getElementById('fileInput').style.display = 'block';
         }
 
