@@ -16,7 +16,7 @@
 * [Installation](#installation)
 * [Usage](#usage)
   * [CLI](#cli)
-  * [Web UI](#web-ui)
+  * [Desktop](#desktop)
 * [License](#license)
 
 ## About the Project
@@ -29,17 +29,18 @@ In the digital age, where the quantity of files and data we handle is enormous, 
 
 ## Features
 
-- ✨ **Google-like web UI**: Search your files in a neat, Google-like search bar.
+- ✨ **Google-like UI**: Search your files in a neat, Google-like search bar.
 - ⚡ **Blazingly Fast**: tags autocompletion, searching media files, adding/removing tags, everything works within milliseconds(!)
 - 💾 **Local Storage**: All your tags and files are stored locally on your machine. There is NO server.
 - 🖥️ **CLI**: Taganrog is also a CLI tool that allows you to manage your tags and files from the command line.
-- 📦 **Portable**: Taganrog is a single binary (that includes both - the CLI and the Web UI), that you can run on any platform without any dependencies.
+- 📦 **Portable**: Taganrog is a single binary (that includes both - the CLI and the desktop app), that you can run on any platform without any dependencies.
 - 📤 **Exportable**: The entire DB is just a single JSON file that is human-readable and can be easily exported to other systems.
 
 ## Built With
 
 This project was built using the following open-source frameworks/libraries:
-- for Web UI: [Axum](https://github.com/tokio-rs/axum) + [Askama](https://github.com/djc/askama)
+- for desktop app: [Tauri](https://github.com/tauri-apps/tauri)
+- for UI templating: [Axum](https://github.com/tokio-rs/axum) + [Askama](https://github.com/djc/askama)
 - for CLI: [Clap](https://github.com/clap-rs/clap)
 - for DB: append-only JSON file (using [serde](https://github.com/serde-rs/serde))
 
@@ -47,16 +48,13 @@ This project was built using the following open-source frameworks/libraries:
 
 There are four ways to install Taganrog:
 
-1. **Using the pre-built binaries**:
-    - Download the latest binary from the [releases page](https://github.com/darkcodi/taganrog/releases) and run it.
-
-2. **Using Cargo**:
-    - If you have Rust installed, you can install Taganrog using Cargo:
+1. **Using Cargo**:
+   - If you have Rust installed, you can install Taganrog using Cargo:
     ```sh
     cargo install taganrog
     ```
 
-3. **Building from source**:
+2. **Building from source**:
    - Clone the repo and build the project using Cargo:
     ```sh
     git clone https://github.com/darkcodi/taganrog.git
@@ -70,6 +68,9 @@ There are four ways to install Taganrog:
     ```
    - [Windows only] You can also install the binary to your system by adding the `target\release` directory to your PATH.
 
+3. **[COMING SOON] Using the pre-built binaries**:
+   - Download the latest binary from the [releases page](https://github.com/darkcodi/taganrog/releases) and run it.
+
 ## Usage
 
 ### CLI
@@ -80,9 +81,9 @@ Taganrog can be used as a CLI tool to manage your tags and files. Here are some 
 - `taganrog list [tag]`: List all tags that start with a specific prefix. If no prefix is provided, all tags are listed.
 - `taganrog search <tag1> [tag2 ...]`: Search for files with a specific tag or tags.
 
-### Web UI
-  
-Taganrog also provides a web UI that can be accessed by visiting `http://localhost:1698` in your browser. The web UI allows you to search for files using tags and manage your tags.
+### Desktop
+
+If you launch Taganrog without any arguments, it will start a desktop app that you can use to manage your tags and files. Here are some of the available features:
 - **Search**: Enter tags in the search bar to search for files that have those tags.
 - **Tag new files**: Click on the `Plus` button in the top right corner and select a file(s) to tag.
 - **Add/Delete Tags**: Click on some media file and then add/remove tags to it on the right-side panel.
