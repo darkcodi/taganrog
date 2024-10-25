@@ -2,9 +2,9 @@ use std::collections::HashSet;
 use std::path::{Path, PathBuf};
 use dashmap::DashMap;
 use itertools::Itertools;
-use path_absolutize::Absolutize;
+use rand::SeedableRng;
 use rand::seq::SliceRandom;
-use relative_path::PathExt;
+use rand_chacha::ChaCha8Rng;
 use tokio::time::Instant;
 use crate::config::AppConfig;
 use crate::entities::*;
@@ -73,9 +73,10 @@ impl<T: Storage> TaganrogClient<T> {
         maybe_media
     }
 
-    pub fn get_random_media(&self) -> Option<Media> {
+    pub fn get_random_media(&self, seed: u64) -> Option<Media> {
+        let mut random = ChaCha8Rng::seed_from_u64(seed);
         let media_vec = self.media_map.iter().map(|x| x.value().clone()).collect::<Vec<Media>>();
-        let maybe_media = media_vec.choose(&mut rand::thread_rng()).cloned();
+        let maybe_media = media_vec.choose(&mut random).cloned();
         maybe_media
     }
 
@@ -235,12 +236,27 @@ impl<T: Storage> TaganrogClient<T> {
         autocomplete
     }
 
+    pub fn export_db_operations(&self) -> Vec<DbOperation> {
+        let mut operations = Vec::new();
+        for mut media in self.media_map.iter().sorted_by_key(|x| x.created_at).map(|x| x.value().clone()) {
+            if !media.tags.is_empty() {
+                let media_tags = media.tags;
+                media.tags = vec![];
+                operations.push(DbOperation::CreateMedia { media: media.clone() });
+                for tag in media_tags.iter() {
+                    operations.push(DbOperation::AddTag { media_id: media.id.clone(), tag: tag.clone() });
+                }
+            }
+        }
+        operations
+    }
+
     fn create_media_in_memory(&mut self, media: Media) -> InsertResult<Media> {
         let id = media.id.clone();
         if self.media_map.contains_key(&id) {
             return InsertResult::Existing(media);
         }
-        self.media_map.insert(id.clone(), media.clone());
+        self.media_map.insert(id, media.clone());
         InsertResult::New(media)
     }
 
@@ -284,77 +300,19 @@ impl<T: Storage> TaganrogClient<T> {
         false
     }
 
-    pub async fn upload_media(&mut self, content: Vec<u8>, filename: String) -> Result<InsertResult<Media>, TaganrogError> {
-        if filename.is_empty() {
-            return Err(TaganrogError::InvalidFilename(filename));
-        }
-        if filename.contains('/') || filename.contains('\\') {
-            return Err(TaganrogError::InvalidFilename(filename));
-        }
-        let hash = MurMurHasher::hash_bytes(&content);
-        if self.media_map.contains_key(&hash) {
-            return Ok(InsertResult::Existing(self.media_map.get(&hash).map(|x| x.value().clone()).unwrap()));
-        }
-        let mut unique_filename = filename.clone();
-        let mut suffix = 0;
-        while self.cfg.upload_dir.join(&unique_filename).exists() {
-            suffix += 1;
-            unique_filename = format!("dup{}-{}", suffix, filename);
-        }
-        let abs_path = self.cfg.upload_dir.join(&unique_filename);
-        tokio::fs::write(&abs_path, &content).await
-            .map_err(TaganrogError::DbIOError)?;
-        let rel_path = abs_path.relative_to(&self.cfg.work_dir)
-            .map_err(|_| TaganrogError::RelativePathError)?;
-        let content_type = infer::get(&content).map(|x| x.mime_type()).unwrap_or("application/octet-stream").to_string();
-        let size = content.len() as i64;
-        let location = rel_path.to_string();
-        let created_at = chrono::Utc::now();
-
-        let media = Media {
-            id: hash,
-            filename: unique_filename,
-            content_type,
-            created_at,
-            size,
-            location,
-            was_uploaded: true,
-            tags: vec![],
-        };
-
-        let result = self.create_media_in_memory(media.clone());
-        if let InsertResult::New(media) = &result {
-            self.storage.write(DbOperation::CreateMedia { media: media.clone() }).await?;
-        }
-        Ok(result)
-    }
-
-    pub async fn create_media_from_file(&mut self, abs_path: &PathBuf) -> Result<Media, TaganrogError> {
-        let abs_path = abs_path.absolutize()
-            .map_err(|_| TaganrogError::AbsolutizeError)?;
-        let rel_path = abs_path.relative_to(&self.cfg.work_dir)
-            .map_err(|_| TaganrogError::RelativePathError)?;
-        if rel_path.starts_with(".") {
-            return Err(TaganrogError::PathNotWithinWorkdir);
-        }
-        if !abs_path.exists() {
+    pub async fn create_media_from_file(&self, abs_path: &PathBuf) -> Result<Media, TaganrogError> {
+        if !abs_path.exists() || abs_path.is_dir() {
             return Err(TaganrogError::FileNotFound);
         }
-        if abs_path.is_dir() {
-            return Err(TaganrogError::PathIsDirectory);
-        }
 
-        let file_bytes = std::fs::read(&abs_path)
-            .map_err(TaganrogError::FileReadError)?;
-        let hash = MurMurHasher::hash_bytes(&file_bytes);
-        if self.media_map.contains_key(&hash) {
-            return Ok(self.media_map.get(&hash).map(|x| x.value().clone()).unwrap());
-        }
+        let abs_path_str = abs_path.to_string_lossy().to_string();
+        let hash = MurMurHasher::hash_str(&abs_path_str);
         let metadata = std::fs::metadata(&abs_path)
             .map_err(TaganrogError::FileMetadataError)?;
-        let content_type = infer::get(&file_bytes).map(|x| x.mime_type()).unwrap_or("application/octet-stream").to_string();
+        let guess = mime_guess::from_path(&abs_path_str);
+        let content_type = guess.first().map(|mime| mime.to_string()).unwrap_or("application/octet-stream".to_string());
         let size = metadata.len() as i64;
-        let location = rel_path.to_string();
+        let location = abs_path.to_string_lossy().to_string();
         let created_at = chrono::Utc::now();
         let filename = abs_path.file_name().unwrap().to_string_lossy().to_string();
 
@@ -365,7 +323,6 @@ impl<T: Storage> TaganrogClient<T> {
             created_at,
             size,
             location,
-            was_uploaded: false,
             tags: vec![],
         };
 
@@ -410,7 +367,7 @@ impl<T: Storage> TaganrogClient<T> {
 
     pub fn get_media_path(&self, media_id: &MediaId) -> Option<PathBuf> {
         let media = self.get_media_by_id(media_id)?;
-        let media_path = self.cfg.work_dir.join(media.location);
+        let media_path = PathBuf::from(&media.location);
         Some(media_path)
     }
 
@@ -424,17 +381,19 @@ mod tests {
     use rand::Rng;
     use super::*;
     use tempfile::tempdir;
-    use crate::config::ConfigBuilder;
     use crate::storage::InMemoryStorage;
 
     async fn create_test_client() -> TaganrogClient<InMemoryStorage> {
-        let dir = tempdir().unwrap();
-        let work_dir = dir.path().to_path_buf();
-        let upload_dir = work_dir.join("uploads");
-        let cfg = AppConfig::new(ConfigBuilder {
-            workdir: Some(work_dir.display().to_string()),
-            upload_dir: Some(upload_dir.display().to_string()),
-        }).unwrap();
+        let temp_dir = tempdir().unwrap();
+        let temp_dir_path = temp_dir.path().to_path_buf();
+        let tg_homedir = temp_dir_path.join(".taganrog");
+        let db_filepath = tg_homedir.join("taganrog.db.json");
+        let thumbnails_dir = tg_homedir.join("thumbnails");
+        let cfg = AppConfig {
+            tg_homedir,
+            db_filepath,
+            thumbnails_dir,
+        };
         let storage = InMemoryStorage::default();
         let mut client = TaganrogClient::new(cfg, storage);
         client.init().await.unwrap();
@@ -449,9 +408,8 @@ mod tests {
         let created_at = chrono::Utc::now();
         let size = 0;
         let location = "test.txt".to_string();
-        let was_uploaded = false;
         let tags = vec![];
-        Media { id, filename, content_type, created_at, size, location, was_uploaded, tags }
+        Media { id, filename, content_type, created_at, size, location, tags }
     }
 
     #[tokio::test]
@@ -507,7 +465,7 @@ mod tests {
         let mut client = create_test_client().await;
         let media = create_random_media();
         client.create_media_in_memory(media.clone());
-        let maybe_media = client.get_random_media();
+        let maybe_media = client.get_random_media(rand::random());
         assert_eq!(maybe_media, Some(media));
     }
 

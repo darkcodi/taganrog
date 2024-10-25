@@ -2,52 +2,44 @@
 
 {% block content %}
     <div class="flex flex-col h-screen">
-        <header class="flex items-center justify-between bg-white px-4 py-4 sm:px-6 lg:px-8">
-            <form action="/" method="get" class="flex items-center space-x-4">
-                <button tabindex="-1" type="submit" class="border-none focus:outline-none">
-                    <h1 class="flex items-center text-3xl font-bold tracking-tighter sm:text-4xl md:text-5xl"><span class="text-6xl font-extrabold text-red-500"> Tag </span><span class="ml-2 text-5xl"> anrog </span></h1>
-                </button>
-            </form>
-            <div class="mx-auto w-full max-w-xl" id="autocomplete"></div>
-            <a class="border-none focus:outline-none mx-1.5" href="/tags">
-                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="#EF4444" class="h-6 w-6">
-                    <g id="SVGRepo_bgCarrier" stroke-width="0"/>
-                    <g id="SVGRepo_tracerCarrier" stroke-linecap="round" stroke-linejoin="round"/>
-                    <g id="SVGRepo_iconCarrier"> <path d="M20 11L3 11" stroke="#EF4444" stroke-width="1.5" stroke-linecap="round"/> <path d="M11 16H3" stroke="#EF4444" stroke-width="1.5" stroke-linecap="round"/> <path d="M14 18L17.5 15L21 18" stroke="#EF4444" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/> <path d="M3 6L13.5 6M20 6L17.75 6" stroke="#EF4444" stroke-width="1.5" stroke-linecap="round"/> </g>
-                </svg>
-            </a>
-            <a class="border-none focus:outline-none mx-1.5" href="/upload">
-                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="#EF4444" class="h-6 w-6">
-                    <path stroke-linecap="round" color="#EF4444" stroke-linejoin="round" d="M3 16.5v2.25A2.25 2.25 0 0 0 5.25 21h13.5A2.25 2.25 0 0 0 21 18.75V16.5m-13.5-9L12 3m0 0 4.5 4.5M12 3v13.5" />
-                </svg>
-            </a>
-        </header>
-        <main class="h-screen flex flex-col items-center justify-center bg-white px-4 sm:px-6 lg:px-8">
+        {% include "default_header.html" %}
+        <main class="flex flex-grow flex-row items-start justify-between bg-white px-4 sm:px-6 lg:px-8 overflow-y-auto">
+            <div class="flex items-center justify-center bg-white px-4 py-0 sm:px-6 lg:px-8 h-full">
+                {% if query != "" %}
+                <a href="/search?q={{ query }}&p={{ page }}">
+                    <svg width="24px" height="24px" viewBox="0 0 1024 1024" xmlns="http://www.w3.org/2000/svg"><path fill="#EF4444" d="M224 480h640a32 32 0 1 1 0 64H224a32 32 0 0 1 0-64z"/><path fill="#EF4444" d="m237.248 512 265.408 265.344a32 32 0 0 1-45.312 45.312l-288-288a32 32 0 0 1 0-45.312l288-288a32 32 0 1 1 45.312 45.312L237.248 512z"/></svg>
+                </a>
+                {% endif %}
+            </div>
             {% if media_exists %}
-            <div id="media-main" class="max-w-fit w-full mt-6 flex h-3/4">
+            <div id="media-main" class="w-full flex h-full max-h-full overflow-y-auto">
                 <div class="flex-1">
                     {% if media.is_image %}
-                        <img class="w-full h-full object-cover rounded-md focus:outline-none" src="/media/{{ media.id }}/stream" style="aspect-ratio:16/9;object-fit:contain;" />
+                        <img class="w-full h-full object-cover rounded-md focus:outline-none" src="{{ media.location_url }}" style="aspect-ratio:16/9;object-fit:contain;" />
                     {% else %}
                         <video id="media-player" preload="auto" autoplay="autoplay" loop="loop"
                                 controls
                                 class="w-full h-full object-cover rounded-md focus:outline-none"
-                                src="/media/{{ media.id }}/stream"
+                                src="{{ media.location_url }}"
                                 style="aspect-ratio:16/9;object-fit:contain;"
                         ></video>
                     {% endif %}
                 </div>
-                <div class="w-96 p-4 bg-gray-100 rounded-md ml-4 flex flex-col justify-between">
-                    <div>
+                <div class="w-96 p-4 bg-gray-100 rounded-md ml-4 flex flex-col justify-between overflow-y-auto">
+                    <div class="h-fit">
                         <h2 class="text-2xl font-bold mb-2">File Info</h2>
                         <ul>
                             <li class="mb-2">
-                                <strong>Name:</strong>
-                                <span class="break-all"> {{ media.filename }}</span>
+                                <strong>Id:</strong>
+                                <span class="break-all"> {{ media.id }}</span>
                             </li>
                             <li class="mb-2">
-                                <strong>Hash:</strong>
-                                <span class="break-all"> {{ media.id }}</span>
+                                <strong>Location:</strong>
+                                <span class="break-all"> <a onclick="invoke('show_media_in_file_manager', { media_id: '{{ media.id }}' })" style="text-decoration: underline; color: blue; cursor: pointer;">{{ media.location }}</a></span>
+                            </li>
+                            <li class="mb-2">
+                                <strong>Size:</strong>
+                                <span class="break-all"> {{ media.human_size }}</span>
                             </li>
                             <li class="mb-2">
                                 <strong>Type:</strong>
@@ -59,29 +51,6 @@
                             </li>
                         </ul>
                         <h2 class="text-2xl font-bold mb-2">Tags</h2>
-                        <ul>
-                            <div id="tag-adder"
-                                 hx-get="/media/{{ media.id }}/add-tag?q={{ query }}"
-                                 hx-vals="js:{tags: document.querySelector('#tag-search .aa-Input').value}"
-                                 hx-trigger="click"
-                                 hx-target="#next-tag-stub"
-                                 hx-swap="outerHTML">
-                                <input type="hidden" value="" name="tag">
-                            </div>
-                            {% for tag in media.tags %}
-                                <li id="li-{{ tag.name }}" class="rounded px-2 py-1 mb-2 flex justify-between items-center"
-                                    style="background-color: {{ tag.bg_color }}; color: {{ tag.fg_color }};"
-                                >
-                                    <a href="/search?q={{ tag.name }}">#{{ tag.name }}</a>
-                                    <span class="cursor-pointer hover:text-red-500"
-                                        hx-delete="/media/{{ media.id }}/remove-tag?tags={{ tag.name }}"
-                                        hx-trigger="click"
-                                        hx-target="#li-{{ tag.name }}"
-                                        hx-swap="outerHTML">X</span>
-                                </li>
-                            {% endfor %}
-                            <div id="next-tag-stub"></div>
-                        </ul>
                         <div class="mt-4">
                             <div class="rounded-md shadow-sm">
                                 <div>
@@ -93,28 +62,58 @@
                             </div>
                         </div>
                     </div>
-                    <div class="mt-4">
+                    <ul id="tags-list" class="overflow-y-auto flex-grow mt-4">
+                        {% for tag in media.tags %}
+                        <li id="li-{{ tag.name }}" class="rounded px-2 py-1 mb-2 flex justify-between items-center"
+                            style="background-color: {{ tag.bg_color }}; color: {{ tag.fg_color }};"
+                        >
+                            <a href="/search?q={{ tag.name }}&p=1">#{{ tag.name }}</a>
+                            <span class="cursor-pointer hover:text-red-500" onclick="removeTagFromMedia('{{ tag.name }}', '{{ media.id }}')">X</span>
+                        </li>
+                        {% endfor %}
+                    </ul>
+                    <div class="mt-4 h-fit">
                         <button class="inline-flex items-center justify-center whitespace-nowrap rounded-md text-sm font-medium ring-offset-background transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-500 focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 bg-red-600 text-white hover:bg-red-700 h-10 px-4 py-2 w-full"
-                                hx-delete="/media/{{ media.id }}" hx-trigger="click" hx-confirm="Are you sure you wish to delete this media?" hx-target="#media-main" hx-swap="outerHTML" >
+                                onclick="deleteMedia('{{ media.id }}')" >
                             Delete media
                         </button>
                     </div>
                 </div>
             </div>
             {% endif %}
+            <div></div>
         </main>
-        <footer class="w-full h-20 flex items-center justify-center bg-white">
-            <div class="text-center"><a class="text-gray-600" href="/media/random">Charting digital depths, from Alferaki to Faina</a></div>
+        <footer class="w-full flex items-center justify-center bg-white h-14">
+            <div class="text-center"><a class="text-gray-600" href="/media/random?seed={{ random_media_id }}">Charting digital depths, from Alferaki to Faina</a></div>
         </footer>
-        {% include "algolia_autocomplete.html" %}
+        {% include "search_autocomplete.html" %}
         <script>
-            document.body.addEventListener('htmx:afterRequest', function(event) {
-                if (event.detail.elt.id === 'tag-adder') {
-                    document.querySelector('#tag-search .aa-Input').value = '';
-                    document.querySelector('#tag-search .aa-Input').focus();
-                    document.querySelector('#tag-search .aa-Input').value = '';
+            async function addTagToMedia(tag, mediaId, path) {
+                const response = await invoke('add_tag_to_media', { media_id: mediaId, tags: tag, path });
+                const tagsList = document.querySelector('#tags-list');
+                for (const tag of response) {
+                    const newLi = `
+                        <li id="li-${tag.name}" class="rounded px-2 py-1 mb-2 flex justify-between items-center"
+                            style="background-color: ${tag.bg_color}; color: ${tag.fg_color};"
+                        >
+                            <a href="/search?q=${tag.name}&p=1">#${tag.name}</a>
+                            <span class="cursor-pointer hover:text-red-500" onclick="removeTagFromMedia('${tag.name}', '${mediaId}')">X</span>
+                        </li>
+                    `;
+                    tagsList.insertAdjacentHTML('afterbegin', newLi);
                 }
-            });
+            }
+
+            async function removeTagFromMedia(tag, mediaId) {
+                await invoke('remove_tag_from_media', { media_id: mediaId, tags: tag });
+                document.querySelector(`#li-${tag}`).remove();
+            }
+
+            async function deleteMedia(mediaId) {
+                if (await invoke('delete_media', { media_id: mediaId })) {
+                    window.location.href = '/search?q={{ query }}&p={{ page }}';
+                }
+            }
 
             window.addEventListener('DOMContentLoaded', () => {
                 const video = document.getElementById('media-player');
@@ -130,8 +129,7 @@
                         {
                             sourceId: 'tag-search',
                             getItems() {
-                                return fetch(`/tags/autocomplete?q=${encodeURIComponent(query)}`)
-                                    .then((response) => response.json())
+                                return invoke("autocomplete_tags", { query: query })
                                     .then((data) => {
                                         return data.map((item) => {
                                             return {
@@ -149,8 +147,19 @@
                                     });
                             },
                             onSelect({ item }) {
-                                document.querySelector('#tag-adder').click();
-                                document.querySelector('#tag-search .aa-Input').value = '';
+                                const tagSearchInput = document.querySelector('#tag-search .aa-Input');
+                                const tagSearchClearButton = document.querySelector('#tag-search .aa-ClearButton');
+                                const urlParams = new URLSearchParams(window.location.search);
+                                const path = urlParams.get('path');
+                                addTagToMedia(tagSearchInput.value, '{{ media.id }}', path);
+                                tagSearchClearButton.click();
+                                tagSearchInput.focus();
+                                requestAnimationFrame(() => {
+                                    tagSearchInput.focus();
+                                });
+                                setTimeout(() => {
+                                    tagSearchInput.focus();
+                                }, 0);
                             },
                             getItemInputValue: ({ item }) => item.suggestion,
                             templates: {
@@ -171,8 +180,19 @@
                 },
                 onSubmit({ state }) {
                     if (state.query) {
-                        document.querySelector('#tag-adder').click();
-                        document.querySelector('#tag-search .aa-Input').value = '';
+                        const tagSearchInput = document.querySelector('#tag-search .aa-Input');
+                        const tagSearchClearButton = document.querySelector('#tag-search .aa-ClearButton');
+                        const urlParams = new URLSearchParams(window.location.search);
+                        const path = urlParams.get('path');
+                        addTagToMedia(tagSearchInput.value, '{{ media.id }}', path);
+                        tagSearchClearButton.click();
+                        tagSearchInput.focus();
+                        requestAnimationFrame(() => {
+                            tagSearchInput.focus();
+                        });
+                        setTimeout(() => {
+                            tagSearchInput.focus();
+                        }, 0);
                     }
                 },
             });

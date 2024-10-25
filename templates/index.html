@@ -2,17 +2,22 @@
 
 {% block content %}
     <div id="content">
-        <header class="fixed top-0 flex w-full items-center justify-end bg-white px-4 py-4 sm:px-6 lg:px-8">
-            <a class="border-none focus:outline-none mx-1.5" href="/tags">
+        <header class="fixed top-0 flex w-full items-center justify-end bg-white px-4 py-4 sm:px-6 lg:px-8 h-20">
+            <a class="border-none focus:outline-none mx-1.5" style="cursor: pointer;" onclick="invoke('export_db')">
+                <svg fill="#EF4444" width="24px" height="24px" viewBox="0 0 1920 1920" xmlns="http://www.w3.org/2000/svg">
+                    <path d="m0 1016.081 409.186 409.073 79.85-79.736-272.867-272.979h1136.415V959.611H216.169l272.866-272.866-79.85-79.85L0 1016.082ZM1465.592 305.32l315.445 315.445h-315.445V305.32Zm402.184 242.372-329.224-329.11C1507.042 187.07 1463.334 169 1418.835 169h-743.83v677.647h112.94V281.941h564.706v451.765h451.765v903.53H787.946V1185.47H675.003v564.705h1242.353V667.522c0-44.498-18.07-88.207-49.581-119.83Z" fill-rule="evenodd"/>
+                </svg>
+            </a>
+            <a class="border-none focus:outline-none mx-1.5" href="/tags_cloud">
                 <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="#EF4444" class="h-6 w-6">
                     <g id="SVGRepo_bgCarrier" stroke-width="0"/>
                     <g id="SVGRepo_tracerCarrier" stroke-linecap="round" stroke-linejoin="round"/>
                     <g id="SVGRepo_iconCarrier"> <path d="M20 11L3 11" stroke="#EF4444" stroke-width="1.5" stroke-linecap="round"/> <path d="M11 16H3" stroke="#EF4444" stroke-width="1.5" stroke-linecap="round"/> <path d="M14 18L17.5 15L21 18" stroke="#EF4444" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/> <path d="M3 6L13.5 6M20 6L17.75 6" stroke="#EF4444" stroke-width="1.5" stroke-linecap="round"/> </g>
                 </svg>
             </a>
-            <a class="border-none focus:outline-none mx-1.5" href="/upload">
-                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="#EF4444" class="h-6 w-6">
-                    <path stroke-linecap="round" color="#EF4444" stroke-linejoin="round" d="M3 16.5v2.25A2.25 2.25 0 0 0 5.25 21h13.5A2.25 2.25 0 0 0 21 18.75V16.5m-13.5-9L12 3m0 0 4.5 4.5M12 3v13.5" />
+            <a class="border-none focus:outline-none mx-1.5" href="/media/add">
+                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" class="h-6 w-6">
+                    <path d="M4 12H20M12 4V20" stroke="#EF4444" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
                 </svg>
             </a>
         </header>
@@ -22,13 +27,20 @@
             </div>
             <div class="mt-6 w-full max-w-xl space-y-8" id="autocomplete"></div>
         </main>
-        <footer class="fixed bottom-0 flex h-20 w-full items-center justify-center bg-white">
-            <div class="text-center"><a class="text-gray-600" href="/media/random">Charting digital depths, from Alferaki to Faina</a></div>
+        <footer class="fixed bottom-0 flex h-14 w-full items-center justify-center bg-white">
+            <div class="text-center"><a class="text-gray-600" href="/media/random?seed={{ random_media_id }}">Charting digital depths, from Alferaki to Faina</a></div>
         </footer>
-        {% include "algolia_autocomplete.html" %}
+        {% include "search_autocomplete.html" %}
         <script>
             // focus on the Algolia input
-            document.querySelector('.aa-Input').focus();
+            const tagSearchInput = document.querySelector('.aa-Input');
+            tagSearchInput.focus();
+            requestAnimationFrame(() => {
+                tagSearchInput.focus();
+            });
+            setTimeout(() => {
+                tagSearchInput.focus();
+            }, 0);
         </script>
     </div>
 {% endblock %}

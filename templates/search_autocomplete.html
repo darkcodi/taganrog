@@ -9,8 +9,7 @@
                 {
                     sourceId: 'tags-autocomplete',
                     getItems() {
-                        return fetch(`/tags/autocomplete?q=${encodeURIComponent(query)}`)
-                            .then((response) => response.json())
+                        return invoke("autocomplete_tags", { query: query })
                             .then((data) => {
                                 return data.map((item) => {
                                     return {
@@ -29,10 +28,10 @@
                             });
                     },
                     onSelect({ item }) {
-                        window.location.href = '/search?q=' + item.suggestion;
+                        window.location.href = '/search?q=' + item.suggestion + '&p=1';
                     },
                     getItemUrl({ item }) {
-                        return '/search?q=' + item.suggestion;
+                        return '/search?q=' + item.suggestion + '&p=1';
                     },
                     getItemInputValue: ({ item }) => item.suggestion,
                     templates: {
@@ -52,7 +51,7 @@
         },
         onSubmit({ state }) {
             if (state.query) {
-                window.location.href = '/search?q=' + encodeURIComponent(state.query);
+                window.location.href = '/search?q=' + encodeURIComponent(state.query) + '&p=1';
             }
         },
     });

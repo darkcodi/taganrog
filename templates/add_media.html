@@ -1,0 +1,343 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="flex flex-col h-screen">
+    {% include "default_header.html" %}
+    <main class="h-4/5 flex flex-col items-center justify-center bg-white px-4 sm:px-6 lg:px-8">
+        <div class="h-full flex flex-col w-full mt-6 bg-gray-50">
+            <div class="flex flex-col rounded-md p-4 overflow-y-auto">
+                <h2 class="text-2xl font-bold mt-2">
+                    Tag new file(s)
+                </h2>
+                <div class="mt-4">
+                    <button class="appearance-none rounded-none relative block w-full px-3 py-2 border border-gray-300 placeholder-gray-500 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 focus:z-10 sm:text-sm bg-gray-200 hover:bg-gray-300 transition-colors text-black font-medium"
+                           id="fileInput">
+                        Choose file(s)
+                    </button>
+                </div>
+                <div class="flex flex-col flex-grow container mt-4 mx-auto px-4 overflow-y-auto">
+                    <div id="preview-container" class="flex-grow grid grid-cols-7 gap-4 overflow-y-auto"></div>
+                </div>
+                <div id="tags-block" class="mt-4">
+                    <div class="rounded-md">
+                        <div>
+                            <label class="sr-only" for="tag-search">
+                                Search Tags
+                            </label>
+                            <div disabled class="mx-auto w-full disabled:opacity-60 disabled:pointer-events-none disabled:cursor-not-allowed" id="tag-search"></div>
+                        </div>
+                    </div>
+                    <ul id="tags-list" style="margin-top: 0.5rem">
+                    </ul>
+                    <div class="mt-4" style="display: flex; flex-direction: row; width: 100%; justify-content: space-between;">
+                        <button disabled class="mx-1 my-3 inline-flex items-center justify-center whitespace-nowrap rounded-md text-sm font-medium ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 h-10 px-4 py-2 bg-red-600 hover:bg-red-700 transition-colors text-white disabled:opacity-60 disabled:pointer-events-none disabled:cursor-not-allowed"
+                                id="resetAll" onclick="resetAll()">
+                            Reset
+                        </button>
+                        <div id="upload-progress-container" style="color: #000 !important; background-color: #f1f1f1 !important; display: none; height:24px; width: 40%;">
+                            <div id="upload-progress" style="color: #fff !important; background-color: #f44336 !important; height:24px; width:1%"></div>
+                        </div>
+                        <button disabled class="mx-1 my-3 inline-flex items-center justify-center whitespace-nowrap rounded-md text-sm font-medium ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 h-10 px-4 py-2 bg-gray-200 hover:bg-gray-300 transition-colors text-black disabled:opacity-60 disabled:pointer-events-none disabled:cursor-not-allowed"
+                                id="submitTags" onclick="submitAll()">
+                            Submit
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </main>
+    <footer class="w-full h-14 flex items-center justify-center bg-white">
+        <div class="text-center">
+            <a class="text-gray-600" href="/media/random?seed={{ random_media_id }}">Charting digital depths, from Alferaki to Faina</a>
+        </div>
+    </footer>
+    <script>
+        const generateThumbnail = (src, mimeType) => {
+            return new Promise((resolve) => {
+                if (mimeType.startsWith('image')) {
+                    return generateImageThumbnail(src).then(resolve);
+                }
+
+                if (mimeType.startsWith('video')) {
+                    return generateVideoThumbnail(src).then(resolve);
+                }
+
+                return resolve(null);
+            });
+        };
+        const generateVideoThumbnail = (src) => {
+            return new Promise((resolve) => {
+                const canvas = document.createElement("canvas");
+                const video = document.createElement("video");
+                video.crossOrigin = "anonymous";
+                video.autoplay = true;
+                video.muted = true;
+                video.src = src;
+                video.onloadeddata = () => {
+                    const ctx = canvas.getContext("2d");
+                    canvas.width = video.videoWidth;
+                    canvas.height = video.videoHeight;
+                    ctx.drawImage(video, 0, 0, video.videoWidth, video.videoHeight);
+                    video.pause();
+                    return resolve(canvas.toDataURL("image/png"));
+                };
+            });
+        };
+        const generateImageThumbnail = (src) => {
+            return new Promise((resolve) => {
+                const img = document.createElement("img");
+                img.crossOrigin = "anonymous";
+                img.src = src;
+                img.onload = () => {
+                    const canvas = document.createElement("canvas");
+                    const ctx = canvas.getContext("2d");
+                    canvas.width = img.width;
+                    canvas.height = img.height;
+                    ctx.drawImage(img, 0, 0, img.width, img.height);
+                    return resolve(canvas.toDataURL("image/png"));
+                };
+            });
+        };
+        const addPreviewForMedia = async (media) => {
+            const previewContainer = document.getElementById('preview-container');
+
+            const media_id = media.id;
+            const mimeType = media.content_type;
+            const filepath = media.location;
+            const normalizedFilepath = convertFileSrc(filepath, 'stream');
+            console.log('Normalized filepath:', normalizedFilepath);
+
+            const has_thumbnail = await invoke('has_thumbnail', {media_id});
+
+            let src = '';
+            if (has_thumbnail) {
+                src = media.thumbnail_location_url;
+                console.log('Thumbnail already exists');
+            }
+            else {
+                const thumbnail = await generateThumbnail(normalizedFilepath, mimeType);
+                if (!thumbnail) {
+                    console.error('Failed to generate thumbnail');
+                    return;
+                }
+                src = thumbnail;
+                console.log('Saved new thumbnail');
+            }
+
+            const img = document.createElement('img');
+            img.src = src;
+            img.classList.add('w-32', 'h-32', 'object-cover', 'rounded-md', 'file-preview');
+            img.setAttribute('data-media-id', media_id);
+            img.setAttribute('data-location', filepath);
+
+            const link = document.createElement('a');
+            link.href = `/media/${media_id}?path=${encodeURIComponent(filepath)}`;
+            link.appendChild(img);
+
+            previewContainer.appendChild(link);
+            previewContainer.scrollTop = previewContainer.scrollHeight;
+        };
+
+        function disableElement(element) {
+            if (element) {
+                element.disabled = true;
+                element.style.pointerEvents = 'none';
+                element.style.cursor = 'not-allowed';
+                element.style.opacity = '0.6';
+            }
+        }
+
+        function enableElement(element) {
+            if (element) {
+                element.disabled = false;
+                element.style.pointerEvents = '';
+                element.style.cursor = '';
+                element.style.opacity = '1';
+            }
+        }
+
+        window.addEventListener('DOMContentLoaded', () => {
+            const previewContainer = document.getElementById('preview-container');
+
+            document.getElementById('fileInput').addEventListener('click', async () => {
+                while (previewContainer.firstChild) {
+                    previewContainer.removeChild(previewContainer.firstChild);
+                }
+
+                const files = await invoke('choose_files');
+                const files_count = files.length;
+                if (!files || files_count === 0) {
+                    console.error('No files chosen');
+                    return;
+                }
+
+                if (files_count === 1) {
+                    const media = await invoke('load_media_from_file', { path_str: files[0] });
+                    console.log('Chosen media:', media);
+
+                    await addPreviewForMedia(media);
+
+                    window.location.href = `/media/${media.id}?path=${encodeURIComponent(files[0])}`;
+                }
+                else {
+                    document.getElementById('fileInput').style.display = 'none';
+
+                    const progressBarContainer = document.getElementById('upload-progress-container');
+                    const progressBar = document.getElementById('upload-progress');
+                    progressBar.style.width = '0%';
+                    progressBarContainer.style.display = 'block';
+
+                    for (const path_str of files) {
+                        const media = await invoke('load_media_from_file', { path_str });
+                        console.log('Chosen media:', media);
+
+                        await addPreviewForMedia(media);
+
+                        const progress = Math.round((files.indexOf(path_str) + 1) / files_count * 100);
+                        progressBar.style.width = `${progress}%`;
+                    }
+
+                    enableElement(document.getElementById('resetAll'));
+                    enableElement(document.getElementById('submitTags'));
+                    enableElement(document.getElementById('tag-search'));
+                    progressBarContainer.style.display = 'none';
+                }
+            });
+        });
+
+        async function addTagToUploadList(query) {
+            const response = await invoke('parse_tags', { query });
+            for (const tag of response) {
+                const existingTagElement = document.getElementById(`li-${tag.name}`);
+                if (existingTagElement) {
+                    continue;
+                }
+                const tagElement = document.createElement('li');
+                tagElement.id = `li-${tag.name}`;
+                tagElement.classList.add('rounded', 'px-2', 'py-1', 'mb-2', 'flex', 'justify-between', 'items-center');
+                tagElement.style.backgroundColor = tag.bg_color;
+                tagElement.style.color = tag.fg_color;
+                tagElement.innerHTML = `
+                    <div>#${tag.name}</div>
+                    <span class="cursor-pointer hover:text-red-500" onclick="removeTagFromUploadList('${tag.name}')">X</span>
+                `;
+                tagElement.setAttribute('data-tag-name', tag.name);
+                document.getElementById('tags-list').appendChild(tagElement);
+            }
+        }
+
+        async function removeTagFromUploadList(tagName) {
+            const tagElement = document.getElementById(`li-${tagName}`);
+            tagElement.remove();
+        }
+
+        disableElement(document.getElementById('resetAll'));
+        disableElement(document.getElementById('submitTags'));
+        disableElement(document.getElementById('tag-search'));
+
+        function resetAll() {
+            const previewContainer = document.getElementById('preview-container');
+            while (previewContainer.firstChild) {
+                previewContainer.removeChild(previewContainer.firstChild);
+            }
+            document.getElementById('tags-list').innerHTML = '';
+            disableElement(document.getElementById('resetAll'));
+            disableElement(document.getElementById('submitTags'));
+            disableElement(document.getElementById('tag-search'));
+            document.getElementById('fileInput').style.display = 'block';
+        }
+
+        async function submitAll() {
+            const tags_list_children = document.getElementById('tags-list').children;
+            if (tags_list_children.length === 0) {
+                await invoke('show_err_dialog', { message: 'No tags selected' });
+                return;
+            }
+            let tags = new Set();
+            for (const tag of tags_list_children) {
+                tags.add(tag);
+            }
+            const allTagsString = Array.from(tags).map(tag => tag.getAttribute('data-tag-name')).join(' ');
+            console.log('All tags:', allTagsString);
+
+            const previewContainer = document.getElementById('preview-container');
+            const previewImages = previewContainer.getElementsByClassName('file-preview');
+            if (previewImages.length === 0) {
+                await invoke('show_err_dialog', { message: 'No files selected' });
+                return;
+            }
+
+            for (const previewImage of previewImages) {
+                const media_id = previewImage.getAttribute('data-media-id');
+                const filepath = previewImage.getAttribute('data-location');
+                await invoke('add_tag_to_media', { media_id, tags: allTagsString, path: filepath });
+                console.log('Added tags to media:', media_id);
+            }
+
+            console.log('All tags added');
+            resetAll();
+
+            await invoke('show_info_dialog', { message: 'Tags added successfully' });
+        }
+
+        autocomplete({
+            container: '#tag-search',
+            getSources({ query }) {
+                return [
+                    {
+                        sourceId: 'tag-search',
+                        getItems() {
+                            return invoke("autocomplete_tags", { query: query })
+                                .then((data) => {
+                                    return data.map((item) => {
+                                        return {
+                                            ...item,
+                                            suggestion: item.suggestion,
+                                            _highlightResult: {
+                                                highlighted_suggestion: {
+                                                    value: item.highlighted_suggestion
+                                                        .replace(/<mark>/g, '__aa-highlight__')
+                                                        .replace(/<\/mark>/g, '__/aa-highlight__')
+                                                },
+                                            },
+                                        };
+                                    });
+                                });
+                        },
+                        onSelect({ item }) {
+                            const tagSearchInput = document.querySelector('#tag-search .aa-Input');
+                            const tagSearchClearButton = document.querySelector('#tag-search .aa-ClearButton');
+                            addTagToUploadList(item.suggestion);
+                            tagSearchClearButton.click();
+                            tagSearchInput.focus();
+                        },
+                        getItemInputValue: ({ item }) => item.suggestion,
+                        templates: {
+                            item({ item, components, html }) {
+                                return html`<div className="aa-ItemWrapper">
+                                  <div className="aa-ItemContent">
+                                    <div className="aa-ItemContentBody">
+                                      <div className="aa-ItemContentTitle">
+                                        ${components.Highlight({ hit: item, attribute: 'highlighted_suggestion' })}
+                                      </div>
+                                    </div>
+                                  </div>
+                                </div>`
+                            },
+                        },
+                    },
+                ];
+            },
+            onSubmit({ state }) {
+                if (state.query) {
+                    const tagSearchInput = document.querySelector('#tag-search .aa-Input');
+                    const tagSearchClearButton = document.querySelector('#tag-search .aa-ClearButton');
+                    addTagToUploadList(state.query);
+                    tagSearchClearButton.click();
+                    tagSearchInput.focus();
+                }
+            },
+        });
+    </script>
+</div>
+{% endblock %}

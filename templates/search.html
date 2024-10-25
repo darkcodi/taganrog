@@ -1,6 +1,7 @@
 {% extends "base.html" %}
 
 {% block head %}
+    <script src="/scripts/jquery.min.js"></script>
     {% if query == "" %}
         <meta http-equiv="refresh" content="0; url=/" />
     {% endif %}
@@ -8,48 +9,29 @@
 
 {% block content %}
     <div class="flex flex-col h-screen">
-        <header class="flex items-center justify-between bg-white px-4 py-4 sm:px-6 lg:px-8">
-            <form action="/" method="get" class="flex items-center space-x-4">
-                <button tabindex="-1" type="submit" class="border-none focus:outline-none">
-                    <h1 class="flex items-center text-3xl font-bold tracking-tighter sm:text-4xl md:text-5xl"><span class="text-6xl font-extrabold text-red-500"> Tag </span><span class="ml-2 text-5xl"> anrog </span></h1>
-                </button>
-            </form>
-            <div class="mx-auto w-full max-w-xl" id="autocomplete"></div>
-            <a class="border-none focus:outline-none mx-1.5" href="/tags">
-                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="#EF4444" class="h-6 w-6">
-                    <g id="SVGRepo_bgCarrier" stroke-width="0"/>
-                    <g id="SVGRepo_tracerCarrier" stroke-linecap="round" stroke-linejoin="round"/>
-                    <g id="SVGRepo_iconCarrier"> <path d="M20 11L3 11" stroke="#EF4444" stroke-width="1.5" stroke-linecap="round"/> <path d="M11 16H3" stroke="#EF4444" stroke-width="1.5" stroke-linecap="round"/> <path d="M14 18L17.5 15L21 18" stroke="#EF4444" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/> <path d="M3 6L13.5 6M20 6L17.75 6" stroke="#EF4444" stroke-width="1.5" stroke-linecap="round"/> </g>
-                </svg>
-            </a>
-            <a class="border-none focus:outline-none mx-1.5" href="/upload">
-                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="#EF4444" class="h-6 w-6">
-                    <path stroke-linecap="round" color="#EF4444" stroke-linejoin="round" d="M3 16.5v2.25A2.25 2.25 0 0 0 5.25 21h13.5A2.25 2.25 0 0 0 21 18.75V16.5m-13.5-9L12 3m0 0 4.5 4.5M12 3v13.5" />
-                </svg>
-            </a>
-        </header>
+        {% include "default_header.html" %}
         <main class="flex flex-col items-center justify-center bg-white px-4 sm:px-6 lg:px-8 overflow-y-auto flex-grow">
-            <div class="max-w-7xl w-full mt-6 max-h-full">
+            <div class="max-w-7xl w-full mt-6 max-h-full" id="search-results">
                 {% for media in media_vec %}
                     <div class="rounded-md shadow-sm p-4 flex items-start space-x-4 mt-4 bg-gray-50">
-                        <a href="/media/{{ media.id }}?q={{ query }}">
-                            <img src="/media/{{ media.id }}/thumbnail" class="w-32 h-32 object-contain rounded-md" style="aspect-ratio:100/100;object-fit:contain;" />
+                        <a href="/media/{{ media.id }}?q={{ query }}&p={{ current_page_number }}">
+                            <img src="{{ media.thumbnail_location_url }}" class="w-32 h-32 object-contain rounded-md" style="aspect-ratio:100/100;object-fit:contain;" />
                         </a>
                         <div>
-                            <a href="/media/{{ media.id }}?q={{ query }}">
+                            <a href="/media/{{ media.id }}?q={{ query }}&p={{ current_page_number }}">
                                 <h2 class="text-xl font-bold">{{ media.filename }}</h2>
                             </a>
-                            <p class="text-gray-600">File Size: {{ media.size }} bytes</p>
+                            <p class="text-gray-600">File Size: {{ media.human_size }}</p>
                             <p class="text-gray-600">File Type: {{ media.content_type }}</p>
                             <p class="text-gray-600">Created: {{ media.created_at }}</p>
                             <div class="flex flex-wrap gap-2">
                                 {% for tag in media.tags %}
                                 {% if tag.is_in_query %}
-                                <a href="/search?q={{ query }}%20-{{ tag.name }}" class="rounded px-2 py-1 text-sm border-4 border-black"
+                                <a href="/search?q={{ query }}%20-{{ tag.name }}&p=1" class="rounded px-2 py-1 text-sm border-4 border-black"
                                    style="background-color: {{ tag.bg_color }}; color: {{ tag.fg_color }};"
                                 >#{{ tag.name }}</a>
                                 {% else %}
-                                <a href="/search?q={{ query }}%20{{ tag.name }}" class="rounded px-2 py-1 text-sm"
+                                <a href="/search?q={{ query }}%20{{ tag.name }}&p=1" class="rounded px-2 py-1 text-sm"
                                    style="background-color: {{ tag.bg_color }}; color: {{ tag.fg_color }};"
                                 >#{{ tag.name }}</a>
                                 {% endif %}
@@ -102,6 +84,64 @@
                 {% endif %}
             </div>
         </footer>
-        {% include "algolia_autocomplete.html" %}
+        {% include "search_autocomplete.html" %}
     </div>
+    <script>
+        function getTotalHeight(element) {
+            const style = window.getComputedStyle(element);
+
+            const marginTop = parseFloat(style.marginTop);
+            const marginBottom = parseFloat(style.marginBottom);
+            const borderTop = parseFloat(style.borderTopWidth);
+            const borderBottom = parseFloat(style.borderBottomWidth);
+            const offsetHeight = element.offsetHeight; // Includes padding
+
+            return offsetHeight + marginTop + marginBottom + borderTop + borderBottom;
+        }
+
+        function optimizePageSize() {
+            const windowWidth = $(window).width();
+            const windowHeight = $(window).height();
+            console.log("Window size: " + windowWidth + "x" + windowHeight);
+
+            const searchResults = document.getElementById("search-results");
+            const childCount = searchResults.children.length;
+            if (childCount === 0) {
+                return;
+            }
+
+            const firstChild = searchResults.firstElementChild;
+            const itemHeight = getTotalHeight(firstChild);
+
+            const header = document.querySelector("header");
+            const headerHeight = header ? getTotalHeight(header) : 0;
+
+            const footer = document.querySelector("footer");
+            const footerHeight = footer ? getTotalHeight(footer) : 0;
+
+            const urlParams = new URLSearchParams(window.location.search);
+            const pageNumber = urlParams.get('p');
+            const pageSize = Number(urlParams.get('ps')) || 3;
+            console.log("Page size: " + pageSize);
+
+            const newPageSize = Math.max(1, Math.floor((windowHeight - headerHeight - footerHeight) / itemHeight));
+            console.log("New page size: " + newPageSize);
+            if (pageSize === newPageSize) {
+                return;
+            }
+
+            const newPageNumber = Math.floor((pageNumber - 1) * pageSize / newPageSize) + 1;
+            console.log("New page number: " + newPageNumber);
+            window.location.href = window.location.pathname + "?q=" + urlParams.get('q') + "&p=" + newPageNumber + "&ps=" + newPageSize;
+        }
+
+        $(window).resize(function() {
+            clearTimeout(window.resizedFinished);
+            window.resizedFinished = setTimeout(function(){
+                optimizePageSize();
+            }, 250);
+        });
+
+        optimizePageSize();
+    </script>
 {% endblock %}

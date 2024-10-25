@@ -33,7 +33,6 @@ pub struct Media {
     pub created_at: DateTime<Utc>,
     pub size: i64,
     pub location: String,
-    pub was_uploaded: bool,
     pub tags: Vec<Tag>,
 }
 

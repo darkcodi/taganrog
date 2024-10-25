@@ -4,21 +4,15 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Taganrog</title>
-    <!-- htmx -->
-    <script src="https://unpkg.com/htmx.org@1.9.10"></script>
     <!-- tailwind css in js -->
-    <script src="https://cdn.twind.style" crossorigin></script>
-    <script src="https://cdn.twind.style/ext,line-clamp,forms,typography" crossorigin></script>
-    <script>
-        twind.install({
-            hash: false
-        })
-    </script>
+    <script src="/scripts/tailwind.min.js" crossorigin></script>
     <!-- algolia -->
-    <link rel="stylesheet" href="https://unpkg.com/@algolia/autocomplete-theme-classic@1.15.1" />
-    <script src="https://unpkg.com/@algolia/autocomplete-js@1.15.1"></script>
+    <link rel="stylesheet" href="/styles/algolia.min.css" />
+    <script src="/scripts/algolia.min.js"></script>
     <script>
         const { autocomplete } = window['@algolia/autocomplete-js'];
+        const invoke = window.__TAURI__.core.invoke;
+        const convertFileSrc = window.__TAURI__.core.convertFileSrc;
     </script>
     <!-- Allow any inheriting page to extend head with additional assets -->
     {% block head %}{% endblock %}

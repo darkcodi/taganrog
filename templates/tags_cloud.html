@@ -1,0 +1,41 @@
+{% extends "base.html" %}
+
+{% block head %}
+<script src="/scripts/jquery.min.js"></script>
+<script src="/scripts/awesome_cloud.min.js"></script>
+{% endblock %}
+
+{% block content %}
+<div class="flex flex-col h-screen">
+    {% include "default_header.html" %}
+    <div id="demo" class="w-full min-w-full max-w-full h-full min-h-full max-h-full !z-0">
+        {% for tag in tags %}
+            <span data-weight="{{ tag.media_count }}">{{ tag.last }}</span>
+        {% endfor %}
+    </div>
+</div>
+<script>
+    $(document).ready(function(){
+        $("#demo").awesomeCloud({
+            "size" : {
+                "factor" : 0, // font resize factor, 0 means automatic
+                "normalize" : false // reduces outliers for more attractive output
+            },
+            "color" : {
+                "background" : "rgba(255,255,255,0)", // background color, transparent by default
+                "start" : "#20f", // color of the smallest font, if options.color = "gradient""
+                "end" : "rgb(200,0,0)" // color of the largest font, if options.color = "gradient"
+            },
+            "options" : {
+                "color" : "random-dark", // random-light, random-dark, gradient
+                "rotationRatio" : 0.35, // 0 is all horizontal, 1 is all vertical
+                "printMultiplier" : 3, // set to 3 for nice printer output; higher numbers take longer
+                "sort" : "random" // highest, lowest or random
+            },
+            "font" : "'Times New Roman', Times, serif", //  the CSS font-family string
+            "shape" : "circle" // circle, square, star or a theta function describing a shape
+        });
+    });
+</script>
+{% include "search_autocomplete.html" %}
+{% endblock %}

@@ -1,37 +1,16 @@
 use clap::{Arg, Command};
-use log::{debug, error, info};
-use taganrog::{cli, config, web_ui};
-use taganrog::client::TaganrogClient;
-use taganrog::config::AppConfig;
-use taganrog::storage::FileStorage;
+use log::{error, info};
+use taganrog_lib::{cli, config, web_ui};
+use taganrog_lib::client::TaganrogClient;
+use taganrog_lib::config::AppConfig;
+use taganrog_lib::storage::FileStorage;
 
 #[tokio::main]
 async fn main() {
     let command = Command::new("tgk")
-        .version("0.1")
+        .version("0.2")
         .author("Ivan Yaremenchuk")
-        .about("Taganrog All-In-One binary: CLI, Web UI")
-        .arg(Arg::new("config-path")
-            .required(false)
-            .help("Set the config file path. Configuration file is optional. Default: $HOME/taganrog.config.toml")
-            .long("config-path")
-            .short('c')
-            .global(true)
-            .env("TAG_CONFIG"))
-        .arg(Arg::new("work-dir")
-            .required(false)
-            .help("Override working directory, where the database is stored. Only files in this directory and its subdirectories can be tagged. Default: $HOME")
-            .long("workdir")
-            .short('w')
-            .global(true)
-            .env("TAG_WORK_DIR"))
-        .arg(Arg::new("upload-dir")
-            .required(false)
-            .help("Override media upload directory, which is used only by Web UI. It should be a subdirectory of the working directory. Default: $WORKDIR/taganrog-uploads")
-            .long("upload-dir")
-            .short('u')
-            .global(true)
-            .env("TAG_UPLOAD_DIR"))
+        .about("Taganrog All-In-One binary: CLI, desktop GUI")
         .arg(Arg::new("verbose")
             .required(false)
             .num_args(0)
@@ -40,26 +19,7 @@ async fn main() {
             .short('v')
             .global(true)
             .env("TAG_VERBOSE"))
-        .subcommand_required(true)
-        .subcommand(
-            Command::new("config")
-                .about("Manage file configuration")
-                .subcommand(
-                    Command::new("get")
-                        .about("Get a configuration value")
-                        .arg(Arg::new("key").required(true).help("Key of the configuration value"))
-                )
-                .subcommand(
-                    Command::new("set")
-                        .about("Set a configuration value")
-                        .arg(Arg::new("key").required(true).help("Key of the configuration value"))
-                        .arg(Arg::new("value").required(true).help("Value of the configuration value"))
-                )
-        )
-        .subcommand(
-            Command::new("web-ui")
-                .about("Serve a web-ui using the Axum framework")
-        )
+        .subcommand_required(false)
         .subcommand(
             Command::new("tag")
                 .about("Tag a file. It also adds the file to the database if it's not there yet.")
@@ -93,51 +53,29 @@ async fn main() {
 async fn handle_command(command: Command) {
     let matches = command.get_matches();
     match matches.subcommand() {
-        Some(("config", config_matches)) => {
-            config::configure_console_logging(&matches);
-            match config_matches.subcommand() {
-                Some(("get", get_matches)) => {
-                    let key: &String = get_matches.get_one("key").unwrap();
-                    let config_path = config::get_config_path(&matches)
-                        .expect("Failed to get config path");
-                    cli::get_config_value(&config_path, key)
-                },
-                Some(("set", set_matches)) => {
-                    let key: &String = set_matches.get_one("key").unwrap();
-                    let value: &String = set_matches.get_one("value").unwrap();
-                    let config_path = config::get_config_path(&matches)
-                        .expect("Failed to get config path");
-                    cli::set_config_value(&config_path, key, value)
-                },
-                _ => {
-                    error!("Invalid subcommand");
-                    std::process::exit(1);
-                }
-            }
-        },
-        Some(("web-ui", _)) => {
+        None => {
             config::configure_api_logging(&matches);
-            let config = config::get_app_config_or_exit(&matches);
-            let client = create_taganrog_client(config).await;
-            web_ui::serve(client).await
+            let config = config::get_app_config_or_exit();
+            let client = create_taganrog_client(config.clone()).await;
+            web_ui::serve(config, client).await
         },
         Some(("tag", tag_matches)) => {
             config::configure_console_logging(&matches);
             let filepath: &String = tag_matches.get_one("filepath").unwrap();
             let tags: Vec<&String> = tag_matches.get_many("tag").unwrap().collect();
-            let config = config::get_app_config_or_exit(&matches);
+            let config = config::get_app_config_or_exit();
             let mut client = create_taganrog_client(config).await;
             for tag in tags {
                 match cli::tag_media(&mut client, filepath, tag).await {
                     Ok(was_added) => {
                         if was_added {
-                            info!("Tagged media: {}", filepath);
+                            info!("tagged media: {}", filepath);
                         } else {
-                            info!("Media already has tag: {}", filepath);
+                            info!("media already has tag: {}", filepath);
                         }
                     },
                     Err(e) => {
-                        error!("Failed to tag media: {}", e);
+                        error!("failed to tag media: {}", e);
                         std::process::exit(1);
                     }
                 }
@@ -147,19 +85,19 @@ async fn handle_command(command: Command) {
             config::configure_console_logging(&matches);
             let filepath: &String = untag_matches.get_one("filepath").unwrap();
             let tags: Vec<&String> = untag_matches.get_many("tag").unwrap().collect();
-            let config = config::get_app_config_or_exit(&matches);
+            let config = config::get_app_config_or_exit();
             let mut client = create_taganrog_client(config).await;
             for tag in tags {
                 match cli::untag_media(&mut client, filepath, tag).await {
                     Ok(was_removed) => {
                         if was_removed {
-                            info!("Untagged media: {}", filepath);
+                            info!("untagged media: {}", filepath);
                         } else {
-                            info!("Media does not have tag: {}", filepath);
+                            info!("media does not have tag: {}", filepath);
                         }
                     },
                     Err(e) => {
-                        error!("Failed to untag media: {}", e);
+                        error!("failed to untag media: {}", e);
                         std::process::exit(1);
                     }
                 }
@@ -170,7 +108,7 @@ async fn handle_command(command: Command) {
             let all: bool = list_matches.get_flag("all");
             let max_items = if all { usize::MAX } else { 10 };
             let tag_name: String = list_matches.get_one::<String>("tag").map(|x| x.to_owned()).unwrap_or_default();
-            let config = config::get_app_config_or_exit(&matches);
+            let config = config::get_app_config_or_exit();
             let client = create_taganrog_client(config).await;
             let tags_autocomplete = cli::list_tags(&client, tag_name, max_items).await;
             for tag_autocomplete in tags_autocomplete {
@@ -184,43 +122,43 @@ async fn handle_command(command: Command) {
             let all: bool = search_matches.get_flag("all");
             if all { page_size = usize::MAX; page = 1; }
             let tags: Vec<String> = search_matches.get_many::<String>("tag").unwrap().map(|x| x.to_owned()).collect();
-            let config = config::get_app_config_or_exit(&matches);
+            let config = config::get_app_config_or_exit();
             let client = create_taganrog_client(config).await;
             let page_index = page - 1;
             let media_page = cli::search_media(&client, tags, page_size, page_index).await;
 
-            info!("Displaying page {}/{}", media_page.page_index + 1, media_page.total_pages);
-            info!("Total results: {}", media_page.total_count);
+            info!("displaying page {}/{}", media_page.page_index + 1, media_page.total_pages);
+            info!("total results: {}", media_page.total_count);
             for media in media_page.media_vec {
                 info!("{}: {}", media.location, media.tags.join(", "));
             }
         },
         _ => {
-            error!("Invalid subcommand");
+            error!("invalid subcommand");
             std::process::exit(1);
         }
     }
 }
 
 async fn create_taganrog_client(config: AppConfig) -> TaganrogClient<FileStorage> {
-    debug!("Initializing storage...");
-    let storage_result = FileStorage::new(config.work_dir.clone());
+    info!("initializing storage...");
+    let storage_result = FileStorage::new(config.db_filepath.clone());
     if storage_result.is_err() {
-        error!("Failed to initialize storage: {}", storage_result.err().unwrap());
+        error!("failed to initialize storage: {}", storage_result.err().unwrap());
         std::process::exit(1);
     }
     let storage = storage_result.unwrap();
-    debug!("Storage initialized!");
+    info!("storage initialized!");
 
-    let mut client = TaganrogClient::new(config.clone(), storage);
+    let mut client = TaganrogClient::new(config, storage);
 
-    debug!("Initializing DB...");
+    info!("initializing db...");
     let init_result = client.init().await;
     if init_result.is_err() {
-        error!("Failed to initialize client: {}", init_result.err().unwrap());
+        error!("failed to initialize client: {}", init_result.err().unwrap());
         std::process::exit(1);
     }
-    debug!("DB Initialized!");
+    info!("db initialized!");
 
     client
 }

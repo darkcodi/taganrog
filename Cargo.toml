@@ -1,14 +1,21 @@
 [package]
 name = "taganrog"
 description = "A personal tagging system and a search engine for your media library."
-version = "0.1.0"
+version = "0.2.0"
 edition = "2021"
 authors = ["Ivan Yaremenchuk <trooper982@gmail.com>"]
 readme = "README.md"
 license-file = "LICENSE"
 keywords = ["taganrog", "tag", "tagging", "search", "media"]
-categories = ["multimedia", "command-line-utilities", "web-programming"]
+categories = ["multimedia", "command-line-utilities", "web-programming", "gui"]
 repository = "https://github.com/darkcodi/taganrog"
+
+[lib]
+name = "taganrog_lib"
+crate-type = ["staticlib", "cdylib", "rlib"]
+
+[build-dependencies]
+tauri-build = { version = "2.0", features = [] }
 
 [dependencies]
 anyhow = { version = "1.0", features = ["std"] }
@@ -16,26 +23,41 @@ askama = "0.12"
 async-trait = "0.1"
 axum = { version = "0.7", features = ["multipart", "tower-log", "macros"] }
 axum-macros = "0.4"
+base64 = "0.22"
 chrono = { version = "0.4", features = ["serde"] }
 clap = { version = "4.4", features = ["derive", "env"] }
-dashmap = "5.5.3"
+colored = "1.5"
+dashmap = "6.1"
 fastmurmur3 = "0.2"
-fern = "0.6"
+fern = { version = "0.6", features = ["colored"] }
+getrandom = "0.2"
 home = "0.5"
-infer = { version = "0.15", default-features = false }
-itertools = "0.12"
+http = "1.1"
+http-range = "0.1"
+humanize-bytes = "1.0"
+humantime = "2.1"
+itertools = "0.13"
 log = "0.4"
-path-absolutize = "3.1"
+mime = "0.3.0"
+mime_guess = "2.0"
+percent-encoding = "2.3"
 rand = "0.8"
-relative-path = "1.9"
+rand_chacha = "0.3"
+random-port = "0.1"
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
-tempfile = "3"
+showfile = "0.1"
+tauri = { version = "2.0", features = ["protocol-asset"] }
+tauri-plugin-dialog = "2.0"
+tauri-plugin-fs = "2.0"
+tauri-plugin-localhost = "2.0"
+tauri-plugin-log = "2.0"
+tempfile = "3.13"
 thiserror = "1.0"
 tokio = { version = "1.35", features = ["full", "fs"] }
-tokio-util = "0.7.10"
-tower = "0.4"
-tower-http = { version = "0.5", features = ["trace", "cors"] }
-twox-hash = "1.6.3"
+tokio-util = "0.7"
+tower = "0.5"
+tower-http = { version = "0.6", features = ["trace", "cors"] }
+twox-hash = "1.6"
+urlencoding = "2.1"
 uuid = { version = "1.7", features = ["serde", "v4", "fast-rng"] }
-humantime = "2.1.0"
