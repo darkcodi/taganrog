@@ -34,6 +34,9 @@
                                 id="resetAll" onclick="resetAll()">
                             Reset
                         </button>
+                        <div id="upload-progress-container" style="color: #000 !important; background-color: #f1f1f1 !important; display: none; height:24px; width: 40%;">
+                            <div id="upload-progress" style="color: #fff !important; background-color: #f44336 !important; height:24px; width:1%"></div>
+                        </div>
                         <button disabled class="mx-1 my-3 inline-flex items-center justify-center whitespace-nowrap rounded-md text-sm font-medium ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 h-10 px-4 py-2 bg-gray-200 hover:bg-gray-300 transition-colors text-black disabled:opacity-60 disabled:pointer-events-none disabled:cursor-not-allowed"
                                 id="submitTags" onclick="submitAll()">
                             Submit
@@ -162,12 +165,13 @@
                 }
 
                 const files = await invoke('choose_files');
-                if (!files || files.length === 0) {
+                const files_count = files.length;
+                if (!files || files_count === 0) {
                     console.error('No files chosen');
                     return;
                 }
 
-                if (files.length === 1) {
+                if (files_count === 1) {
                     const media = await invoke('load_media_from_file', { path_str: files[0] });
                     console.log('Chosen media:', media);
 
@@ -178,16 +182,25 @@
                 else {
                     document.getElementById('fileInput').style.display = 'none';
 
+                    const progressBarContainer = document.getElementById('upload-progress-container');
+                    const progressBar = document.getElementById('upload-progress');
+                    progressBar.style.width = '0%';
+                    progressBarContainer.style.display = 'block';
+
                     for (const path_str of files) {
                         const media = await invoke('load_media_from_file', { path_str });
                         console.log('Chosen media:', media);
 
                         await addPreviewForMedia(media);
+
+                        const progress = Math.round((files.indexOf(path_str) + 1) / files_count * 100);
+                        progressBar.style.width = `${progress}%`;
                     }
 
                     enableElement(document.getElementById('resetAll'));
                     enableElement(document.getElementById('submitTags'));
                     enableElement(document.getElementById('tag-search'));
+                    progressBarContainer.style.display = 'none';
                 }
             });
         });
