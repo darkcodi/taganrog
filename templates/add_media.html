@@ -71,7 +71,7 @@
                 video.muted = true;
                 video.src = src;
                 video.onloadeddata = () => {
-                    let ctx = canvas.getContext("2d");
+                    const ctx = canvas.getContext("2d");
                     canvas.width = video.videoWidth;
                     canvas.height = video.videoHeight;
                     ctx.drawImage(video, 0, 0, video.videoWidth, video.videoHeight);
@@ -168,7 +168,7 @@
                 }
 
                 if (files.length === 1) {
-                    let media = await invoke('load_media_from_file', { path_str: files[0] });
+                    const media = await invoke('load_media_from_file', { path_str: files[0] });
                     console.log('Chosen media:', media);
 
                     await addPreviewForMedia(media);
@@ -179,7 +179,7 @@
                     document.getElementById('fileInput').style.display = 'none';
 
                     for (const path_str of files) {
-                        let media = await invoke('load_media_from_file', { path_str });
+                        const media = await invoke('load_media_from_file', { path_str });
                         console.log('Chosen media:', media);
 
                         await addPreviewForMedia(media);
@@ -235,7 +235,7 @@
         }
 
         async function submitAll() {
-            let tags_list_children = document.getElementById('tags-list').children;
+            const tags_list_children = document.getElementById('tags-list').children;
             if (tags_list_children.length === 0) {
                 await invoke('show_err_dialog', { message: 'No tags selected' });
                 return;
@@ -244,7 +244,7 @@
             for (const tag of tags_list_children) {
                 tags.add(tag);
             }
-            let allTagsString = Array.from(tags).map(tag => tag.getAttribute('data-tag-name')).join(' ');
+            const allTagsString = Array.from(tags).map(tag => tag.getAttribute('data-tag-name')).join(' ');
             console.log('All tags:', allTagsString);
 
             const previewContainer = document.getElementById('preview-container');
