@@ -14,11 +14,11 @@
             <div class="max-w-7xl w-full mt-6 max-h-full" id="search-results">
                 {% for media in media_vec %}
                     <div class="rounded-md shadow-sm p-4 flex items-start space-x-4 mt-4 bg-gray-50">
-                        <a href="/media/{{ media.id }}?q={{ query }}&p={{ current_page_number }}">
+                        <a href="/media/{{ media.id }}?q={{ query }}&p={{ current_page_number }}&ps={{ page_size }}">
                             <img src="{{ media.thumbnail_location_url }}" class="w-32 h-32 object-contain rounded-md" style="aspect-ratio:100/100;object-fit:contain;" />
                         </a>
                         <div>
-                            <a href="/media/{{ media.id }}?q={{ query }}&p={{ current_page_number }}">
+                            <a href="/media/{{ media.id }}?q={{ query }}&p={{ current_page_number }}&ps={{ page_size }}">
                                 <h2 class="text-xl font-bold">{{ media.filename }}</h2>
                             </a>
                             <p class="text-gray-600">File Size: {{ media.human_size }}</p>
@@ -27,11 +27,11 @@
                             <div class="flex flex-wrap gap-2">
                                 {% for tag in media.tags %}
                                 {% if tag.is_in_query %}
-                                <a href="/search?q={{ query }}%20-{{ tag.name }}&p=1" class="rounded px-2 py-1 text-sm border-4 border-black"
+                                <a href="/search?q={{ query }}%20-{{ tag.name }}&p=1&ps={{ page_size }}" class="rounded px-2 py-1 text-sm border-4 border-black"
                                    style="background-color: {{ tag.bg_color }}; color: {{ tag.fg_color }};"
                                 >#{{ tag.name }}</a>
                                 {% else %}
-                                <a href="/search?q={{ query }}%20{{ tag.name }}&p=1" class="rounded px-2 py-1 text-sm"
+                                <a href="/search?q={{ query }}%20{{ tag.name }}&p=1&ps={{ page_size }}" class="rounded px-2 py-1 text-sm"
                                    style="background-color: {{ tag.bg_color }}; color: {{ tag.fg_color }};"
                                 >#{{ tag.name }}</a>
                                 {% endif %}
@@ -47,38 +47,38 @@
             <div class="flex justify-center mt-4">
                 {% if min_page_navigation > 1 %}
                 <a class="mx-1 my-3 inline-flex items-center justify-center whitespace-nowrap rounded-md text-sm font-medium ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 h-10 px-4 py-2 bg-gray-100 hover:bg-gray-200 transition-colors text-black"
-                   href="/search?q={{ query }}&p=1">
+                   href="/search?q={{ query }}&p=1&ps={{ page_size }}">
                     1
                 </a>
                 {% endif %}
                 {% if has_pages_before %}
                 <a class="mx-1 my-3 inline-flex items-center justify-center whitespace-nowrap rounded-md text-sm font-medium ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 h-10 px-4 py-2 bg-gray-100 hover:bg-gray-200 transition-colors text-black"
-                   href="/search?q={{ query }}&p={{ min_page_navigation }}">
+                   href="/search?q={{ query }}&p={{ min_page_navigation }}&ps={{ page_size }}">
                     ...
                 </a>
                 {% endif %}
                 {% for page in page_navigation %}
                 {% if self.is_current_page(page) %}
                 <a class="mx-1 my-3 inline-flex items-center justify-center whitespace-nowrap rounded-md text-sm !font-bold ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 h-10 px-4 py-2 bg-gray-100 hover:bg-gray-200 transition-colors text-black"
-                   href="/search?q={{ query }}&p={{ page }}">
+                   href="/search?q={{ query }}&p={{ page }}&ps={{ page_size }}">
                     {{ page }}
                 </a>
                 {% else %}
                 <a class="mx-1 my-3 inline-flex items-center justify-center whitespace-nowrap rounded-md text-sm font-medium ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 h-10 px-4 py-2 bg-gray-100 hover:bg-gray-200 transition-colors text-black"
-                   href="/search?q={{ query }}&p={{ page }}">
+                   href="/search?q={{ query }}&p={{ page }}&ps={{ page_size }}">
                     {{ page }}
                 </a>
                 {% endif %}
                 {% endfor %}
                 {% if has_pages_after %}
                 <a class="mx-1 my-3 inline-flex items-center justify-center whitespace-nowrap rounded-md text-sm font-medium ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 h-10 px-4 py-2 bg-gray-100 hover:bg-gray-200 transition-colors text-black"
-                   href="/search?q={{ query }}&p={{ max_page_navigation }}">
+                   href="/search?q={{ query }}&p={{ max_page_navigation }}&ps={{ page_size }}">
                     ...
                 </a>
                 {% endif %}
                 {% if max_page_navigation < max_page_number %}
                 <a class="mx-1 my-3 inline-flex items-center justify-center whitespace-nowrap rounded-md text-sm font-medium ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 h-10 px-4 py-2 bg-gray-100 hover:bg-gray-200 transition-colors text-black"
-                   href="/search?q={{ query }}&p={{ max_page_number }}">
+                   href="/search?q={{ query }}&p={{ max_page_number }}&ps={{ page_size }}">
                     {{ max_page_number }}
                 </a>
                 {% endif %}

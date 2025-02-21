@@ -165,6 +165,7 @@ struct SearchQuery {
 #[template(path = "search.html")]
 pub struct SearchTemplate {
     query: String,
+    page_size: usize,
     media_vec: Vec<ExtendedMedia>,
     current_page_number: usize,
     max_page_number: usize,
@@ -303,6 +304,7 @@ async fn media_search(
 
     HtmlTemplate(SearchTemplate {
         query: normalized_query,
+        page_size,
         media_vec,
         current_page_number: page_number,
         max_page_number: media_page.total_pages,
