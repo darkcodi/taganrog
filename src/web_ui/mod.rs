@@ -11,7 +11,7 @@ use axum::http::StatusCode;
 use axum::response::{Html, IntoResponse, Response};
 use axum_macros::FromRef;
 use chrono::{DateTime, Utc};
-use http::{header::*, response::Builder as ResponseBuilder};
+use http::header::*;
 use humanize_bytes::humanize_bytes_decimal;
 use itertools::Itertools;
 use log::info;
@@ -28,6 +28,9 @@ use crate::utils::normalize_query;
 use crate::utils::str_utils::StringExtensions;
 use crate::web_ui::commands::*;
 use crate::web_ui::streaming::get_stream_response;
+
+// app properties
+const PORT: u16 = 1698;
 
 // icons
 const FAVICON: &[u8] = include_bytes!("assets/favicon.ico");
@@ -73,10 +76,13 @@ pub async fn serve(config: AppConfig, client: TaganrogClient<FileStorage>) {
         .route("/search", get(media_search))
         .route("/tags_cloud", get(tags_cloud))
 
+        // stream
+        .route("/stream/*path", get(stream_file))
+
         .with_state(app_state.clone())
         .layer(TraceLayer::new_for_http());
 
-    let port: u16 = PortPicker::new().protocol(Protocol::Tcp).pick().unwrap();
+    let port: u16 = PORT; // PortPicker::new().protocol(Protocol::Tcp).pick().unwrap();
     let addr = format!("127.0.0.1:{}", port);
     let listener = tokio::net::TcpListener::bind(&addr).await.expect("failed to bind to address");
     info!("listening on {}", &addr);
@@ -99,18 +105,6 @@ pub async fn serve(config: AppConfig, client: TaganrogClient<FileStorage>) {
                 .fullscreen(false)
                 .build()?;
             Ok(())
-        })
-        .register_asynchronous_uri_scheme_protocol("stream", move |_ctx, request, responder| {
-            match get_stream_response(request) {
-                Ok(http_response) => responder.respond(http_response),
-                Err(e) => responder.respond(
-                    ResponseBuilder::new()
-                        .status(StatusCode::INTERNAL_SERVER_ERROR)
-                        .header(CONTENT_TYPE, "text/plain")
-                        .body(e.to_string().as_bytes().to_vec())
-                        .unwrap(),
-                ),
-            }
         })
         .run(tauri::generate_context!())
         .expect("error while running Tauri application");
@@ -492,7 +486,22 @@ async fn tags_cloud(
     HtmlTemplate(TagsCloudTemplate { query: normalized_query, tags })
 }
 
+async fn stream_file(
+    Path(path): Path<String>,
+    headers: HeaderMap,
+) -> impl IntoResponse {
+    match get_stream_response(path.as_str(), headers) {
+        Ok(http_response) => http_response,
+        Err(e) => {
+            let mut error_headers = HeaderMap::new();
+            error_headers.insert(CONTENT_TYPE, HeaderValue::from_str("text/plain").unwrap());
+            let error_body = e.to_string().as_bytes().to_vec();
+            (StatusCode::INTERNAL_SERVER_ERROR, error_headers, error_body)
+        },
+    }
+}
+
 pub fn convert_file_src(file_path: &str) -> String {
     let encoded_path = urlencoding::encode(file_path);
-    format!("http://stream.localhost/{}", encoded_path)
+    format!("http://localhost:{}/stream/{}", PORT, encoded_path)
 }

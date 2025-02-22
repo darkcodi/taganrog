@@ -1,12 +1,13 @@
-use http::{header::*, response::Builder as ResponseBuilder, status::StatusCode};
+use http::{header::*, status::StatusCode};
 use http_range::HttpRange;
 use std::fs::File;
 use std::io::{Read, Seek, SeekFrom, Write};
 
 pub fn get_stream_response(
-    request: http::Request<Vec<u8>>,
-) -> Result<http::Response<Vec<u8>>, Box<dyn std::error::Error>> {
-    let path = percent_encoding::percent_decode(request.uri().path()[1..].as_bytes())
+    path: &str,
+    header_map: HeaderMap,
+) -> Result<(StatusCode, HeaderMap, Vec<u8>), Box<dyn std::error::Error>> {
+    let path = percent_encoding::percent_decode(path.as_bytes())
         .decode_utf8_lossy()
         .to_string();
 
@@ -22,19 +23,14 @@ pub fn get_stream_response(
         len
     };
 
-    let mut resp = ResponseBuilder::new()
-        .header(CONTENT_TYPE, mime_type)
-        .header(ACCESS_CONTROL_ALLOW_ORIGIN, "*");
+    let mut response_code = StatusCode::OK;
+
+    let mut response_headers = HeaderMap::new();
+    response_headers.insert(CONTENT_TYPE, HeaderValue::from_str(&mime_type)?);
+    response_headers.insert(ACCESS_CONTROL_ALLOW_ORIGIN, HeaderValue::from_str("*")?);
 
     // if the webview sent a range header, we need to send a 206 in return
-    let http_response = if let Some(range_header) = request.headers().get("range") {
-        let not_satisfiable = || {
-            ResponseBuilder::new()
-                .status(StatusCode::RANGE_NOT_SATISFIABLE)
-                .header(CONTENT_RANGE, format!("bytes */{len}"))
-                .body(vec![])
-        };
-
+    if let Some(range_header) = header_map.get("range") {
         // parse range header
         let ranges = if let Ok(ranges) = HttpRange::parse(range_header.to_str()?, len) {
             ranges
@@ -43,7 +39,8 @@ pub fn get_stream_response(
                 .map(|r| (r.start, r.start + r.length - 1))
                 .collect::<Vec<_>>()
         } else {
-            return Ok(not_satisfiable()?);
+            response_headers.insert(CONTENT_RANGE, format!("bytes */{len}").parse()?);
+            return Ok((StatusCode::RANGE_NOT_SATISFIABLE, response_headers, Vec::new()));
         };
 
         /// The Maximum bytes we send in one range
@@ -57,7 +54,8 @@ pub fn get_stream_response(
             // this should be already taken care of by HttpRange::parse
             // but checking here again for extra assurance
             if start >= len || end >= len || end < start {
-                return Ok(not_satisfiable()?);
+                response_headers.insert(CONTENT_RANGE, format!("bytes */{len}").parse()?);
+                return Ok((StatusCode::RANGE_NOT_SATISFIABLE, response_headers, Vec::new()));
             }
 
             // adjust end byte for MAX_LEN
@@ -73,10 +71,11 @@ pub fn get_stream_response(
             // read the needed bytes
             file.take(bytes_to_read).read_to_end(&mut buf)?;
 
-            resp = resp.header(CONTENT_RANGE, format!("bytes {start}-{end}/{len}"));
-            resp = resp.header(CONTENT_LENGTH, end + 1 - start);
-            resp = resp.status(StatusCode::PARTIAL_CONTENT);
-            resp.body(buf)
+            response_headers.insert(CONTENT_RANGE, format!("bytes {start}-{end}/{len}").parse()?);
+            response_headers.insert(CONTENT_LENGTH, HeaderValue::from(end + 1 - start));
+            response_code = StatusCode::PARTIAL_CONTENT;
+
+            Ok((response_code, response_headers, buf))
         } else {
             let mut buf = Vec::new();
             let ranges = ranges
@@ -100,10 +99,7 @@ pub fn get_stream_response(
             let boundary_sep = format!("\r\n--{boundary}\r\n");
             let boundary_closer = format!("\r\n--{boundary}\r\n");
 
-            resp = resp.header(
-                CONTENT_TYPE,
-                format!("multipart/byteranges; boundary={boundary}"),
-            );
+            response_headers.insert(CONTENT_TYPE, format!("multipart/byteranges; boundary={boundary}").parse()?);
 
             for (end, start) in ranges {
                 // a new range is being written, write the range boundary
@@ -127,16 +123,16 @@ pub fn get_stream_response(
             // all ranges have been written, write the closing boundary
             buf.write_all(boundary_closer.as_bytes())?;
 
-            resp.body(buf)
+            Ok((response_code, response_headers, buf))
         }
     } else {
-        resp = resp.header(CONTENT_LENGTH, len);
+        response_headers.insert(CONTENT_LENGTH, HeaderValue::from(len));
+
         let mut buf = Vec::with_capacity(len as usize);
         file.read_to_end(&mut buf)?;
-        resp.body(buf)
-    };
 
-    http_response.map_err(Into::into)
+        Ok((response_code, response_headers, buf))
+    }
 }
 
 fn random_boundary() -> String {
