@@ -104,7 +104,7 @@
             const media_id = media.id;
             const mimeType = media.content_type;
             const filepath = media.location;
-            const normalizedFilepath = convertFileSrc(filepath, 'stream');
+            const normalizedFilepath = convertFileSrc(filepath);
             console.log('Normalized filepath:', normalizedFilepath);
 
             const has_thumbnail = await invoke('has_thumbnail', {media_id});
