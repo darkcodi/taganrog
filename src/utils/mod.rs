@@ -21,8 +21,8 @@ pub fn normalize_query(query: &str) -> String {
         .unique() // filter out duplicates
         .collect::<Vec<String>>();
 
-    if final_tags.len() > 1 && final_tags.iter().any(|x| x == "all" || x == "null" || x == "untagged" || x == "no-tags" || x == "no-thumbnail") {
-        final_tags.retain(|x| x != "all" && x != "null" && x != "untagged" && x != "no-tags" && x != "no-thumbnail");
+    if final_tags.len() > 1 && final_tags.iter().any(|x| x == "all" || x == "no-thumbnail") {
+        final_tags.retain(|x| x != "all" && x != "no-thumbnail");
     }
 
     let mut normalized_query = final_tags.join(" ");

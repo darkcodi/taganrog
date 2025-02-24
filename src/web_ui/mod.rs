@@ -271,9 +271,6 @@ async fn media_search(
     let client = state.client.read().await;
     let media_page = match normalized_query.as_str() {
         "all" => client.get_all_media(page_size, page_index),
-        "null" => client.get_untagged_media(page_size, page_index),
-        "untagged" => client.get_untagged_media(page_size, page_index),
-        "no-tags" => client.get_untagged_media(page_size, page_index),
         "no-thumbnail" => client.get_media_without_thumbnail(page_size, page_index),
         _ => client.search_media(&normalized_query, page_size, page_index),
     };
