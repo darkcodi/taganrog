@@ -269,9 +269,14 @@
 
             for (const previewImage of previewImages) {
                 const media_id = previewImage.getAttribute('data-media-id');
+
                 const filepath = previewImage.getAttribute('data-location');
                 await invoke('add_tag_to_media', { media_id, tags: allTagsString, path: filepath });
                 console.log('Added tags to media:', media_id);
+
+                const thumbnail = previewImage.src;
+                await invoke('save_thumbnail', { media_id, thumbnail });
+                console.log('Saved thumbnail for media:', media_id);
             }
 
             console.log('All tags added');
